@@ -73,6 +73,9 @@ services:
         SERVICE_PORT: ${PROXY_PORT}
     environment:
       - SERVICE_PORT=${PROXY_PORT}
+      - LLM_MODEL_NAME=${LLM_MODEL_NAME}
+      - OLLAMA_SERVER_HOST=${OLLAMA_SERVER_HOST}
+      - OLLAMA_SERVER_PORT=${OLLAMA_SERVER_PORT}
     ports:
       - "${PROXY_PORT}:${PROXY_PORT}"
     volumes:

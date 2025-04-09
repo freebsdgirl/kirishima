@@ -37,7 +37,6 @@ from app.docs import router as docs_router
 from shared.models.scheduler import SchedulerJobRequest
 
 import uuid
-from fastapi import FastAPI, HTTPException, status
 from typing import Optional, Dict, Any, List
 import requests
 from datetime import datetime
@@ -51,7 +50,7 @@ from apscheduler.jobstores.base import JobLookupError
 from shared.log_config import get_logger
 logger = get_logger(__name__)
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, status
 app = FastAPI()
 app.include_router(docs_router)
 

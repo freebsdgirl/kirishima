@@ -101,5 +101,5 @@ All services run locally and communicate over defined ports using HTTP.
 
 ## 🗂 Reference Files
 
-- [Full Architecture](Full%20BArchitecture.md): Deep dive into responsibilities and flow
-- [Ports and Endpoints](Ports%20Band%20BEndpoints.md): All live route definitions and ports
+- [Full Architecture](Full%20Architecture.md): Deep dive into responsibilities and flow
+- [Ports and Endpoints](Ports%20and%20Endpoints.md): All live route definitions and ports

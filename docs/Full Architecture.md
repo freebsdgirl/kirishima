@@ -165,5 +165,5 @@ Abstraction layer over ChromaDB for managing:
 
 ### 📘 Reference
 
-- See [Ports and Endpoints](Ports%20Band%20BEndpoints.md) for live FastAPI service locations
-- [Project Overview](Project%20BOverview.md) provides a full onboarding reference
+- See [Ports and Endpoints](Ports%20and%20Endpoints.md) for live FastAPI service locations
+- [Project Overview](Project%20Overview.md) provides a full onboarding reference

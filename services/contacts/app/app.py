@@ -49,9 +49,6 @@ logger = get_logger(__name__)
 
 from fastapi import FastAPI
 app = FastAPI()
-
-
-app = FastAPI()
 app.include_router(docs_router)
 
 

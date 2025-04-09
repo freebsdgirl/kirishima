@@ -10,7 +10,7 @@
 
 ## 🧠 System Architecture Overview
 
-### 🌐 [API](Services/APIy.md)
+### 🌐 [API](Services/API.md)
 
 Adapter layer between OpenAI-style clients (e.g., OpenWebUI) and the internal Kirishima ecosystem.
 

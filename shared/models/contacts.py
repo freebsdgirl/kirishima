@@ -32,8 +32,7 @@ class ContactCreate(BaseModel):
     """
     aliases: List[str] = Field(..., description="A list of alternative names or identifiers for the contact.")
     fields: List[Dict[str, Any]] = Field(..., description="A list of key-value pairs containing additional contact information.")
-    notes: Optional[str] = Field("", description="Optional notes or comments about the contact.")
-
+    notes: Optional[str] = Field(None, description="Optional notes or comments about the contact.")
     class Config:
         json_schema_extra = {
             "example": {
@@ -64,8 +63,7 @@ class Contact(BaseModel):
     id: str = Field(..., description="The unique identifier for the contact.")
     aliases: List[str] = Field(..., description="A list of alternative names or identifiers for the contact.")
     fields: List[Dict[str, Any]] = Field(..., description="A list of key-value pairs containing additional contact information.")
-    notes: Optional[str] = Field("", description="Optional notes or comments about the contact.")
-
+    notes: Optional[str] = Field(None, description="Optional notes or comments about the contact.")
     class Config:
         json_schema_extra = {
             "example": {

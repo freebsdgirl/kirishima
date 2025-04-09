@@ -80,8 +80,8 @@ def scheduler_callback(payload: SchedulerCallbackRequest) -> dict:
         func = globals()[func_name]
 
     except KeyError:
+        logger.error(f"Function '{func_name}' not found in globals.")
         raise HTTPException(
-            logger.error(f"Function '{func_name}' not found in globals."),
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Function '{func_name}' not found"
         )

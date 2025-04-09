@@ -57,7 +57,7 @@ class BufferEntry(BaseModel):
     text: str
     user_id: str
     platform: str
-    timestamp: datetime = Field(default_factory=lambda: datetime.now().isoformat())
+    timestamp: str = Field(default_factory=lambda: datetime.now().isoformat())
 
 
 @router.post("", response_model=dict)

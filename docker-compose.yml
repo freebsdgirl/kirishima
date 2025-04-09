@@ -1,0 +1,97 @@
+services:
+  api:
+    build:
+      context: ./services/api
+      args:
+        SERVICE_PORT: ${API_PORT}
+    environment:
+      - SERVICE_PORT=${API_PORT}
+    ports:
+      - "${API_PORT}:${API_PORT}"
+    volumes:
+      - ./shared:/app/shared
+
+  brain:
+    build:
+      context: ./services/brain
+      args:
+        SERVICE_PORT: ${BRAIN_PORT}
+    environment:
+      - SERVICE_PORT=${BRAIN_PORT}
+    ports:
+      - "${BRAIN_PORT}:${BRAIN_PORT}"
+    volumes:
+      - ./shared:/app/shared
+
+  chromadb:
+    build:
+      context: ./services/chromadb
+      args:
+        SERVICE_PORT: ${CHROMADB_PORT}
+    environment:
+      - SERVICE_PORT=${CHROMADB_PORT}
+    ports:
+      - "${CHROMADB_PORT}:${CHROMADB_PORT}"
+    volumes:
+      - ./shared:/app/shared
+
+  contacts:
+    build:
+      context: ./services/contacts
+      args:
+        SERVICE_PORT: ${CONTACTS_PORT}
+    environment:
+      - SERVICE_PORT=${CONTACTS_PORT}
+    ports:
+      - "${CONTACTS_PORT}:${CONTACTS_PORT}"
+    volumes:
+      - ./shared:/app/shared
+
+  imessage:
+    build:
+      context: ./services/imessage
+      args:
+        SERVICE_PORT: ${IMESSAGE_PORT}
+    environment:
+      - SERVICE_PORT=${IMESSAGE_PORT}
+    ports:
+      - "${IMESSAGE_PORT}:${IMESSAGE_PORT}"
+    volumes:
+      - ./shared:/app/shared
+
+  proxy:
+    build:
+      context: ./services/proxy
+      args:
+        SERVICE_PORT: ${PROXY_PORT}
+    environment:
+      - SERVICE_PORT=${PROXY_PORT}
+    ports:
+      - "${PROXY_PORT}:${PROXY_PORT}"
+    volumes:
+      - ./shared:/app/shared
+
+  scheduler:
+    build:
+      context: ./services/scheduler
+      args:
+        SERVICE_PORT: ${SCHEDULER_PORT}
+    environment:
+      - SERVICE_PORT=${SCHEDULER_PORT}
+    ports:
+      - "${SCHEDULER_PORT}:${SCHEDULER_PORT}"
+    volumes:
+      - ./shared:/app/shared
+
+  summarize:
+    build:
+      context: ./services/summarize
+      args:
+        SERVICE_PORT: ${SUMMARIZE_PORT}
+    environment:
+      - SERVICE_PORT=${SUMMARIZE_PORT}
+    ports:
+      - "${SUMMARIZE_PORT}:${SUMMARIZE_PORT}"
+    volumes:
+      - ./shared:/app/shared
+

@@ -153,13 +153,13 @@ def get_summary(id: str) -> dict:
 
 
 @router.get("/user/{user_id}", response_model=list)
-def get_user_summary(user_id: str, since: Optional[datetime] = None, platform: Optional[str] = None) -> list:
+def get_user_summary(user_id: str, since: Optional[str] = None, platform: Optional[str] = None) -> list:
     """
     Retrieve summaries for a specific user, optionally filtered by timestamp and platform.
 
     Args:
         user_id (str): The unique identifier of the user whose summaries are to be retrieved.
-        since (Optional[datetime], optional): The earliest timestamp to filter summaries. Defaults to None.
+        since (Optional[str], optional): The earliest timestamp to filter summaries. Defaults to None.
         platform (Optional[str], optional): The platform to filter summaries by. Defaults to None.
 
     Returns:
@@ -237,7 +237,7 @@ def search_summary(
     q: str,
     user_id: Optional[str] = None,
     platform: Optional[str] = None,
-    since: Optional[datetime] = None
+    since: Optional[str] = None
 ) -> list:
     """
     Search summaries with optional filtering and semantic ranking.
@@ -246,7 +246,7 @@ def search_summary(
         q (str): Search query text to find semantically similar summaries.
         user_id (Optional[str], optional): Filter summaries by specific user ID.
         platform (Optional[str], optional): Filter summaries by platform containing the given string.
-        since (Optional[datetime], optional): Filter summaries created after this timestamp.
+        since (Optional[str], optional): Filter summaries created after this timestamp.
 
     Returns:
         list: Ranked list of matching summary documents, sorted by semantic relevance and recency.

@@ -1,6 +1,6 @@
 # Ports and Endpoints
 
-## 🌐 [API](docs/Services/APIy.md)
+## 🌐 [API](Services/API.md)
 
 * Port 4200
 * Endpoints
@@ -10,7 +10,7 @@
   * GET /models
   * POST /chat/completions
   
-## 🧠 [Brain](docs/Services/Brain.md)
+## 🧠 [Brain](Services/Brain.md)
 
 * Port 4207
 * Endpoints
@@ -36,7 +36,7 @@
     * POST /status/mode/{mode}
     * GET /status/mode
 
-## 📇 [ChromaDB](docs/Services/ChromaDB.md)
+## 📇 [ChromaDB](Services/ChromaDB.md)
 
 * Port 4206
 * Endpoints
@@ -60,7 +60,7 @@
     * GET /buffer/{user_id}
     * DELETE /buffer/{user_id}
 
-## 📇 [Contacts](docs/Services/Contacts.md)
+## 📇 [Contacts](Services/Contacts.md)
 
 * Port 4202
 * Endpoints
@@ -71,7 +71,7 @@
   * DELETE /contact/{id}
   * GET /search (?q=)
 
-## 💬 [iMessage](docs/Services/iMessage.md)
+## 💬 [iMessage](Services/iMessage.md)
 
 * Port 4204
 * Endpoints
@@ -79,13 +79,13 @@
     * POST /imessage/send
     * POST /imessage/recv
 
-## 🔁 [Proxy](docs/Services/Proxy.md)
+## 🔁 [Proxy](Services/Proxy.md)
 
 * Port 4205
 * Endpoints
   * POST /from/imessage
   
-## ⏱ [Scheduler](docs/Services/Scheduler.md)
+## ⏱ [Scheduler](Services/Scheduler.md)
 
 * Port 4201
 * Endpoints
@@ -95,7 +95,7 @@
   * POST /jobs/{id}/pause
   * POST /jobs/{id}/resume
 
-## 📚 [Summarize](docs/Services/Summarize.md)
+## 📚 [Summarize](Services/Summarize.md)
 
 * Port 4203
 * Endpoints

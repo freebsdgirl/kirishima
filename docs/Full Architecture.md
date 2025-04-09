@@ -10,7 +10,7 @@
 
 ## 🧠 System Architecture Overview
 
-### 🌐 [API](docs/Services/APIy.md)
+### 🌐 [API](Services/APIy.md)
 
 Adapter layer between OpenAI-style clients (e.g., OpenWebUI) and the internal Kirishima ecosystem.
 
@@ -31,7 +31,7 @@ Adapter layer between OpenAI-style clients (e.g., OpenWebUI) and the internal Ki
 
 ---
 
-### 🧠 [Brain](docs/Services/Brain.md)
+### 🧠 [Brain](Services/Brain.md)
 
 Central reasoning and memory hub. Owns memory, buffer state, and behavioral logic.
 
@@ -46,7 +46,7 @@ Central reasoning and memory hub. Owns memory, buffer state, and behavioral logi
 
 ---
 
-### 🧬 [ChromaDB](docs/Services/ChromaDB.md)
+### 🧬 [ChromaDB](Services/ChromaDB.md)
 
 Dedicated vector memory store for long-term semantic retrieval.
 
@@ -59,7 +59,7 @@ Dedicated vector memory store for long-term semantic retrieval.
 
 ---
 
-### 📇 [Contacts](docs/Services/Contacts.md)
+### 📇 [Contacts](Services/Contacts.md)
 
 **Responsibilities:**
 
@@ -70,7 +70,7 @@ Dedicated vector memory store for long-term semantic retrieval.
 
 ---
 
-### 💬 [iMessage](docs/Services/iMessage.md)
+### 💬 [iMessage](Services/iMessage.md)
 
 BlueBubbles-powered microservice for iMessage integration.
 
@@ -89,7 +89,7 @@ BlueBubbles-powered microservice for iMessage integration.
 
 ---
 
-### 🔁 [Proxy](docs/Services/Proxy.md)
+### 🔁 [Proxy](Services/Proxy.md)
 
 This service handles all LLM interaction. No other service may call the LLM.
 
@@ -116,7 +116,7 @@ Acts as a bridge between OpenAI-compatible clients and the Ollama backend.
 
 ---
 
-### ⏱ [Scheduler](docs/Services/Scheduler.md)
+### ⏱ [Scheduler](Services/Scheduler.md)
 
 Handles timed tasks using APScheduler (v3.x).
 
@@ -135,7 +135,7 @@ Handles timed tasks using APScheduler (v3.x).
 
 ---
 
-### 📚 [Summarize](docs/Services/Summarize.md)
+### 📚 [Summarize](Services/Summarize.md)
 
 Abstraction layer over ChromaDB for managing:
 
@@ -165,5 +165,5 @@ Abstraction layer over ChromaDB for managing:
 
 ### 📘 Reference
 
-- See [Ports and Endpoints](docs/Ports%20Band%20BEndpoints.md) for live FastAPI service locations
-- [Project Overview](docs/Project%20BOverview.md) provides a full onboarding reference
+- See [Ports and Endpoints](Ports%20Band%20BEndpoints.md) for live FastAPI service locations
+- [Project Overview](Project%20BOverview.md) provides a full onboarding reference

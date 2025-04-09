@@ -19,7 +19,7 @@ The Summarize service handles long-form and short-form summarization for user co
 
 ### `/summary`
 
-- `POST /summary` – Store a summary in [[ChromaDB]]
+- `POST /summary` – Store a summary in ChromaDB
 - `GET /summary/{id}` – Retrieve a summary by ID
 - `GET /summary/user/{user_id}` – Get all summaries for a user
 - `GET /summary/search` – Perform semantic + recency search

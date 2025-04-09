@@ -82,8 +82,7 @@ def insert_conversation(entry: BufferMessage) -> dict:
         }
 
     except Exception as e:
-        logger.error(f"Error adding buffery entry: {e}")
-        
+        logger.error(f"Error adding buffer entry: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error adding buffery entry: {e}"

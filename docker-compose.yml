@@ -6,6 +6,8 @@ services:
         SERVICE_PORT: ${API_PORT}
     environment:
       - SERVICE_PORT=${API_PORT}
+      - BRAIN_HOST=brain
+      - BRAIN_PORT=${BRAIN_PORT}
     ports:
       - "${API_PORT}:${API_PORT}"
     volumes:

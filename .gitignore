@@ -3,3 +3,4 @@
 .env
 *.db
 kirishima.code-workspace
+__pycache__

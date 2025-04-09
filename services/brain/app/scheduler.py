@@ -70,8 +70,8 @@ def scheduler_callback(payload: SchedulerCallbackRequest) -> dict:
     func_name = metadata.get("function")
 
     if not func_name:
+        logger.error("Missing 'function' in metadata")
         raise HTTPException(
-            logger.error("Missing 'function' in metadata"),
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Missing 'function' in metadata"
         )

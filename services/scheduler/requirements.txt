@@ -1,3 +1,6 @@
 uvicorn
 fastapi
 graypy
+apscheduler
+requests
+SQLAlchemy

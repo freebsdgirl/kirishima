@@ -20,6 +20,14 @@ services:
         SERVICE_PORT: ${BRAIN_PORT}
     environment:
       - SERVICE_PORT=${BRAIN_PORT}
+      - CHROMADB_HOST=chromadb
+      - CHROMADB_PORT=${CHROMADB_PORT}
+      - CONTACTS_HOST=contacts
+      - CONTACTS_PORT=${CONTACTS_PORT}
+      - SUMMARIZE_HOST=summarize
+      - SUMMARIZE_PORT=${SUMMARIZE_PORT}
+      - SCHEDULER_HOST=scheduler
+      - SCHEDULER_PORT=${SCHEDULER_PORT}
     ports:
       - "${BRAIN_PORT}:${BRAIN_PORT}"
     volumes:

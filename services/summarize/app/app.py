@@ -177,8 +177,7 @@ def summarize_buffers() -> Dict[str, Any]:
 
         except Exception as e:
             logger.error(f"Error processing summarization for user {user_id}: {e}")
-            results[user_id] = {"error": str(e)}
-    
+            results[user_id] = {"error": "An error occurred while processing the summarization."}
     return results
 
 

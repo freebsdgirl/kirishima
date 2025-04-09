@@ -279,8 +279,7 @@ def search_summary(
         logger.debug(f"📥 Retrieved {len(results['ids'][0])} semantic matches")
 
         matches = []
-        now = datetime.now().isoformat()
-
+        now = datetime.now()
         for doc_id, text, metadata, distance in zip(
             results["ids"][0],
             results["documents"][0],

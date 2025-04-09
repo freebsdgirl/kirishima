@@ -203,8 +203,8 @@ def add_job(job_request: SchedulerJobRequest) -> JobResponse:
             )
 
         else:
+            logger.error("Unsupported trigger type")
             raise HTTPException(
-                logger.error("Unsupported trigger type"),
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Unsupported trigger type. Use 'date' or 'interval'."
             )

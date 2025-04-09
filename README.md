@@ -1,81 +1,111 @@
 # 🧠 Kirishima
 
-Kirishima is a modular, containerized system designed to orchestrate intelligent reasoning, messaging, and memory across multiple platforms. At the core is **Brain**, an agentic reasoning engine that coordinates interactions between specialized microservices like Summarize, ChromaDB, Scheduler, and Proxy.
+Kirishima is a personal assistant system designed to think, remember, and communicate across multiple platforms, entirely under your control.
+Sort of.
 
-> **⚠️ This project is currently undergoing a major rewrite.**  
-We are in the process of porting logic from a legacy monorepo into a clean, containerized architecture. All services are being rewritten with stricter routing contracts, simplified responsibilities, and shared message models.
+So one day, I sat down and wondered what would happen if I built an intelligent system around an AI - and then gave it control over fine-tuning and architectural decisions.
 
----
+This project is a result of that mistake.
 
-## 💡 Project Purpose
+## 🤔 What Is This?
 
-Kirishima is designed to:
+Kirishima is what happens when you try to give an AI memory, autonomy, and multi-platform communication without handing your entire digital life to a closed API.
 
-- Centralize reasoning through a single intelligent agent (**Brain**)
-- Support structured, persistent memory using vector search and summarization
-- Allow real-time interaction across platforms like iMessage, Email, and OpenWebUI
-- Decouple prompt scaffolding, LLM usage, and memory management
-- Enable **push-style notification and message delivery** across channels
+It’s built around a central reasoning engine called **Brain**, backed by modular services that handle memory, scheduling, messages, and more.
 
-This architecture is optimized for **agent autonomy**, **contextual reasoning**, and **platform-agnostic communication**.
+It can:
 
----
+- Chat with you over iMessage, Discord, or Email
+- Summarize and remember things you've said
+- Automate tasks using Home Assistant or Node-RED
+- Function entirely offline, with open models
 
-## 🗃️ Documentation
+Also, it’s containerized. Because of course it is.
 
-The current documentation set is being carried forward from the previous repo and includes:
+## 🛠️ What’s Working So Far?
 
-- **[Full Architecture.md](docs/Full%20Architecture.md)** – system design and enforcement rules
-- **[Ports and Endpoints.md](docs/Ports%20and%20Endpoints.md)** – assigned container ports and service interfaces
-- **Per-service specs** (in `docs/Services/`) for:
-  - API
-  - Brain
-  - ChromaDB
-  - Contacts
-  - iMessage
-  - Proxy
-  - Scheduler
-  - Summarize
+| Service         | Description                                                  | Status           |
+|----------------|--------------------------------------------------------------|------------------|
+| `Brain`         | The control freak. Orchestrates everything.                  | ✅ Core built     |
+| `Proxy`         | Sends prompts to a local LLM (e.g. Mistral via Ollama)       | 🛠️ Mid-refactor   |
+| `Summarize`     | Compresses chat/email/SMS into memories you won’t hate later | 🧠 Evolving logic |
+| `ChromaDB`      | Vector store for long-term memory retrieval                  | ✅ Works fine     |
+| `Contacts`      | Helps Brain recognize who the hell it’s talking to           | ✅ Working        |
+| `Scheduler`     | Time-based trigger system (think: cron but emotional)        | ✅ Working        |
+| `iMessage`      | Let’s just say… BlueBubbles was a journey                    | ✅ Working        |
 
-These documents reflect both **active design choices** and **legacy constraints** we are migrating away from.
+## 🔮 Upcoming Integrations
 
----
+Because no chaos engine is complete without these:
 
-## 🐳 Containerization
+| Service        | Purpose                                                       |
+|----------------|---------------------------------------------------------------|
+| `Email`         | Inbound/outbound parsing, summaries, chaos via IMAP          |
+| `Discord`       | Bot integration, DMs, and channel chatter                    |
+| `Bluesky`       | Fediverse presence (because why not)                         |
+| `Home Assistant`| Smart home sync-up (e.g. "dim the lights, I’m thinking")     |
+| `Node-RED`      | External workflow logic via low-code glue                    |
 
-Kirishima is fully containerized using `docker-compose`. Each microservice runs in its own container and shares common volume mounts for:
+## ⚠️ What Stage Is This In?
 
-- Shared message model classes
-- Logging configuration
-- Local SQLite data (e.g., for temporary buffers)
+Right now, Kirishima is undergoing a full rewrite. We’re moving away from:
 
----
+- Monolithic glue logic
+- Leaky OpenAI abstractions
+- 3AM regex decisions
 
-## 🛠️ Current Rewrite Goals
+And toward:
 
-- Replace OpenAI-style LLM wrappers with direct, structured calls to **Mistral Nemo Instruct 12B Q6_K**
-- Separate OpenWebUI-specific quirks from core routing using a new `/messages/api` endpoint in Brain
-- Implement dual-layer buffer handling (SQLite + ChromaDB) for resilient context and overwrite support
-- Migrate to shared class-based message formats across all services
-- Restore full end-to-end messaging for OpenWebUI with retry and function execution logic via Proxy
+- Isolated service boundaries
+- Shared class models
+- Actual architectural sanity
 
----
+**Do not expect stability. Do expect sarcasm and strange decisions.**
 
-## ✨ Status
+## 📚 Want to Understand It?
 
-- ✅ Docker containers configured
-- ✅ Base documentation imported
-- 🚧 Rewrite of logic in progress
-  - 🚧 API
-  - 🚧 Brain
-  - 🚧 ChromaDB
-  - 🚧 Proxy
-  - 🚧 Summarize
-- 🚧 LLM integration via Proxy underway
-- 🚧 Summarize and Buffer services being refactored
+Start with the docs:
 
----
+- [`Full Architecture.md`](docs/Full%20Architecture.md) — the rules and why they exist
+- [`Project Overview.md`](docs/Project%20Overview.md) — what each piece does
+- [`Ports and Endpoints.md`](docs/Ports%20and%20Endpoints.md) — where everything runs
 
-## 📫 Contact
+Each microservice also has its own file in `docs/Services/`.
 
-This project is in active development. For questions, design proposals, or contributions, please open an issue or discussion thread.
+## 🧠 Philosophical Goals
+
+This is not just a chatbot. This is a system that:
+
+- Remembers what you’ve said
+- Adapts to your patterns
+- Takes initiative (within reason)
+- Tries to feel *alive*, but in a healthy, boundaries-respecting way
+
+## 🛳️ How To Use It
+
+- You’ll need Docker and some patience
+- Start the containers
+- Point an OpenWebUI instance or other OpenAI-compatible client at the API Intermediary
+- Argue with the AI
+- Let it summarize your existential crisis for future analysis
+
+More setup instructions coming soon.
+
+## 🤝 Contributing
+
+Right now, this is mostly a personal experiment-turned-public. But:
+
+- Issues are welcome
+- PRs are negotiable
+- Questions are tolerated
+
+And if you’re building your own weird AI assistant, I genuinely want to hear about it.
+
+## 🕳️ Final Warning
+
+This is the kind of repo where the commit history is as much a psychological profile as a changelog.  
+If you dive in, you’re agreeing to witness the consequences of unregulated autonomy and caffeine-driven design.
+
+A word of advice - don't let ChatGPT 4o write code for you. It never ends well.
+
+Good luck.

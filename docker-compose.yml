@@ -100,6 +100,8 @@ services:
         SERVICE_PORT: ${SUMMARIZE_PORT}
     environment:
       - SERVICE_PORT=${SUMMARIZE_PORT}
+      - CHROMADB_HOST=chromadb
+      - CHROMADB_PORT=${CHROMADB_PORT}
     ports:
       - "${SUMMARIZE_PORT}:${SUMMARIZE_PORT}"
     volumes:

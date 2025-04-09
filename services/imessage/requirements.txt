@@ -1,3 +1,5 @@
 uvicorn
 fastapi
 graypy
+requests
+httpx

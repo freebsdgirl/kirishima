@@ -4,3 +4,4 @@
 *.db
 kirishima.code-workspace
 __pycache__
+*.sqlite3

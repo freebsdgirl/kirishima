@@ -71,7 +71,7 @@ def get_embedding(text: str) -> list:
     return embedding_model.encode(text).tolist()
 
 
-@router.post("/memory", response_model=JSONResponse)
+@router.post("/memory")
 async def memory_add(request_data: RawMemoryRequest) -> JSONResponse:
     """
     Add a new memory to the memory storage service.
@@ -156,7 +156,7 @@ class SearchForId(BaseModel):
     input: str
 
 
-@router.post("/memory/search/id", response_model=JSONResponse)
+@router.post("/memory/search/id")
 async def memory_search_for_id(request: SearchForId) -> str:
     """
     Search for a memory's unique identifier based on input text.
@@ -210,7 +210,7 @@ async def memory_search_for_id(request: SearchForId) -> str:
         )
 
 
-@router.get("/memory", response_model=JSONResponse)
+@router.get("/memory")
 async def memory_list_by_component(component: str, limit: int = 100) -> JSONResponse:
     """
     Retrieve memories for a specific component from the memory storage service.
@@ -276,7 +276,7 @@ async def memory_list_by_component(component: str, limit: int = 100) -> JSONResp
         )
 
 
-@router.get("/memory/{id}", response_model=JSONResponse)
+@router.get("/memory/{id}")
 async def memory_list_id(id: str) -> JSONResponse:
     """
     Retrieve a specific memory by its unique identifier.
@@ -381,7 +381,7 @@ async def memory_delete_by_id(id: str) -> Response:
         )
 
 
-@router.put("/memory/{id}", response_model=JSONResponse)
+@router.put("/memory/{id}")
 async def memory_replace_by_id(id: str, request_data: RawMemoryRequest) -> JSONResponse:
     """
     Replace an existing memory entry by its unique identifier.
@@ -456,7 +456,7 @@ class MemoryPatchRequest(BaseModel):
     priority: Optional[float] = None
 
 
-@router.patch("/memory/{id}", response_model=JSONResponse)
+@router.patch("/memory/{id}")
 async def memory_patch_by_id(id: str, patch_data: MemoryPatchRequest) -> JSONResponse:
     """
     Partially update a memory entry by its ID.

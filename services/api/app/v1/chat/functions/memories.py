@@ -12,18 +12,18 @@ integrates with a ChromaDB URL for memory management. It respects a maximum
 memory count limit and handles potential errors during database interactions.
 """
 
-import api.config
+import app.config
 
 from pydantic import BaseModel
 
 import requests
 import json
 
-from log_config import get_logger
+from shared.log_config import get_logger
 
 logger = get_logger(__name__)
 
-from api.v1.chat.functions.mode import get_mode
+from app.v1.chat.functions.mode import get_mode
 class MemoryRequest(BaseModel):
     """
     Pydantic model representing a memory request with details for storing a memory.
@@ -66,7 +66,7 @@ def create_memory(input: str, priority: float) -> None:
     )
 
     try:
-        response = requests.post(api.config.BRAIN_MEMORY_BASE_URL, json=memory_request.model_dump())
+        response = requests.post(app.config.BRAIN_MEMORY_BASE_URL, json=memory_request.model_dump())
 
         if response.status_code != 200:
             logger.error(f"🤯 ERROR contacting brain: {response.status_code} - {response.text}")
@@ -111,7 +111,7 @@ def delete_memory(input: str) -> None:
 
     # get the id of the memory to be deleted
     try:
-        response = requests.post(f"{api.config.BRAIN_MEMORY_BASE_URL}/search/id", json=payload)
+        response = requests.post(f"{app.config.BRAIN_MEMORY_BASE_URL}/search/id", json=payload)
         if response.status_code != 200:
             logger.error(f"🤯 ERROR querying brain: {response.status_code} - {response.text}")
             return
@@ -124,7 +124,7 @@ def delete_memory(input: str) -> None:
 
     # delete the id
     try:
-        response = requests.delete(f"{api.config.BRAIN_MEMORY_BASE_URL}/{id}")
+        response = requests.delete(f"{app.config.BRAIN_MEMORY_BASE_URL}/{id}")
         if response.status_code != 200:
             logger.error(f"🤯 ERROR querying brain: {response.status_code} - {response.text}")
             return
@@ -143,7 +143,7 @@ def list_memories():
         # limit should probably be set from context window or in config? and it's only pulling the 100
         # oldest. gotta fix that.
         mode = get_mode()
-        response = requests.get(f"{api.config.BRAIN_MEMORY_BASE_URL}?component=proxy_{mode}&limit=100")
+        response = requests.get(f"{app.config.BRAIN_MEMORY_BASE_URL}?component=proxy_{mode}&limit=100")
         if response.status_code != 200:
             logger.error(f"🤯 ERROR querying brain: {response.status_code} - {response.text}")
             return ""

@@ -1,4 +1,4 @@
-import api.config
+import app.config
 
 import requests
 
@@ -13,8 +13,8 @@ def _get_mal_synopsis(anime_id):
     Returns:
         str: The synopsis of the anime.
     """
-    endpoint = f'{api.config.MAL_BASE_URL}/{anime_id}?fields=synopsis'
-    response = requests.get(endpoint, headers={'X-MAL-CLIENT-ID': api.config.MAL_CLIENT_ID})
+    endpoint = f'{app.config.MAL_BASE_URL}/{anime_id}?fields=synopsis'
+    response = requests.get(endpoint, headers={'X-MAL-CLIENT-ID': app.config.MAL_CLIENT_ID})
     data = response.json()
     return data['synopsis']
 
@@ -29,8 +29,8 @@ def _search_mal_for_id(query):
     Returns:
         tuple: A tuple containing the anime's ID and title, using the first result.
     """
-    endpoint = f'{api.config.MAL_BASE_URL}?limit=1&fields=id&q={query}'
-    response = requests.get(endpoint, headers={'X-MAL-CLIENT-ID': api.config.MAL_CLIENT_ID})
+    endpoint = f'{app.config.MAL_BASE_URL}?limit=1&fields=id&q={query}'
+    response = requests.get(endpoint, headers={'X-MAL-CLIENT-ID': app.config.MAL_CLIENT_ID})
     data = response.json()
     return data['data'][0]['node']['id'],data['data'][0]['node']['title']
 

@@ -1,6 +1,6 @@
-import api.config
+import app.config
 
-from log_config import get_logger
+from shared.log_config import get_logger
 
 logger = get_logger(__name__)
 
@@ -52,7 +52,7 @@ def add_job(job_name, job_time):
         # Step 2: Construct SchedulerJobRequest-compatible payload
         payload = {
             "id": job_id,
-            "external_url": f"{api.config.BRAIN_API_URL}/scheduler/callback",  # centralized callback
+            "external_url": f"{app.config.BRAIN_API_URL}/scheduler/callback",  # centralized callback
             "trigger": "interval",
             "interval_minutes": max(1, total_seconds // 60),  # APScheduler only takes minutes
             "metadata": {
@@ -61,7 +61,7 @@ def add_job(job_name, job_time):
         }
 
         # Step 3: Send to Brain
-        response = requests.post(f"{api.config.BRAIN_API_URL}/scheduler/job", json=payload)
+        response = requests.post(f"{app.config.BRAIN_API_URL}/scheduler/job", json=payload)
         response.raise_for_status()
         return response.json()
 
@@ -97,7 +97,7 @@ def delete_job(job_id: str):
     """
     logger.debug(f"Deleting job: {job_id}")
     try:
-        response = requests.delete(f"{api.config.BRAIN_API_URL}/scheduler/job/{job_id}")
+        response = requests.delete(f"{app.config.BRAIN_API_URL}/scheduler/job/{job_id}")
         response.raise_for_status()
         logger.info(f"Job {job_id} deleted successfully.")
         return f"🗑️ Deleted job `{job_id}` successfully."
@@ -130,7 +130,7 @@ def list_jobs():
     """
     logger.debug(f"Listing jobs")
     try:
-        response = requests.get(f"{api.config.BRAIN_API_URL}/scheduler/job")
+        response = requests.get(f"{app.config.BRAIN_API_URL}/scheduler/job")
         response.raise_for_status()
         logger.info(f"Jobs listed successfully: {response.json()}")
         

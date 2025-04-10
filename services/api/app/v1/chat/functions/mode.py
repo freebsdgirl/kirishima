@@ -1,8 +1,8 @@
-import api.config
+import app.config
 
 import requests
 
-from log_config import get_logger
+from shared.log_config import get_logger
 
 logger = get_logger(__name__)
 
@@ -21,16 +21,16 @@ def change_mode(mode_name):
     """
     match mode_name:
         case 'nsfw':
-            requests.post(f"{api.config.BRAIN_API_URL}/status/mode/nsfw")
+            requests.post(f"{app.config.BRAIN_API_URL}/status/mode/nsfw")
         case 'work':
-            requests.post(f"{api.config.BRAIN_API_URL}/status/mode/work")
+            requests.post(f"{app.config.BRAIN_API_URL}/status/mode/work")
         case _:
-            requests.post(f"{api.config.BRAIN_API_URL}/status/mode/default")
+            requests.post(f"{app.config.BRAIN_API_URL}/status/mode/default")
 
     logger.info(f"🕹️ MODE -> {mode_name}")
 
 
 def get_mode() -> str:
-    response = requests.get(f"{api.config.BRAIN_API_URL}/status/mode")
+    response = requests.get(f"{app.config.BRAIN_API_URL}/status/mode")
     mode = response.json()["message"]
     return mode

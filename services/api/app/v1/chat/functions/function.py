@@ -1,11 +1,11 @@
-import api.config
+import app.config
 
-from api.v1.chat.functions.rag.mal_show_synopsis import search_mal_by_show
-from api.v1.chat.functions.memories import create_memory, delete_memory
-from api.v1.chat.functions.mode import change_mode
-from api.v1.chat.functions.scheduler import add_job, delete_job, list_jobs
+from app.v1.chat.functions.rag.mal_show_synopsis import search_mal_by_show
+from app.v1.chat.functions.memories import create_memory, delete_memory
+from app.v1.chat.functions.mode import change_mode
+from app.v1.chat.functions.scheduler import add_job, delete_job, list_jobs
 
-from log_config import get_logger
+from shared.log_config import get_logger
 
 logger = get_logger(__name__)
 

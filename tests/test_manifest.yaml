@@ -1,0 +1,78 @@
+api:
+  /__list_routes__: false
+  /chat/completions: false
+  /completions: false
+  /docs/export: false
+  /embeddings: false
+  /models: false
+  /models/{model_id}: false
+  /ping: false
+  /v1/chat/completions: false
+brain:
+  /__list_routes__: false
+  /buffer/conversation: false
+  /docs/export: false
+  /memory: false
+  /memory/search/id: false
+  /memory/{id}: false
+  /message/incoming: false
+  /ping: false
+  /scheduler/callback: false
+  /scheduler/job: false
+  /scheduler/job/{job_id}: false
+  /status/mode: false
+  /status/mode/{mode}: false
+chromadb:
+  /__list_routes__: false
+  /buffer: false
+  /buffer/{user_id}: false
+  /docs/export: false
+  /memory: false
+  /memory/search/id: false
+  /memory/{id}: false
+  /ping: false
+  /summary: false
+  /summary/search: false
+  /summary/user/{user_id}: false
+  /summary/{id}: false
+contacts:
+  /__list_routes__: false
+  /contact: false
+  /contact/{contact_id}: false
+  /contacts: false
+  /docs/export: false
+  /ping: false
+  /search: false
+imessage:
+  /__list_routes__: false
+  /docs/export: false
+  /imessage/recv: false
+  /imessage/send: false
+  /ping: false
+proxy:
+  /__list_routes__: false
+  /docs/export: false
+  /from/api: false
+  /from/api/completions: true 
+  /from/imessage: false
+  /ping: false
+scheduler:
+  /__list_routes__: false
+  /export: false
+  /jobs: false
+  /jobs/{job_id}: false
+  /jobs/{job_id}/pause: false
+  /jobs/{job_id}/resume: false
+  /ping: false
+summarize:
+  /__list_routes__: false
+  /buffer: false
+  /buffer/{user_id}: false
+  /context/{user_id}: false
+  /docs/export: false
+  /ping: false
+  /summarize_buffers: false
+  /summary: false
+  /summary/search: false
+  /summary/user/{user_id}: false
+  /summary/{id}: false

@@ -6,7 +6,7 @@ test_case() {
   description="$1"
   cmd="$2"
 
-  echo "→ $description"
+  echo -n "→ $description "
   http_code=$(eval "$cmd" -s -o /dev/null -w "%{http_code}")
   
   if [[ "$http_code" -ge 500 ]]; then

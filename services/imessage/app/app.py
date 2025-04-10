@@ -1,48 +1,32 @@
 """
-This module provides a FastAPI application for sending and receiving iMessages via a BlueBubbles server.
-The application includes:
-- A health check endpoint (`/ping`) to verify the service is operational.
-- An endpoint (`/imessage/send`) to send iMessages to specified recipients.
-- A webhook endpoint (`/imessage/recv`) to process incoming iMessage payloads from BlueBubbles.
+This module provides a FastAPI application for handling iMessage interactions via the BlueBubbles server. 
+It includes endpoints for health checks, listing routes, sending messages, and receiving webhooks. 
+The application integrates with a Brain service for processing incoming messages and generating replies.
 Classes:
-- `BlueBubblesClient`: A client for interacting with the BlueBubbles server to send iMessages.
-- `OutgoingMessage`: A Pydantic model representing an outgoing iMessage payload.
+    BlueBubblesClient: A client for interacting with the BlueBubbles server to send iMessages.
+    OutgoingMessage: A Pydantic model representing an outgoing iMessage.
 Endpoints:
-- `/ping`: Health check endpoint.
-- `/imessage/send`: Sends an iMessage to a recipient.
-- `/imessage/recv`: Processes incoming iMessage webhooks and forwards them to a Brain service.
+    /ping (GET): Health check endpoint that returns the service status.
+    /__list_routes__ (GET): Lists all registered API routes in the application.
+    /imessage/send (POST): Sends an iMessage to a specified recipient via the BlueBubbles server.
+    /imessage/recv (POST): Handles incoming iMessage webhooks, processes the message, and forwards it to Brain.
 Environment Variables:
-- `BRAIN_HOST`: Hostname for the Brain service (default: 'localhost').
-- `BRAIN_PORT`: Port for the Brain service (default: '4207').
-- `BLUEBUBBLES_HOST`: Hostname for the BlueBubbles server (default: 'localhost').
-- `BLUEBUBBLES_PORT`: Port for the BlueBubbles server (default: '3000').
-- `BLUEBUBBLES_PASSWORD`: Password for authenticating with the BlueBubbles server (default: 'bluebubbles').
-Dependencies:
-- `FastAPI`: Web framework for building the API.
-- `Pydantic`: Data validation and settings management.
-- `requests`: HTTP library for synchronous API calls.
-- `httpx`: HTTP library for asynchronous API calls.
-- `datetime`: For handling timestamps.
-- `os`: For accessing environment variables.
-- `shared.log_config`: Custom logging configuration.
-Logging:
-- Logs are configured using the `shared.log_config` module.
-- Debug logs are used extensively for tracing payloads and API interactions.
+    BRAIN_HOST: Hostname or IP address of the Brain service (default: 'localhost').
+    BRAIN_PORT: Port number of the Brain service (default: '4207').
+    BLUEBUBBLES_HOST: Hostname or IP address of the BlueBubbles server (default: 'localhost').
+    BLUEBUBBLES_PORT: Port number of the BlueBubbles server (default: '3000').
+    BLUEBUBBLES_PASSWORD: Authentication password for the BlueBubbles server (default: 'bluebubbles').
 """
 
 from app.docs import router as docs_router
+
+from shared.log_config import get_logger
+logger = get_logger(__name__)
 
 from pydantic import BaseModel
 import requests
 import httpx
 from datetime import datetime
-
-from shared.log_config import get_logger
-logger = get_logger(__name__)
-
-from fastapi import FastAPI, HTTPException, Request, status
-app = FastAPI()
-app.include_router(docs_router)
 
 import os
 brain_host = os.getenv('BRAIN_HOST', 'localhost')
@@ -51,10 +35,36 @@ bluebubbles_host = os.getenv('BLUEBUBBLES_HOST', 'localhost')
 bluebubbles_port = os.getenv('BLUEBUBBLES_PORT', '3000')
 bluebubbles_password = os.getenv('BLUEBUBBLES_PASSWORD', 'bluebubbles')
 
+from fastapi import FastAPI, HTTPException, Request, status
+from fastapi.routing import APIRoute
+app = FastAPI()
+app.include_router(docs_router, tags=["docs"])
 
+
+"""
+Health check endpoint that returns the service status.
+
+Returns:
+    Dict[str, str]: A dictionary with a 'status' key indicating the service is operational.
+"""
 @app.get("/ping")
 def ping():
     return {"status": "ok"}
+
+
+"""
+Endpoint to list all registered API routes in the application.
+
+Returns:
+    List[Dict[str, Union[str, List[str]]]]: A list of dictionaries containing route paths and their supported HTTP methods.
+"""
+@app.get("/__list_routes__")
+def list_routes():
+    return [
+        {"path": route.path, "methods": list(route.methods)}
+        for route in app.routes
+        if isinstance(route, APIRoute)
+    ]
 
 
 class BlueBubblesClient:

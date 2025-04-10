@@ -1,80 +1,75 @@
 """
-This module defines the FastAPI application for the summarization service, including
-routes for buffer management, summary generation, and user context retrieval.
-The application provides the following functionalities:
-- Health check endpoint (`/ping`) to verify the service status.
-- Context retrieval endpoint (`/context/{user_id}`) to fetch user-specific buffers and summaries.
-- Summarization endpoint (`/summarize_buffers`) to process and summarize buffer entries.
-- Modular routing for buffer, summary, and documentation-related API endpoints.
-Key Components:
-- `get_context`: Retrieves user-specific buffers and summaries.
-- `summarize_buffers`: Processes all buffer entries, generates summaries, and manages cleanup.
-- `summarize_buffer_entries`: Summarizes a list of text entries using a local API.
-Dependencies:
-- `shared.log_config`: Provides logging configuration.
-- `app.buffer`: Contains buffer-related utility functions and router.
-- `app.summary`: Contains summary-related utility functions, types, and router.
-- `app.docs`: Contains documentation-related router.
-- `requests`: Used for making HTTP requests to the local summarization API.
+This module defines a FastAPI application for managing and summarizing user-specific buffers and summaries. 
+The application includes the following functionalities:
+- Health check endpoint to verify service status.
+- Endpoint to list all registered API routes.
+- Endpoint to retrieve user context, including buffers and summaries.
+- Endpoint to summarize all user buffer entries, group them by user, and manage buffer cleanup.
+- Utility function to summarize text entries using a local Ollama API.
+Modules and Dependencies:
+- `app.buffer`: Handles buffer-related operations and routing.
+- `app.summary`: Manages summary-related operations and routing.
+- `app.docs`: Provides API documentation routing.
+- `shared.log_config`: Configures logging for the application.
 - `fastapi`: Framework for building the API.
+- `requests`: Used for making HTTP requests to the local Ollama API.
+- `typing`: Provides type annotations for better code clarity.
+Endpoints:
+1. `/ping`: Health check endpoint.
+2. `/__list_routes__`: Lists all registered API routes.
+3. `/context/{user_id}`: Retrieves user-specific buffers and summaries.
+4. `/summarize_buffers`: Processes and summarizes all user buffer entries.
+Utility Function:
+- `summarize_buffer_entries`: Summarizes a list of text entries into a single paragraph using a local API.
 Error Handling:
-- Uses `HTTPException` to handle and return appropriate HTTP status codes for errors.
-- Logs errors for debugging and monitoring purposes.
-Routes:
-- `/ping`: Health check endpoint.
-- `/context/{user_id}`: Retrieves user-specific context (buffers and summaries).
-- `/summarize_buffers`: Summarizes all buffer entries and manages cleanup.
-- `/summary`: Routes for summary-related operations.
-- `/buffer`: Routes for buffer-related operations.
-- `/docs`: Routes for API documentation.
+- Logs errors and raises HTTP exceptions for failed operations.
 """
+
+from app.buffer import router as buffer_router
+from app.summary import router as summary_router
+from app.docs import router as docs_router
+
 from shared.log_config import get_logger
 logger = get_logger(__name__)
 
-
-"""
-Import utility functions for managing user buffers and summaries:
-- Buffer-related functions: get_all_buffers, get_buffer, delete_buffer
-- Summary-related functions: add_summary, get_user_summary
-- SummarizeRequest type for handling summarization requests
-"""
 from app.buffer import get_all_buffers, get_buffer, delete_buffer
 from app.summary import add_summary, get_user_summary, SummarizeRequest
-
 
 from typing import Dict, Any, List
 import requests
 
-
-"""
-FastAPI application instance for the summarization service.
-
-This application serves as the main entry point for the summarization API,
-handling routes for buffer management, summary generation, and user context retrieval.
-"""
 from fastapi import FastAPI, HTTPException, status
+from fastapi.routing import APIRoute
 app = FastAPI()
+app.include_router(summary_router, prefix="/summary", tags=["summary"])
+app.include_router(buffer_router, prefix="/buffer", tags=["buffer"])
+app.include_router(docs_router, tags=["docs"])
 
+
+"""
+Health check endpoint that returns the service status.
+
+Returns:
+    Dict[str, str]: A dictionary with a 'status' key indicating the service is operational.
+"""
 @app.get("/ping")
 def ping():
     return {"status": "ok"}
 
 
 """
-Include routers for buffer and summary endpoints with specific prefixes and tags.
+Endpoint to list all registered API routes in the application.
 
-This configuration sets up two separate routers for the application:
-- The summary router is mounted at the "/summary" path with "summary" tags
-- The buffer router is mounted at the "/buffer" path with "buffer" tags
-
-These routers provide modular routing for buffer and summary-related API endpoints.
+Returns:
+    List[Dict[str, Union[str, List[str]]]]: A list of dictionaries containing route paths and their supported HTTP methods.
 """
-from app.buffer import router as buffer_router
-from app.summary import router as summary_router
-from app.docs import router as docs_router
-app.include_router(summary_router, prefix="/summary", tags=["summary"])
-app.include_router(buffer_router, prefix="/buffer", tags=["buffer"])
-app.include_router(docs_router)
+@app.get("/__list_routes__")
+def list_routes():
+    return [
+        {"path": route.path, "methods": list(route.methods)}
+        for route in app.routes
+        if isinstance(route, APIRoute)
+    ]
 
 
 @app.get("/context/{user_id}", response_model=Dict[str, Any])

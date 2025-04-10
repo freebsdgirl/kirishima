@@ -1,38 +1,46 @@
 """
-This module provides a FastAPI application for managing scheduled jobs using APScheduler.
-The application includes endpoints for creating, listing, pausing, resuming, and deleting jobs.
-Jobs can be scheduled with either a one-time trigger or a recurring interval trigger. The scheduler
-uses a SQLite database for persistent job storage and supports concurrent job execution.
-Modules and Classes:
-- `JobResponse`: A Pydantic model representing the details of a scheduled job.
-- `SchedulerJobRequest`: A shared model for job request details, imported from `shared.models.scheduler`.
+This module implements a FastAPI application for managing scheduled jobs using APScheduler.
+The application provides endpoints for:
+- Health check (`/ping`)
+- Listing all API routes (`/__list_routes__`)
+- Adding a new job (`/jobs`)
+- Removing a job (`/jobs/{job_id}`)
+- Listing all scheduled jobs (`/jobs`)
+- Pausing a job (`/jobs/{job_id}/pause`)
+- Resuming a job (`/jobs/{job_id}/resume`)
+The scheduler is configured with:
+- SQLAlchemyJobStore for persistent job storage using SQLite.
+- ThreadPoolExecutor for concurrent job execution.
+- Job defaults to prevent coalescing and limit concurrent job instances.
+Key Components:
+- `execute_job`: Function to execute a scheduled job by sending a POST request to an external URL.
+- `JobResponse`: Pydantic model representing the response structure for job details.
+- `SchedulerJobRequest`: Pydantic model (imported) representing the request structure for scheduling a job.
 Endpoints:
-1. `/ping` (GET): Health check endpoint to verify the service is running.
-2. `/jobs` (POST): Create a new scheduled job.
-3. `/jobs` (GET): Retrieve a list of all scheduled jobs.
-4. `/jobs/{job_id}` (DELETE): Remove a scheduled job by its ID.
-5. `/jobs/{job_id}/pause` (POST): Pause a running job.
-6. `/jobs/{job_id}/resume` (POST): Resume a previously paused job.
-Scheduler Configuration:
-- Uses `SQLAlchemyJobStore` for persistent job storage.
-- Configured with a `ThreadPoolExecutor` for concurrent job execution.
-- Default job settings include no coalescing and a maximum of one concurrent instance per job.
-Functions:
-- `execute_job(external_url: str, metadata: Dict[str, Any])`: Executes a scheduled job by sending a POST request to an external URL.
-- `add_job(job_request: SchedulerJobRequest) -> JobResponse`: Creates a new scheduled job with the specified trigger and metadata.
-- `remove_job(job_id: str) -> Dict[str, str]`: Removes a scheduled job from the scheduler.
-- `list_jobs() -> List[JobResponse]`: Lists all scheduled jobs with their details.
-- `pause_job(job_id: str) -> Dict[str, str]`: Pauses a running job.
-- `resume_job(job_id: str) -> Dict[str, str]`: Resumes a previously paused job.
-Logging:
-- Logs are generated for all operations, including job creation, execution, and errors.
-- Uses a shared logging configuration from `shared.log_config`.
+1. `/ping` (GET): Health check endpoint to verify service status.
+2. `/__list_routes__` (GET): Lists all registered API routes.
+3. `/jobs` (POST): Adds a new scheduled job with a one-time or recurring trigger.
+4. `/jobs/{job_id}` (DELETE): Removes a scheduled job by its ID.
+5. `/jobs` (GET): Retrieves a list of all scheduled jobs.
+6. `/jobs/{job_id}/pause` (POST): Pauses a running job by its ID.
+7. `/jobs/{job_id}/resume` (POST): Resumes a previously paused job by its ID.
 Error Handling:
 - Returns appropriate HTTP status codes and error messages for invalid requests or internal errors.
-- Handles job conflicts, missing parameters, and unsupported trigger types with detailed error responses.
+- Logs errors and exceptions for debugging purposes.
+Dependencies:
+- APScheduler for job scheduling.
+- FastAPI for building the web application.
+- Pydantic for request/response validation.
+- Requests for making HTTP requests during job execution.
+- Shared modules for configuration, logging, and models.
 """
+
 import app.config as config
+
 from app.docs import router as docs_router
+
+from shared.log_config import get_logger
+logger = get_logger(__name__)
 
 from shared.models.scheduler import SchedulerJobRequest
 
@@ -47,19 +55,36 @@ from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.jobstores.base import JobLookupError
 
-from shared.log_config import get_logger
-logger = get_logger(__name__)
-
 from fastapi import FastAPI, HTTPException, status
+from fastapi.routing import APIRoute
 app = FastAPI()
-app.include_router(docs_router)
+app.include_router(docs_router, tags=["docs"])
 
 
-db_path = config.SCHEDULER_DB
+"""
+Health check endpoint that returns the service status.
 
+Returns:
+    Dict[str, str]: A dictionary with a 'status' key indicating the service is operational.
+"""
 @app.get("/ping")
 def ping():
     return {"status": "ok"}
+
+
+"""
+Endpoint to list all registered API routes in the application.
+
+Returns:
+    List[Dict[str, Union[str, List[str]]]]: A list of dictionaries containing route paths and their supported HTTP methods.
+"""
+@app.get("/__list_routes__")
+def list_routes():
+    return [
+        {"path": route.path, "methods": list(route.methods)}
+        for route in app.routes
+        if isinstance(route, APIRoute)
+    ]
 
 
 class JobResponse(BaseModel):

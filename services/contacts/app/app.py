@@ -1,41 +1,40 @@
 """
-This module provides a FastAPI application for managing a contacts database. It includes endpoints for creating, 
-retrieving, updating, deleting, and searching contacts. The application interacts with an SQLite database to store 
-contact information, including aliases, fields, and notes.
-
+This module provides a FastAPI application for managing contacts. It includes endpoints for creating, retrieving, 
+updating, deleting, and searching contacts. The application interacts with an SQLite database to store and manage 
+contact information, including notes, aliases, and additional fields.
 Endpoints:
-- POST /contact: Create a new contact with unique ID, aliases, fields, and notes.
-- GET /contacts: Retrieve a list of all contacts with their details.
-- PUT /contact/{contact_id}: Replace an existing contact's information completely.
-- PATCH /contact/{contact_id}: Partially update an existing contact's information.
-- DELETE /contact/{contact_id}: Delete a contact and its associated data.
-- GET /search: Search contacts by alias or field value.
-
-Dependencies:
-- FastAPI: Framework for building the API.
-- SQLite: Database for storing contact information.
-- UUID: For generating unique contact IDs.
-- Logging: For logging application events and errors.
-
-Shared Models:
-- ContactCreate: Model for creating or updating a contact.
-- Contact: Model for representing a contact's details.
-
-Database Schema:
-- contacts: Stores contact IDs and notes.
-- aliases: Stores aliases associated with contacts.
-- fields: Stores key-value pairs associated with contacts.
-
+    - /ping: Health check endpoint to verify service status.
+    - /__list_routes__: Lists all registered API routes in the application.
+    - /contact (POST): Creates a new contact with the provided details.
+    - /contacts (GET): Retrieves a list of all contacts with their details.
+    - /contact/{contact_id} (PUT): Replaces an existing contact with new information.
+    - /contact/{contact_id} (PATCH): Partially updates an existing contact by ID.
+    - /contact/{contact_id} (DELETE): Deletes a contact and its associated data.
+    - /search (GET): Searches for contacts based on aliases or field values.
+Database:
+    - The application uses SQLite as the database backend.
+    - Tables:
+        - contacts: Stores contact IDs and notes.
+        - aliases: Stores aliases associated with contacts.
+        - fields: Stores additional key-value fields for contacts.
+Utilities:
+    - get_db_connection: Establishes a connection to the SQLite database.
+    - Logging: Logs important events and errors using a shared logging configuration.
+Models:
+    - ContactCreate: Represents the input model for creating or updating a contact.
+    - Contact: Represents the output model for contact data.
 Error Handling:
-- Uses HTTPException to return appropriate HTTP status codes and error messages.
-- Logs errors using the configured logger.
-
-Configuration:
-- The database path is configured in `contacts.config.CONTACTS_DB`.
+    - Raises HTTP 404 errors for not found resources.
+    - Raises HTTP 500 errors for database-related issues.
+    - Raises HTTP 400 errors for invalid search parameters.
 """
 
 import app.config as config
+
 from app.docs import router as docs_router
+
+from shared.log_config import get_logger
+logger = get_logger(__name__)
 
 from shared.models.contacts import ContactCreate, Contact
 
@@ -44,20 +43,37 @@ import uuid
 from fastapi import FastAPI, HTTPException, Query, status
 from typing import Optional
 
-from shared.log_config import get_logger
-logger = get_logger(__name__)
-
 from fastapi import FastAPI
+from fastapi.routing import APIRoute
 app = FastAPI()
-app.include_router(docs_router)
+app.include_router(docs_router, tags=["docs"])
 
 
-db_path = config.CONTACTS_DB
+"""
+Health check endpoint that returns the service status.
 
-
+Returns:
+    Dict[str, str]: A dictionary with a 'status' key indicating the service is operational.
+"""
 @app.get("/ping")
 def ping():
     return {"status": "ok"}
+
+
+"""
+Endpoint to list all registered API routes in the application.
+
+Returns:
+    List[Dict[str, Union[str, List[str]]]]: A list of dictionaries containing route paths and their supported HTTP methods.
+"""
+@app.get("/__list_routes__")
+def list_routes():
+    return [
+        {"path": route.path, "methods": list(route.methods)}
+        for route in app.routes
+        if isinstance(route, APIRoute)
+    ]
+
 
 
 def get_db_connection():
@@ -67,7 +83,7 @@ def get_db_connection():
     Returns:
         sqlite3.Connection: An active database connection using the configured database path.
     """
-    return sqlite3.connect(db_path)
+    return sqlite3.connect(config.CONTACTS_DB)
 
 
 @app.post("/contact", response_model=Contact)

@@ -11,6 +11,7 @@ services:
     ports:
       - "${API_PORT}:${API_PORT}"
     volumes:
+      - ./services/api/app:/app/app
       - ./shared:/app/shared
 
   brain:
@@ -31,6 +32,7 @@ services:
     ports:
       - "${BRAIN_PORT}:${BRAIN_PORT}"
     volumes:
+      - ./services/brain/app:/app/app
       - ./shared:/app/shared
 
   chromadb:
@@ -43,6 +45,7 @@ services:
     ports:
       - "${CHROMADB_PORT}:${CHROMADB_PORT}"
     volumes:
+      - ./services/chromadb/app:/app/app
       - ./shared:/app/shared
 
   contacts:
@@ -55,6 +58,7 @@ services:
     ports:
       - "${CONTACTS_PORT}:${CONTACTS_PORT}"
     volumes:
+      - ./services/contacts/app:/app/app
       - ./shared:/app/shared
 
   imessage:
@@ -72,6 +76,7 @@ services:
     ports:
       - "${IMESSAGE_PORT}:${IMESSAGE_PORT}"
     volumes:
+      - ./services/imessage/app:/app/app
       - ./shared:/app/shared
 
   proxy:
@@ -87,6 +92,7 @@ services:
     ports:
       - "${PROXY_PORT}:${PROXY_PORT}"
     volumes:
+      - ./services/proxy/app:/app/app
       - ./shared:/app/shared
 
   scheduler:
@@ -99,6 +105,7 @@ services:
     ports:
       - "${SCHEDULER_PORT}:${SCHEDULER_PORT}"
     volumes:
+      - ./services/scheduler/app:/app/app
       - ./shared:/app/shared
 
   summarize:
@@ -113,5 +120,6 @@ services:
     ports:
       - "${SUMMARIZE_PORT}:${SUMMARIZE_PORT}"
     volumes:
+      - ./services/summarize/app:/app/app
       - ./shared:/app/shared
 

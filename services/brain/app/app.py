@@ -23,6 +23,7 @@ from app.status import router as status_router
 from app.scheduler import router as scheduler_router
 from app.docs import router as docs_router
 from app.message.message import router as message_router
+from app.message.multiturn import router as message_multiturn_router
 from app.message.singleturn import router as message_singleturn_router
 
 from fastapi import FastAPI
@@ -34,6 +35,7 @@ app.include_router(status_router, tags=["status"])
 app.include_router(scheduler_router, tags=["scheduler"])
 app.include_router(docs_router, tags=["docs"])
 app.include_router(message_router, prefix="/message", tags=["message"])
+app.include_router(message_multiturn_router, tags=["message"])
 app.include_router(message_singleturn_router, tags=["message"])
 
 

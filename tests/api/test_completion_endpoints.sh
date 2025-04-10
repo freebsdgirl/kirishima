@@ -10,9 +10,9 @@ test_case() {
   http_code=$(eval "$cmd" -s -o /dev/null -w "%{http_code}")
   
   if [[ "$http_code" -ge 400 ]]; then
-    echo "❌ FAIL ($http_code)"
+    echo -n "❌ FAIL ($http_code)"
   else
-    echo "✅ PASS ($http_code)"
+    echo -n "✅ PASS ($http_code)"
   fi
   echo
 }

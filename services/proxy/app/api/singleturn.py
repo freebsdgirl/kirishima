@@ -68,7 +68,7 @@ async def from_api_completions(message: ProxyOneShotRequest) -> ProxyResponse:
     logger.debug(f"Constructed payload for Ollama API: {payload}")
 
     # Send the POST request using an async HTTP client
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=60) as client:
         try:
             response = await client.post(f"{app.config.OLLAMA_URL}/api/generate", json=payload)
             response.raise_for_status()

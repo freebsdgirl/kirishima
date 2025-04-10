@@ -1,7 +1,8 @@
 api:
   /__list_routes__: false
   /chat/completions: false
-  /completions: false
+  /v1/completions: true
+  /completions: true
   /docs/export: false
   /embeddings: false
   /models: false

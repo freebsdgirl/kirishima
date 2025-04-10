@@ -22,7 +22,7 @@ Functions:
 """
 
 from app.v1.chat.completions import router as chat_router
-from app.v1.completions import router as completions_router
+from app.completions.singleturn import router as completions_router
 from app.v1.embeddings import router as embeddings_router
 from app.v1.models.get_model import router as get_model_router
 from app.v1.models.list_models import router as list_models_router

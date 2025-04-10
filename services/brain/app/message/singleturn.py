@@ -35,7 +35,7 @@ proxy_host = os.getenv("PROXY_HOST", "proxy")
 proxy_port = os.getenv("PROXY_PORT", "4205")
 proxy_url = os.getenv("PROXY_URL", f"http://{proxy_host}:{proxy_port}")
 
-@router.post("/single/incoming", response_model=ProxyOneShotResponse)
+@router.post("/message/single/incoming", response_model=ProxyOneShotResponse)
 async def incoming_singleturn_message(message: ProxyOneShotRequest) -> ProxyOneShotResponse:
     """
     Proxies the incoming single-turn message to the proxy service.

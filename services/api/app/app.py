@@ -21,8 +21,8 @@ Functions:
     - list_routes(): Lists all registered API routes in the application.
 """
 
-from app.v1.chat.completions import router as chat_router
-from app.completions.singleturn import router as completions_router
+from app.completions.singleturn import router as singleturn_router
+from app.completions.multiturn import router as multiturn_router
 from app.v1.embeddings import router as embeddings_router
 from app.v1.models.get_model import router as get_model_router
 from app.v1.models.list_models import router as list_models_router
@@ -32,8 +32,8 @@ from app.docs import router as docs_router
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
 app = FastAPI()
-app.include_router(chat_router, tags=["chat"])
-app.include_router(completions_router, tags=["completions"])
+app.include_router(singleturn_router, tags=["completions"])
+app.include_router(multiturn_router, tags=["completions"])
 app.include_router(embeddings_router, tags=["embeddings"])
 app.include_router(get_model_router, tags=["get_model"])
 app.include_router(list_models_router, tags=["list_models"])

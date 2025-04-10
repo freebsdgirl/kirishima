@@ -79,7 +79,7 @@ async def chat_completions(request_data: ChatRequest):
     Returns:
         JSONResponse: A response containing the generated chat completion with a 200 status code.
     """
-    from .generate import generate_completion
+    #from .generate import generate_completion
 
     max_attempts = app.config.CHAT_COMPLETIONS_MAX_ATTEMPTS
     attempt = 0

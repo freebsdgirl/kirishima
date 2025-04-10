@@ -101,7 +101,7 @@ async def from_api_multiturn(request: ProxyMultiTurnRequest) -> ProxyResponse:
     2. Constructs an instruct‑style prompt for multi‑turn conversations using a pre‑defined system prompt 
        placeholder and the conversation history. The formatting follows the template:
        
-          [INST] <<SYS>>{system_prompt}<<SYS>>
+          [INST] <<SYS>>{system_prompt}<<SYS>> [/INST]
           
           [INST] user message [/INST] assistant reply
           [INST] user message [/INST] 

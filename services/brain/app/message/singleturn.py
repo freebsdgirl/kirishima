@@ -3,7 +3,7 @@ This module defines an API endpoint for handling single-turn messages by proxyin
 them to an external service. It provides scaffolding for potential future extensions
 and ensures proper logging and error handling.
 Modules:
-    - shared.models.proxy: Contains the ProxyOneShotRequest and ProxyOneShotResponse models.
+    - shared.models.proxy: Contains the ProxyOneShotRequest and ProxyResponse models.
     - shared.log_config: Provides the logging configuration.
     - fastapi: Used for creating the API endpoint and handling HTTP exceptions.
     - httpx: Used for making asynchronous HTTP requests.
@@ -14,12 +14,12 @@ Environment Variables:
     - PROXY_URL: The full URL of the proxy service. If not provided, it is constructed
       using PROXY_HOST and PROXY_PORT.
 Functions:
-    - incoming_singleturn_message(message: ProxyOneShotRequest) -> ProxyOneShotResponse:
+    - incoming_singleturn_message(message: ProxyOneShotRequest) -> ProxyResponse:
         Handles incoming single-turn messages by forwarding them to the proxy service
         and returning the response. Includes detailed logging and error handling.
 """
 
-from shared.models.proxy import ProxyOneShotRequest, ProxyOneShotResponse
+from shared.models.proxy import ProxyOneShotRequest, ProxyResponse
 
 from shared.log_config import get_logger
 logger = get_logger(__name__)
@@ -35,20 +35,20 @@ proxy_host = os.getenv("PROXY_HOST", "proxy")
 proxy_port = os.getenv("PROXY_PORT", "4205")
 proxy_url = os.getenv("PROXY_URL", f"http://{proxy_host}:{proxy_port}")
 
-@router.post("/message/single/incoming", response_model=ProxyOneShotResponse)
-async def incoming_singleturn_message(message: ProxyOneShotRequest) -> ProxyOneShotResponse:
+@router.post("/message/single/incoming", response_model=ProxyResponse)
+async def incoming_singleturn_message(message: ProxyOneShotRequest) -> ProxyResponse:
     """
     Proxies the incoming single-turn message to the proxy service.
     
     This function receives a ProxyOneShotRequest, forwards it to the proxy service,
-    and returns the response as a ProxyOneShotResponse. This intermediary service
+    and returns the response as a ProxyResponse. This intermediary service
     allows for additional scaffolding if needed in the future.
     
     Args:
         message (ProxyOneShotRequest): The incoming request payload.
     
     Returns:
-        ProxyOneShotResponse: The response received from the proxy service.
+        ProxyResponse: The response received from the proxy service.
     
     Raises:
         HTTPException: If any error occurs when contacting the proxy service.
@@ -85,7 +85,7 @@ async def incoming_singleturn_message(message: ProxyOneShotRequest) -> ProxyOneS
         json_response = response.json()
         logger.debug(f"Response from proxy service: {json_response}")
         
-        proxy_response = ProxyOneShotResponse.model_validate(json_response)
+        proxy_response = ProxyResponse.model_validate(json_response)
 
     except Exception as err:
         logger.error(f"Error parsing response from proxy service: {err}")

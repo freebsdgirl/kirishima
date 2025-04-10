@@ -1,18 +1,20 @@
 """
-This module provides utility functions for interacting with language models (LLMs) and processing user messages.
+This module provides utility functions for interacting with an Ollama language model 
+and processing user messages. It includes functions to send prompts to the LLM and
+determine if a model follows an instruct-style format.
 Functions:
     - send_prompt_to_llm(prompt: str) -> dict:
-        Sends a prompt to an Ollama language model and retrieves its response.
-    - strip_to_last_user(messages: List[dict]) -> Optional[dict]:
-        Extracts the last user message from a list of message dictionaries.
-    - send_openai_payload_to_llm(payload: dict) -> dict:
-        Placeholder function for sending OpenAI-compatible payloads to an LLM.
+        Sends a prompt to the Ollama language model and retrieves its response.
     - is_instruct_model(model_name: str) -> bool:
-        Checks whether a given model uses an instruct-style format by querying the model's template.
+        Checks if a given model uses an instruct-style format by querying the 
+        /api/show endpoint.
 Constants:
-    - llm_model_name: The name of the default language model (retrieved from environment variables).
-    - ollama_server_host: The hostname of the Ollama server (retrieved from environment variables).
-    - ollama_server_port: The port number of the Ollama server (retrieved from environment variables).
+    - llm_model_name: The name of the default language model (retrieved from the 
+      environment variable 'LLM_MODEL_NAME', defaults to 'nemo').
+    - ollama_server_host: The host address of the Ollama server (retrieved from 
+      the environment variable 'OLLAMA_SERVER_HOST', defaults to 'localhost').
+    - ollama_server_port: The port number of the Ollama server (retrieved from 
+      the environment variable 'OLLAMA_SERVER_PORT', defaults to '11434').
 """
 
 import app.config
@@ -20,9 +22,7 @@ import app.config
 from shared.log_config import get_logger
 logger = get_logger(__name__)
 
-from typing import List, Optional
 import httpx
-
 
 import os
 llm_model_name = os.getenv('LLM_MODEL_NAME', 'nemo')
@@ -75,30 +75,6 @@ async def send_prompt_to_llm(prompt: str) -> dict:
             "reply": "[ERROR: Failed to get LLM response]",
             "error": str(e)
         }
-
-
-def strip_to_last_user(messages: List[dict]) -> Optional[dict]:
-    """
-    Find and return the last user message from a list of messages.
-    
-    Args:
-        messages (List[dict]): A list of message dictionaries.
-    
-    Returns:
-        Optional[dict]: The last user message dictionary, or None if no user message is found.
-    """
-    for msg in reversed(messages):
-        if msg.get("role") == "user":
-            return msg
-    return None
-
-
-async def send_openai_payload_to_llm(payload: dict) -> dict:
-    """
-    yeah, so, we're ripping this code out because ollama? actually kind of shit 
-    at openai compatibilty with instruct models. lots of system prompt bleedthru.
-    no thank u sir.
-    """
 
 
 async def is_instruct_model(model_name: str) -> bool:

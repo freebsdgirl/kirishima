@@ -1,26 +1,27 @@
 """
 This module defines the main FastAPI application and includes the following functionalities:
 
-- Integration of routers for documentation, API, and iMessage services.
-- A health check endpoint (`/ping`) to verify the service status.
-- An endpoint (`/__list_routes__`) to list all registered API routes in the application.
+- Registers routers for different parts of the application:
+    - `docs_router`: Handles documentation-related endpoints.
+    - `singleturn_router`: Handles single-turn API endpoints.
+    - `multiturn_router`: Handles multi-turn API endpoints.
+    - `imessage_router`: Handles iMessage-related endpoints.
 
-Modules:
-    - app.docs: Contains the router for documentation-related endpoints.
-    - app.api: Contains the router for API-related endpoints.
-    - app.imessage: Contains the router for iMessage-related endpoints.
+- Provides a health check endpoint (`/ping`) to verify the service status.
 
-Endpoints:
-    - `/ping`: Returns the service status as a JSON response.
-    - `/__list_routes__`: Returns a list of all registered routes and their supported HTTP methods.
+- Provides an endpoint (`/__list_routes__`) to list all registered API routes in the application.
 
 Attributes:
-    app (FastAPI): The main FastAPI application instance.
+        app (FastAPI): The main FastAPI application instance.
 
+Endpoints:
+        - `/ping`: Health check endpoint that returns the service status.
+        - `/__list_routes__`: Lists all registered API routes with their paths and supported HTTP methods.
 """
 
 from app.docs import router as docs_router
-from app.api import router as api_router
+from app.api.singleturn import router as singleturn_router
+from app.api.multiturn import router as multiturn_router
 from app.imessage import router as imessage_router
 
 
@@ -28,7 +29,8 @@ from fastapi import FastAPI
 from fastapi.routing import APIRoute
 app = FastAPI()
 app.include_router(docs_router, tags=["docs"])
-app.include_router(api_router, tags=["api"])
+app.include_router(singleturn_router, tags=["api"])
+app.include_router(multiturn_router, tags=["api"])
 app.include_router(imessage_router, tags=["imessage"])
 
 

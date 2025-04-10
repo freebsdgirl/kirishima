@@ -9,7 +9,7 @@ test_case() {
   echo -n "→ $description "
   http_code=$(eval "$cmd" -s -o /dev/null -w "%{http_code}")
   
-  if [[ "$http_code" -ge 500 ]]; then
+  if [[ "$http_code" -ge 400 ]]; then
     echo "❌ FAIL ($http_code)"
   else
     echo "✅ PASS ($http_code)"
@@ -17,7 +17,7 @@ test_case() {
   echo
 }
 
-test_case "Single turn: /single/incoming" \
-  "curl -X POST http://localhost:4207/single/incoming \
+test_case "Single turn: /message/single/incoming" \
+  "curl -X POST http://localhost:4207/message/single/incoming \
     -H 'Content-Type: application/json' \
     -d '{\"model\": \"nemo\", \"prompt\": \"What UTC offset is PST?\", \"temperature\": 0.7, \"max_tokens\": 256}'"

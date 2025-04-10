@@ -26,12 +26,12 @@ Environment Variables:
 Notes:
     - The '/v1/completions' endpoint logs all incoming requests and responses for debugging purposes.
     - The proxy service is expected to return responses in a specific format, which are validated 
-      using the ProxyOneShotResponse model.
+      using the ProxyResponse model.
     - The system calculates token usage for both prompts and completions to provide detailed usage 
       statistics in the response.
 """
 
-from shared.models.proxy import ProxyOneShotResponse
+from shared.models.proxy import ProxyResponse
 from shared.models.openai import OpenAICompletionRequest, OpenAICompletionResponse, OpenAICompletionChoice, OpenAIUsage
 
 from shared.log_config import get_logger
@@ -136,7 +136,7 @@ async def openai_v1_completions(request: OpenAICompletionRequest) -> OpenAICompl
 
             try:
                 # Use model_validate per Pydantic v2 practices (replacing deprecated parse_obj)
-                proxy_response = ProxyOneShotResponse.model_validate(json_response)
+                proxy_response = ProxyResponse.model_validate(json_response)
 
             except Exception as err:
                 logger.error(f"Error parsing response from proxy service: {err}")

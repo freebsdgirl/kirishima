@@ -89,6 +89,8 @@ services:
       - LLM_MODEL_NAME=${LLM_MODEL_NAME}
       - OLLAMA_SERVER_HOST=${OLLAMA_SERVER_HOST}
       - OLLAMA_SERVER_PORT=${OLLAMA_SERVER_PORT}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "${PROXY_PORT}:${PROXY_PORT}"
     volumes:

@@ -41,6 +41,7 @@ from shared.log_config import get_logger
 logger = get_logger(__name__)
 
 import httpx
+from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
@@ -141,6 +142,7 @@ async def from_api_completions(message: ProxyOneShotRequest) -> ProxyOneShotResp
         "prompt": message.prompt,
         "temperature": message.temperature,
         "max_tokens": message.max_tokens,
+        "stream": False
     }
 
     logger.debug(f"Constructed payload for Ollama API: {payload}")
@@ -156,7 +158,7 @@ async def from_api_completions(message: ProxyOneShotRequest) -> ProxyOneShotResp
 
             raise HTTPException(
                 status_code=http_err.response.status_code,
-                detail="An error occurred when communicating with the language model service."
+                detail=f"An error occurred when communicating with the language model service: {req_err}"
             )
 
         except httpx.RequestError as req_err:
@@ -164,7 +166,7 @@ async def from_api_completions(message: ProxyOneShotRequest) -> ProxyOneShotResp
 
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to connect to the language model service."
+                detail=f"Failed to connect to the language model service: {req_err}"
             )
 
     # Log the raw response from the Ollama API
@@ -174,8 +176,8 @@ async def from_api_completions(message: ProxyOneShotRequest) -> ProxyOneShotResp
     # Construct the ProxyOneShotResponse from the API response data
     proxy_response = ProxyOneShotResponse(
         response=json_response.get("response"),
-        generated_tokens=json_response.get("generated_tokens"),
-        timestamp=json_response.get("timestamp"),
+        generated_tokens=json_response.get("eval_count"),
+        timestamp=datetime.now().isoformat()
     )
 
     logger.debug(f"Sending API completions response: {proxy_response}")

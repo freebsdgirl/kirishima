@@ -1,20 +1,21 @@
 """
-This module provides utility functions for interacting with an Ollama language model (LLM) 
-and processing chat messages. It includes functions to send prompts or OpenAI-formatted 
-payloads to the LLM and retrieve responses, as well as helper functions for message handling.
+This module provides utility functions for interacting with language models (LLMs) and processing user messages.
 Functions:
     - send_prompt_to_llm(prompt: str) -> dict:
-        Sends a text prompt to the LLM and retrieves its response.
+        Sends a prompt to an Ollama language model and retrieves its response.
     - strip_to_last_user(messages: List[dict]) -> Optional[dict]:
-        Extracts the last user message from a list of chat messages.
+        Extracts the last user message from a list of message dictionaries.
     - send_openai_payload_to_llm(payload: dict) -> dict:
-        Sends an OpenAI-formatted chat payload to the LLM and retrieves its response.
-Dependencies:
-    - shared.log_config.get_logger: For logging debug and error messages.
-    - httpx: For making asynchronous HTTP requests.
-    - proxy.config: Configuration module containing LLM server URLs and model names.
-    - httpx.HTTPError: If there are HTTP-related errors during requests.
+        Placeholder function for sending OpenAI-compatible payloads to an LLM.
+    - is_instruct_model(model_name: str) -> bool:
+        Checks whether a given model uses an instruct-style format by querying the model's template.
+Constants:
+    - llm_model_name: The name of the default language model (retrieved from environment variables).
+    - ollama_server_host: The hostname of the Ollama server (retrieved from environment variables).
+    - ollama_server_port: The port number of the Ollama server (retrieved from environment variables).
 """
+
+import app.config
 
 from shared.log_config import get_logger
 logger = get_logger(__name__)
@@ -98,3 +99,33 @@ async def send_openai_payload_to_llm(payload: dict) -> dict:
     at openai compatibilty with instruct models. lots of system prompt bleedthru.
     no thank u sir.
     """
+
+
+async def is_instruct_model(model_name: str) -> bool:
+    """
+    Check whether a given model uses an instruct format by querying the /api/show endpoint.
+
+    This function calls the service asynchronously to fetch the model's template and
+    returns True if the template contains either "[INST]" or "<<SYS>>", indicating that
+    it follows an instruct-style format.
+
+    Args:
+        model_name (str): The name of the model to check.
+
+    Returns:
+        bool: True if the instruct format is detected, False otherwise.
+    """
+    url = f"{app.config.OLLAMA_URL}/api/show"
+    payload = {"model": model_name}
+
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.post(url, json=payload)
+            response.raise_for_status()
+            data = response.json()
+            template = data.get("template", "")
+            return "[INST]" in template or "<<SYS>>" in template
+
+        except Exception as exc:
+            logger.warning(f"Failed to detect instruct format for model {model_name}: {exc}")
+            return False

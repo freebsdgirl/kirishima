@@ -16,6 +16,7 @@ brain:
   /memory/search/id: false
   /memory/{id}: false
   /message/incoming: false
+  /message/single/incoming: true
   /ping: false
   /scheduler/callback: false
   /scheduler/job: false

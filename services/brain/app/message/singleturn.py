@@ -1,39 +1,38 @@
 """
-This module defines an API endpoint for handling single-turn messages by proxying
-them to an external service. It provides scaffolding for potential future extensions
-and ensures proper logging and error handling.
+This module defines an API endpoint for handling single-turn messages.
+The endpoint receives a `ProxyOneShotRequest`, forwards it to a proxy service,
+and returns the response as a `ProxyResponse`. It acts as an intermediary layer
+to facilitate communication with the proxy service, allowing for future
+enhancements or additional processing.
 Modules:
-    - shared.models.proxy: Contains the ProxyOneShotRequest and ProxyResponse models.
-    - shared.log_config: Provides the logging configuration.
-    - fastapi: Used for creating the API endpoint and handling HTTP exceptions.
-    - httpx: Used for making asynchronous HTTP requests.
-    - os: Used for accessing environment variables.
-Environment Variables:
-    - PROXY_HOST: The hostname of the proxy service (default: "proxy").
-    - PROXY_PORT: The port of the proxy service (default: "4205").
-    - PROXY_URL: The full URL of the proxy service. If not provided, it is constructed
-      using PROXY_HOST and PROXY_PORT.
-Functions:
-    - incoming_singleturn_message(message: ProxyOneShotRequest) -> ProxyResponse:
-        Handles incoming single-turn messages by forwarding them to the proxy service
-        and returning the response. Includes detailed logging and error handling.
+    app.config: Configuration settings for the application.
+    shared.models.proxy: Contains the `ProxyOneShotRequest` and `ProxyResponse` models.
+    shared.log_config: Provides logging functionality.
+    httpx: For making asynchronous HTTP requests.
+    fastapi: Framework for building API endpoints.
+Attributes:
+    logger: Logger instance for logging debug and error messages.
+    router: FastAPI APIRouter instance for defining API routes.
+Routes:
+    POST /message/single/incoming:
+        - Receives a `ProxyOneShotRequest` payload.
+        - Forwards the payload to the proxy service.
+        - Returns the response as a `ProxyResponse`.
+        - Handles HTTP and connection errors gracefully.
 """
+
+import app.config
 
 from shared.models.proxy import ProxyOneShotRequest, ProxyResponse
 
 from shared.log_config import get_logger
-logger = get_logger(__name__)
+logger = get_logger(f"brain.{__name__}")
 
 import httpx
-import os
 
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
 
-# Configure proxy URL from environment variables
-proxy_host = os.getenv("PROXY_HOST", "proxy")
-proxy_port = os.getenv("PROXY_PORT", "4205")
-proxy_url = os.getenv("PROXY_URL", f"http://{proxy_host}:{proxy_port}")
 
 @router.post("/message/single/incoming", response_model=ProxyResponse)
 async def incoming_singleturn_message(message: ProxyOneShotRequest) -> ProxyResponse:
@@ -58,9 +57,9 @@ async def incoming_singleturn_message(message: ProxyOneShotRequest) -> ProxyResp
     payload = message.model_dump()
     logger.debug(f"Payload for proxy service: {payload}")
 
-    target_url = f"{proxy_url}/from/api/completions"
+    target_url = f"{app.config.PROXY_URL}/from/api/completions"
     
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=60) as client:
         try:
             response = await client.post(target_url, json=payload)
             response.raise_for_status()

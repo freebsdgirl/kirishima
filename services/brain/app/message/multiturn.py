@@ -1,30 +1,30 @@
 """
-This module defines an API route for forwarding multi-turn conversation requests 
-to an internal endpoint. It acts as a proxy without performing additional 
-processing on the request or response.
+This module defines an API endpoint for handling multi-turn conversation requests 
+and forwarding them to an internal proxy service. It acts as a simple proxy 
+without additional processing.
 
 Modules:
-    os: Provides a way of using operating system-dependent functionality.
-    httpx: An HTTP client for making asynchronous requests.
-    fastapi: A modern, fast web framework for building APIs.
-    shared.models.proxy: Contains the data models for the proxy request and response.
-    shared.log_config: Provides a logger for structured logging.
+    app.config: Provides configuration settings for the application.
+    shared.models.proxy: Contains data models for ProxyMultiTurnRequest and ProxyResponse.
+    shared.log_config: Provides a logger for logging messages.
+    httpx: Used for making asynchronous HTTP requests.
+    fastapi: Provides tools for building API routes and handling HTTP exceptions.
 
-Attributes:
-    logger: A logger instance for logging debug and error messages.
-    router: An APIRouter instance for defining API routes.
-    proxy_host: The hostname of the proxy server, configurable via the PROXY_HOST 
-                environment variable (default: "proxy").
-    proxy_port: The port of the proxy server, configurable via the PROXY_PORT 
-                environment variable (default: "4205").
-    proxy_url: The full URL of the proxy server, constructed using the proxy_host 
-               and proxy_port values.
+Classes:
+    None
 
-Routes:
-    @router.post("/message/multiturn/outgoing"):
-        endpoint (/from/api/multiturn). It validates the response and returns it 
-        to the client. If an error occurs during the forwarding process, an 
-        appropriate HTTPException is raised.
+Functions:
+    outgoing_multiturn_message(message: ProxyMultiTurnRequest) -> ProxyResponse:
+        Handles incoming multi-turn conversation requests, forwards them to the 
+        internal proxy service, and returns the response.
+
+Dependencies:
+    - app.config.PROXY_URL: The base URL for the proxy service.
+    - ProxyMultiTurnRequest: The request model for multi-turn conversations.
+    - ProxyResponse: The response model for multi-turn conversations.
+    - httpx.AsyncClient: Used for making asynchronous HTTP requests.
+    - fastapi.APIRouter: Used for defining API routes.
+    - fastapi.HTTPException: Used for raising HTTP exceptions.
 """
 
 import app.config
@@ -32,18 +32,13 @@ import app.config
 from shared.models.proxy import ProxyMultiTurnRequest, ProxyResponse
 
 from shared.log_config import get_logger
-logger = get_logger(__name__)
+logger = get_logger(f"brain.{__name__}")
 
 import httpx
-import os
 
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
 
-# Configure the proxy URL from environment variables.
-proxy_host = os.getenv("PROXY_HOST", "proxy")
-proxy_port = os.getenv("PROXY_PORT", "4205")
-proxy_url = os.getenv("PROXY_URL", f"http://{proxy_host}:{proxy_port}")
 
 @router.post("/message/multiturn/incoming", response_model=ProxyResponse)
 async def outgoing_multiturn_message(message: ProxyMultiTurnRequest) -> ProxyResponse:
@@ -66,7 +61,7 @@ async def outgoing_multiturn_message(message: ProxyMultiTurnRequest) -> ProxyRes
     payload = message.model_dump()
     logger.debug(f"Payload for proxy service: {payload}")
 
-    target_url = f"{proxy_url}/from/api/multiturn"
+    target_url = f"{app.config.PROXY_URL}/from/api/multiturn"
 
     async with httpx.AsyncClient(timeout=60) as client:
         try:

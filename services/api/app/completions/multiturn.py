@@ -37,7 +37,7 @@ from shared.models.proxy import ProxyMultiTurnRequest, ProxyResponse, ProxyMessa
 from shared.models.openai import ChatMessage, ChatCompletionRequest, ChatCompletionResponse, ChatCompletionChoice, ChatUsage
 
 from shared.log_config import get_logger
-logger = get_logger(__name__)
+logger = get_logger(f"api.{__name__}")
 
 import uuid
 import httpx

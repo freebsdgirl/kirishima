@@ -26,7 +26,7 @@ import app.config
 from shared.models.proxy import ProxyOneShotRequest, ProxyResponse
 
 from shared.log_config import get_logger
-logger = get_logger(__name__)
+logger = get_logger(f"proxy.{__name__}")
 
 import httpx
 from datetime import datetime

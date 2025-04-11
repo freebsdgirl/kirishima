@@ -35,7 +35,7 @@ from shared.models.proxy import ProxyResponse
 from shared.models.openai import OpenAICompletionRequest, OpenAICompletionResponse, OpenAICompletionChoice, OpenAIUsage
 
 from shared.log_config import get_logger
-logger = get_logger(__name__)
+logger = get_logger(f"api.{__name__}")
 
 import uuid
 import datetime

@@ -28,7 +28,7 @@ from app.prompts.basic import system_prompt
 from shared.models.proxy import ProxyMultiTurnRequest, ProxyResponse
 
 from shared.log_config import get_logger
-logger = get_logger(__name__)
+logger = get_logger(f"proxy.{__name__}")
 
 import httpx
 from datetime import datetime

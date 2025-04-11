@@ -26,7 +26,7 @@ import app.config
 from shared.models.models import OllamaModel, OllamaModelList
 
 from shared.log_config import get_logger
-logger = get_logger(__name__)
+logger = get_logger(f"proxy.{__name__}")
 
 import httpx
 from fastapi import HTTPException, status, APIRouter

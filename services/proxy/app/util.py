@@ -24,12 +24,6 @@ logger = get_logger(f"proxy.{__name__}")
 
 import httpx
 
-import os
-llm_model_name = os.getenv('LLM_MODEL_NAME', 'nemo')
-ollama_server_host = os.getenv('OLLAMA_SERVER_HOST', 'localhost')
-ollama_server_port = os.getenv('OLLAMA_SERVER_PORT', '11434')
-
-
 async def send_prompt_to_llm(prompt: str) -> dict:
     """
     Send a prompt to an Ollama language model and retrieve its response.
@@ -49,11 +43,11 @@ async def send_prompt_to_llm(prompt: str) -> dict:
     """
     logger.debug(f"Sending prompt to LLM: {prompt}")
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with httpx.AsyncClient(timeout=60) as client:
             response = await client.post(
-                f"http://{ollama_server_host}:{ollama_server_port}/api/generate",
+                f"http://{app.config.OLLAMA_URL}/api/generate",
                 json={
-                    "model": llm_model_name,
+                    "model": app.config.LLM_MODEL_NAME,
                     "prompt": prompt,
                     "stream": False,
                     "stop": ["<|im_end|>", "[USER]"]
@@ -65,7 +59,7 @@ async def send_prompt_to_llm(prompt: str) -> dict:
             data = response.json()
             return {
                 "reply": data.get("response", ""),
-                "model": llm_model_name,
+                "model": app.config.LLM_MODEL_NAME,
                 "raw": data
             }
 
@@ -94,7 +88,7 @@ async def is_instruct_model(model_name: str) -> bool:
     url = f"{app.config.OLLAMA_URL}/api/show"
     payload = {"model": model_name}
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=60) as client:
         try:
             response = await client.post(url, json=payload)
             response.raise_for_status()

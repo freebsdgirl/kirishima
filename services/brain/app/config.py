@@ -1,7 +1,6 @@
 import os
 
 ROLLING_BUFFER_DB               = "./shared/db/brain/rolling_buffer.db"
-STATUS_DB                       = "./shared/db/brain/status.db"
 
 DEFAULT_MEMORY_PRIORITY         = 0.5
 
@@ -28,6 +27,9 @@ MIN_SUMMARY_INTERVAL_SECONDS    = 300  # 5 minutes
 
 
 # Configure the proxy URL from environment variables.
-PROXY_HOST = os.getenv("PROXY_HOST", "proxy")
-PROXY_PORT = os.getenv("PROXY_PORT", "4205")
-PROXY_URL = os.getenv("PROXY_URL", f"http://{PROXY_HOST}:{PROXY_PORT}")
+PROXY_HOST                              = os.getenv("PROXY_HOST", "proxy")
+PROXY_PORT                              = os.getenv("PROXY_PORT", "4205")
+PROXY_URL                               = os.getenv("PROXY_URL", f"http://{PROXY_HOST}:{PROXY_PORT}")
+
+# database for mode status
+STATUS_DB                               = "./shared/db/brain/status.db"

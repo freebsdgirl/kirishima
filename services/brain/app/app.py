@@ -26,7 +26,7 @@ Usage:
 
 from app.memory import router as memory_router
 from app.buffer import router as buffer_router
-from app.status import router as status_router
+from app.modes import router as modes_router
 from app.scheduler import router as scheduler_router
 from app.docs import router as docs_router
 from app.message.message import router as message_router
@@ -39,7 +39,7 @@ from fastapi.routing import APIRoute
 app = FastAPI()
 app.include_router(memory_router, tags=["memory"])
 app.include_router(buffer_router, tags=["buffer"])
-app.include_router(status_router, tags=["status"])
+app.include_router(modes_router, tags=["modes"])
 app.include_router(scheduler_router, tags=["scheduler"])
 app.include_router(docs_router, tags=["docs"])
 app.include_router(message_router, prefix="/message", tags=["message"])

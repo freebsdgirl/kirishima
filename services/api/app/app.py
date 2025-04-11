@@ -24,8 +24,8 @@ Functions:
 from app.completions.singleturn import router as singleturn_router
 from app.completions.multiturn import router as multiturn_router
 from app.v1.embeddings import router as embeddings_router
-from app.v1.models.get_model import router as get_model_router
-from app.v1.models.list_models import router as list_models_router
+from app.models.getmodel import router as get_model_router
+from app.models.listmodels import router as list_models_router
 from app.docs import router as docs_router
 
 

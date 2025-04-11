@@ -1,36 +1,31 @@
 """
-This module provides FastAPI endpoints and data models for handling OpenAI-compatible chat completion requests.
-The main functionalities include:
-1. Defining Pydantic models for request and response structures, such as `ChatMessage`, `ChatCompletionRequest`, 
-    `ChatCompletionResponse`, and related components.
-2. Implementing endpoints for redirecting and processing chat completion requests:
-    - `/chat/completions`: Redirects to `/v1/chat/completions`.
-    - `/v1/chat/completions`: Processes chat completion requests by forwarding them to an internal multi-turn brain endpoint.
-3. Logging and error handling for incoming requests and responses.
-Classes:
-- `ChatMessage`: Represents a single message in a chat conversation.
-- `ChatCompletionRequest`: Represents the structure of a chat completion request.
-- `ChatCompletionChoice`: Represents an individual choice in the chat completion response.
-- `ChatUsage`: Represents token usage statistics for a chat completion.
-- `ChatCompletionResponse`: Represents the structure of a chat completion response.
+This module provides FastAPI endpoints for handling OpenAI-compatible chat completion requests. 
+It supports both special task routing and multi-turn conversation handling, ensuring compatibility 
+with OpenAI's API while integrating with internal services.
 Endpoints:
-- `openai_completions`: Redirects requests from `/chat/completions` to `/v1/chat/completions`.
-- `chat_completions`: Handles chat completion requests by forwarding them to an internal service and returning a formatted response.
-Environment Variables:
-- `BRAIN_HOST`: Hostname for the internal multi-turn brain service (default: "brain").
-- `BRAIN_PORT`: Port for the internal multi-turn brain service (default: "4207").
-- `BRAIN_URL`: Full URL for the internal multi-turn brain service (default: "http://{BRAIN_HOST}:{BRAIN_PORT}").
+- `/chat/completions`: Redirects requests to the versioned `/v1/chat/completions` endpoint.
+- `/v1/chat/completions`: Processes chat completion requests, supporting special task routing 
+    and multi-turn conversations.
+Key Features:
+1. Special Task Routing:
+     - Detects requests starting with "### Task" and delegates them to a completions endpoint.
+     - Converts the response into a chat-compatible format.
+2. Multi-Turn Conversation Handling:
+     - Filters and processes user and assistant messages.
+     - Forwards requests to an internal "brain" service for multi-turn conversation support.
+     - Calculates token usage and formats responses to match OpenAI's API.
 Dependencies:
-- `httpx`: For making asynchronous HTTP requests.
-- `fastapi`: For defining API routes and handling HTTP requests.
-- `pydantic`: For data validation and serialization.
-- `shared.models.proxy`: For internal proxy request and response models.
-- `shared.log_config`: For logging configuration.
-Error Handling:
-- Handles HTTP and request errors when communicating with the internal multi-turn brain service.
-- Validates and parses responses from the internal service, raising HTTP exceptions for invalid formats.
-Logging:
-- Logs incoming requests, filtered messages, and outgoing responses for debugging and traceability.
+- FastAPI for API routing and HTTP exception handling.
+- httpx for asynchronous HTTP requests.
+- tiktoken for token encoding and usage calculation.
+- Shared models for request and response validation.
+- Logging for debugging and error tracking.
+Environment Variables:
+- `BRAIN_HOST`: Hostname for the internal brain service (default: "brain").
+- `BRAIN_PORT`: Port for the internal brain service (default: "4207").
+- `BRAIN_URL`: Full URL for the brain service (default: "http://{BRAIN_HOST}:{BRAIN_PORT}").
+- `SERVICE_PORT`: Port for the current service (default: "4200").
+
 """
 
 from shared.models.proxy import ProxyMultiTurnRequest, ProxyResponse, ProxyMessage
@@ -95,13 +90,14 @@ async def chat_completions(request: ChatCompletionRequest) -> ChatCompletionResp
     Raises:
         HTTPException: For various error scenarios including HTTP and request errors.
     """
-    logger.info(f"Received OpenAI chat completion request: {request.dict()}")
+    logger.info(f"Received OpenAI chat completion request: {request.model_dump()}")
 
     # Check if the first user message starts with "### Task"
     if request.messages and request.messages[0].role == "user" and request.messages[0].content.startswith("### Task"):
+
         # Remove the prefix and trim the remaining content.
         task_prompt = request.messages[0].content[len("### Task"):].lstrip()
-        logger.info("Detected special '### Task' prefix. Delegating request to the completions endpoint.")
+        logger.debug("Detected special '### Task' prefix. Delegating request to the completions endpoint.")
         
         # Create an OpenAICompletionRequest using the shared model.
         openai_request = OpenAICompletionRequest(
@@ -113,20 +109,24 @@ async def chat_completions(request: ChatCompletionRequest) -> ChatCompletionResp
         )
 
         # Define the target completions endpoint URL.
-        target_url = f"http://api:4200/v1/completions"
+        target_url = f"http://api:{service_port}/v1/completions"
         
         async with httpx.AsyncClient() as client:
             try:
                 comp_response = await client.post(target_url, json=openai_request.model_dump())
                 comp_response.raise_for_status()
+
             except httpx.HTTPStatusError as http_err:
                 logger.error(f"HTTP error calling completions endpoint: {http_err.response.status_code} - {http_err.response.text}")
+
                 raise HTTPException(
                     status_code=http_err.response.status_code,
                     detail=f"Error from completions endpoint: {http_err.response.text}"
                 )
+
             except httpx.RequestError as req_err:
                 logger.error(f"Request error when calling completions endpoint: {req_err}")
+
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail=f"Connection error: {req_err}"
@@ -157,13 +157,15 @@ async def chat_completions(request: ChatCompletionRequest) -> ChatCompletionResp
                     total_tokens=comp_json["usage"]["total_tokens"]
                 )
             )
+
         except Exception as conversion_err:
             logger.error(f"Error converting completions response to chat format: {conversion_err}")
+
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Error processing completions response."
             )
-        
+
         return chat_response
 
     # Normal processing for non-### Task requests:
@@ -182,18 +184,23 @@ async def chat_completions(request: ChatCompletionRequest) -> ChatCompletionResp
     )
 
     target_url = f"{brain_url}/message/multiturn/incoming"
+
     async with httpx.AsyncClient() as client:
         try:
             response = await client.post(target_url, json=proxy_request.model_dump())
             response.raise_for_status()
+
         except httpx.HTTPStatusError as http_err:
             logger.error(f"HTTP error forwarding to multi-turn endpoint: {http_err.response.status_code} - {http_err.response.text}")
+
             raise HTTPException(
                 status_code=http_err.response.status_code,
                 detail=f"Error from multi-turn brain: {http_err.response.text}"
             )
+
         except httpx.RequestError as req_err:
             logger.error(f"Request error when forwarding to multi-turn endpoint: {req_err}")
+
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Connection error: {req_err}"
@@ -201,8 +208,10 @@ async def chat_completions(request: ChatCompletionRequest) -> ChatCompletionResp
 
     try:
         proxy_response = ProxyResponse.model_validate(response.json())
+
     except Exception as err:
         logger.error(f"Error parsing ProxyResponse: {err}")
+
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Invalid response format from multi-turn brain endpoint."
@@ -213,15 +222,19 @@ async def chat_completions(request: ChatCompletionRequest) -> ChatCompletionResp
     try:
         created_dt = datetime.fromisoformat(proxy_response.timestamp)
         created_unix = int(created_dt.timestamp())
+
     except Exception:
         created_unix = int(datetime.now().timestamp())
 
     prompt_text = " ".join(msg.content for msg in request.messages if msg.role in ["user", "assistant"])
+
     try:
         encoding = tiktoken.encoding_for_model(request.model)
+
     except Exception as err:
         logger.warning(f"Error retrieving encoding for model '{request.model}': {err}. Falling back to default encoding.")
         encoding = tiktoken.get_encoding("gpt2")
+
     prompt_tokens = len(encoding.encode(prompt_text))
     completion_tokens = proxy_response.generated_tokens
     total_tokens = prompt_tokens + completion_tokens
@@ -245,5 +258,6 @@ async def chat_completions(request: ChatCompletionRequest) -> ChatCompletionResp
         )
     )
 
-    logger.info(f"Returning OpenAI chat completion response: {chat_response.dict()}")
+    logger.info(f"Returning OpenAI chat completion response: {chat_response.model_dump()}")
+
     return chat_response

@@ -34,7 +34,7 @@ Logging:
 """
 
 from shared.models.proxy import ProxyMultiTurnRequest, ProxyResponse, ProxyMessage
-from shared.models.openai import ChatMessage, ChatCompletionRequest, ChatCompletionResponse, ChatCompletionChoice, ChatUsage
+from shared.models.openai import ChatMessage, ChatCompletionRequest, OpenAICompletionRequest, ChatCompletionResponse, ChatCompletionChoice, ChatUsage
 
 from shared.log_config import get_logger
 logger = get_logger(f"api.{__name__}")
@@ -52,7 +52,7 @@ import os
 brain_host = os.getenv("BRAIN_HOST", "brain")
 brain_port = os.getenv("BRAIN_PORT", "4207")
 brain_url = os.getenv("BRAIN_URL", f"http://{brain_host}:{brain_port}")
-
+service_port = os.getenv("SERVICE_PORT", "4200")
 
 @router.post("/chat/completions", response_model=ChatCompletionResponse)
 async def openai_completions(request: ChatCompletionRequest) -> RedirectResponse:
@@ -77,33 +77,103 @@ async def openai_completions(request: ChatCompletionRequest) -> RedirectResponse
 @router.post("/v1/chat/completions", response_model=ChatCompletionResponse)
 async def chat_completions(request: ChatCompletionRequest) -> ChatCompletionResponse:
     """
-    Handles an OpenAI-compatible chat completion request.
-    
-    This endpoint:
-      1. Logs the incoming request.
-      2. Filters out any system messages (only user and assistant messages are used).
-      3. Converts the OpenAI request to a ProxyMultiTurnRequest.
-      4. Forwards the ProxyMultiTurnRequest to the internal endpoint (/message/multiturn/outgoing).
-      5. Receives a ProxyResponse and converts it into an OpenAI-compatible ChatCompletionResponse.
-    
+    Handle OpenAI chat completions with support for special task routing and multi-turn conversations.
+
+    This endpoint processes chat completion requests, supporting two primary modes:
+    1. Special task routing for requests starting with '### Task'
+    2. Multi-turn conversation handling for standard chat interactions
+
+    Handles request filtering, proxy communication with internal brain service,
+    token usage calculation, and OpenAI-compatible response generation.
+
     Args:
-        request (ChatCompletionRequest): The incoming OpenAI chat completion request.
-    
+        request (ChatCompletionRequest): The incoming chat completion request.
+
     Returns:
-        ChatCompletionResponse: The OpenAI-formatted chat completion response.
-    
+        ChatCompletionResponse: A formatted chat completion response compatible with OpenAI's API.
+
     Raises:
-        HTTPException: If an error occurs during request processing or forwarding.
+        HTTPException: For various error scenarios including HTTP and request errors.
     """
     logger.info(f"Received OpenAI chat completion request: {request.dict()}")
 
-    # Filter out system messages (only user and assistant messages are supported)
+    # Check if the first user message starts with "### Task"
+    if request.messages and request.messages[0].role == "user" and request.messages[0].content.startswith("### Task"):
+        # Remove the prefix and trim the remaining content.
+        task_prompt = request.messages[0].content[len("### Task"):].lstrip()
+        logger.info("Detected special '### Task' prefix. Delegating request to the completions endpoint.")
+        
+        # Create an OpenAICompletionRequest using the shared model.
+        openai_request = OpenAICompletionRequest(
+            prompt=task_prompt,
+            model=request.model,
+            temperature=request.temperature,
+            max_tokens=request.max_tokens,
+            n=1  # Modify if you want multiple completions.
+        )
+
+        # Define the target completions endpoint URL.
+        target_url = f"http://api:4200/v1/completions"
+        
+        async with httpx.AsyncClient() as client:
+            try:
+                comp_response = await client.post(target_url, json=openai_request.model_dump())
+                comp_response.raise_for_status()
+            except httpx.HTTPStatusError as http_err:
+                logger.error(f"HTTP error calling completions endpoint: {http_err.response.status_code} - {http_err.response.text}")
+                raise HTTPException(
+                    status_code=http_err.response.status_code,
+                    detail=f"Error from completions endpoint: {http_err.response.text}"
+                )
+            except httpx.RequestError as req_err:
+                logger.error(f"Request error when calling completions endpoint: {req_err}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Connection error: {req_err}"
+                )
+        
+        # Retrieve the completions response JSON.
+        comp_json = comp_response.json()
+
+        # Convert the completions response into a ChatCompletionResponse.
+        # This includes remapping each 'choice' to use a ChatMessage with the 'text' content.
+        try:
+            chat_response = ChatCompletionResponse(
+                id=comp_json["id"],
+                object="chat.completion",
+                created=comp_json["created"],
+                model=comp_json["model"],
+                choices=[
+                    ChatCompletionChoice(
+                        index=choice["index"],
+                        message=ChatMessage(role="assistant", content=choice["text"]),
+                        finish_reason=choice.get("finish_reason", "stop")
+                    )
+                    for choice in comp_json.get("choices", [])
+                ],
+                usage=ChatUsage(
+                    prompt_tokens=comp_json["usage"]["prompt_tokens"],
+                    completion_tokens=comp_json["usage"]["completion_tokens"],
+                    total_tokens=comp_json["usage"]["total_tokens"]
+                )
+            )
+        except Exception as conversion_err:
+            logger.error(f"Error converting completions response to chat format: {conversion_err}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Error processing completions response."
+            )
+        
+        return chat_response
+
+    # Normal processing for non-### Task requests:
+
+    # Filter messages to only include 'user' and 'assistant' roles.
     filtered_messages = [
         ProxyMessage(role=msg.role, content=msg.content)
         for msg in request.messages if msg.role in ["user", "assistant"]
     ]
 
-    # Build the internal ProxyMultiTurnRequest using filtered messages.
     proxy_request = ProxyMultiTurnRequest(
         model=request.model,
         messages=filtered_messages,
@@ -111,7 +181,6 @@ async def chat_completions(request: ChatCompletionRequest) -> ChatCompletionResp
         max_tokens=request.max_tokens
     )
 
-    # Forward the request to the internal multi-turn proxy endpoint.
     target_url = f"{brain_url}/message/multiturn/incoming"
     async with httpx.AsyncClient() as client:
         try:
@@ -141,14 +210,12 @@ async def chat_completions(request: ChatCompletionRequest) -> ChatCompletionResp
 
     logger.info(f"Received ProxyResponse: {proxy_response}")
 
-    # Convert the ISO 8601 timestamp from the ProxyResponse into a UNIX timestamp.
     try:
         created_dt = datetime.fromisoformat(proxy_response.timestamp)
         created_unix = int(created_dt.timestamp())
     except Exception:
         created_unix = int(datetime.now().timestamp())
 
-    # Calculate token usage using tiktoken for accuracy.
     prompt_text = " ".join(msg.content for msg in request.messages if msg.role in ["user", "assistant"])
     try:
         encoding = tiktoken.encoding_for_model(request.model)
@@ -159,7 +226,6 @@ async def chat_completions(request: ChatCompletionRequest) -> ChatCompletionResp
     completion_tokens = proxy_response.generated_tokens
     total_tokens = prompt_tokens + completion_tokens
 
-    # Build the ChatCompletionResponse.
     chat_response = ChatCompletionResponse(
         id=f"chatcmpl-{uuid.uuid4()}",
         object="chat.completion",

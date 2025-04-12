@@ -61,7 +61,7 @@ async def outgoing_multiturn_message(message: ProxyMultiTurnRequest) -> ProxyRes
     payload = message.model_dump()
     logger.debug(f"Payload for proxy service: {payload}")
 
-    target_url = f"{shared.consul.proxy_address}:{shared.consul.proxy_port}/from/api/multiturn"
+    target_url = f"http://{shared.consul.proxy_address}:{shared.consul.proxy_port}/from/api/multiturn"
 
     async with httpx.AsyncClient(timeout=60) as client:
         try:

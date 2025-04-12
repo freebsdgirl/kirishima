@@ -57,7 +57,7 @@ async def incoming_singleturn_message(message: ProxyOneShotRequest) -> ProxyResp
     payload = message.model_dump()
     logger.debug(f"Payload for proxy service: {payload}")
 
-    target_url = f"{shared.consul.proxy_address}:{shared.consul.proxy_port}/from/api/completions"
+    target_url = f"http://{shared.consul.proxy_address}:{shared.consul.proxy_port}/from/api/completions"
     
     async with httpx.AsyncClient(timeout=60) as client:
         try:

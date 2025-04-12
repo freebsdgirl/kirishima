@@ -1,13 +1,4 @@
 services:
-  consul:
-    image: hashicorp/consul
-    command: agent -server -bootstrap -ui -client=0.0.0.0
-    ports:
-      - "8500:8500"  # for accessing the Consul UI/API
-    volumes:
-      - consul_data:/consul/data
-
-
   api:
     build:
       context: ./services/api
@@ -18,12 +9,24 @@ services:
       - BRAIN_HOST=brain
       - BRAIN_PORT=${BRAIN_PORT}
     depends_on:
-      - consul
+      - brain
     ports:
       - "${API_PORT}:${API_PORT}"
     volumes:
       - ./services/api/app:/app/app
       - ./shared:/app/shared
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${API_PORT}/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: gelf
+      options:
+        gelf-address: "tcp://localhost:12201"
+    networks:
+      - shared-net
 
   brain:
     build:
@@ -41,12 +44,24 @@ services:
       - SCHEDULER_HOST=scheduler
       - SCHEDULER_PORT=${SCHEDULER_PORT}
     depends_on:
-      - consul
+      - chromadb
     ports:
       - "${BRAIN_PORT}:${BRAIN_PORT}"
     volumes:
       - ./services/brain/app:/app/app
       - ./shared:/app/shared
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${BRAIN_PORT}/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: gelf
+      options:
+        gelf-address: "tcp://localhost:12201"
+    networks:
+      - shared-net
 
   chromadb:
     build:
@@ -55,13 +70,23 @@ services:
         SERVICE_PORT: ${CHROMADB_PORT}
     environment:
       - SERVICE_PORT=${CHROMADB_PORT}
-    depends_on:
-      - consul
     ports:
       - "${CHROMADB_PORT}:${CHROMADB_PORT}"
     volumes:
       - ./services/chromadb/app:/app/app
       - ./shared:/app/shared
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${CHROMADB_PORT}/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: gelf
+      options:
+        gelf-address: "tcp://localhost:12201"
+    networks:
+      - shared-net
 
   contacts:
     build:
@@ -70,13 +95,23 @@ services:
         SERVICE_PORT: ${CONTACTS_PORT}
     environment:
       - SERVICE_PORT=${CONTACTS_PORT}
-    depends_on:
-      - consul
     ports:
       - "${CONTACTS_PORT}:${CONTACTS_PORT}"
     volumes:
       - ./services/contacts/app:/app/app
       - ./shared:/app/shared
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${CONTACTS_PORT}/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: gelf
+      options:
+        gelf-address: "tcp://localhost:12201"
+    networks:
+      - shared-net
 
   imessage:
     build:
@@ -91,12 +126,49 @@ services:
       - BRAIN_HOST=brain
       - BRAIN_PORT=${BRAIN_PORT}
     depends_on:
-      - consul
+      - brain
     ports:
       - "${IMESSAGE_PORT}:${IMESSAGE_PORT}"
     volumes:
       - ./services/imessage/app:/app/app
       - ./shared:/app/shared
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${IMESSAGE_PORT}/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: gelf
+      options:
+        gelf-address: "tcp://localhost:12201"
+    networks:
+      - shared-net
+
+  intents:
+    build:
+      context: ./services/intents
+      args:
+        SERVICE_PORT: ${INTENTS_PORT}
+    environment:
+      - SERVICE_PORT=${INTENTS_PORT}
+    ports:
+      - "${INTENTS_PORT}:${INTENTS_PORT}"
+    volumes:
+      - ./services/intents/app:/app/app
+      - ./shared:/app/shared
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${INTENTS_PORT}/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: gelf
+      options:
+        gelf-address: "tcp://localhost:12201"
+    networks:
+      - shared-net
 
   proxy:
     build:
@@ -108,8 +180,6 @@ services:
       - LLM_MODEL_NAME=${LLM_MODEL_NAME}
       - OLLAMA_SERVER_HOST=${OLLAMA_SERVER_HOST}
       - OLLAMA_SERVER_PORT=${OLLAMA_SERVER_PORT}
-    depends_on:
-      - consul
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
@@ -117,6 +187,18 @@ services:
     volumes:
       - ./services/proxy/app:/app/app
       - ./shared:/app/shared
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${PROXY_PORT}/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: gelf
+      options:
+        gelf-address: "tcp://localhost:12201"
+    networks:
+      - shared-net
 
   scheduler:
     build:
@@ -126,12 +208,24 @@ services:
     environment:
       - SERVICE_PORT=${SCHEDULER_PORT}
     depends_on:
-      - consul
+      - brain
     ports:
       - "${SCHEDULER_PORT}:${SCHEDULER_PORT}"
     volumes:
       - ./services/scheduler/app:/app/app
       - ./shared:/app/shared
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${SCHEDULER_PORT}/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: gelf
+      options:
+        gelf-address: "tcp://localhost:12201"
+    networks:
+      - shared-net
 
   summarize:
     build:
@@ -143,92 +237,26 @@ services:
       - CHROMADB_HOST=chromadb
       - CHROMADB_PORT=${CHROMADB_PORT}
     depends_on:
-      - consul
+      - brain
     ports:
       - "${SUMMARIZE_PORT}:${SUMMARIZE_PORT}"
     volumes:
       - ./services/summarize/app:/app/app
       - ./shared:/app/shared
-
-
-  mongodb:
-    image: "mongo:6.0"  
-    restart: "on-failure"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${SUMMARIZE_PORT}/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: gelf
+      options:
+        gelf-address: "tcp://localhost:12201"
     networks:
-      - graylog
-    volumes:
-      - "mongodb_data:/data/db"
-      - "mongodb_config:/data/configdb"  
+      - shared-net
 
-  datanode:
-    image: "${DATANODE_IMAGE:-graylog/graylog-datanode:6.1}"
-    hostname: "datanode"
-    environment:
-      GRAYLOG_DATANODE_NODE_ID_FILE: "/var/lib/graylog-datanode/node-id"
-      # GRAYLOG_DATANODE_PASSWORD_SECRET and GRAYLOG_PASSWORD_SECRET MUST be the same value
-      GRAYLOG_DATANODE_PASSWORD_SECRET: "${GRAYLOG_PASSWORD_SECRET:?Please configure GRAYLOG_PASSWORD_SECRET in the .env file}"
-      GRAYLOG_DATANODE_MONGODB_URI: "mongodb://mongodb:27017/graylog"
-    ulimits:
-      memlock:
-        hard: -1
-        soft: -1
-      nofile:
-        soft: 65536
-        hard: 65536
-    ports:
-      - "8999:8999/tcp"   # DataNode API
-      - "9200:9200/tcp"
-      - "9300:9300/tcp"
-    networks:
-      - graylog  
-    volumes:
-      - "graylog-datanode:/var/lib/graylog-datanode"
-    restart: "on-failure"
-
-  # Graylog: https://hub.docker.com/r/graylog/graylog-enterprise
-  graylog:
-    hostname: "server"
-    image: "${GRAYLOG_IMAGE:-graylog/graylog:6.1}"
-    depends_on:
-      mongodb:
-        condition: "service_started"
-      datanode:
-        condition: "service_started"
-    entrypoint: "/usr/bin/tini --  /docker-entrypoint.sh"
-    environment:
-      GRAYLOG_NODE_ID_FILE: "/usr/share/graylog/data/data/node-id"
-      # GRAYLOG_DATANODE_PASSWORD_SECRET and GRAYLOG_PASSWORD_SECRET MUST be the same value
-      GRAYLOG_PASSWORD_SECRET: "${GRAYLOG_PASSWORD_SECRET:?Please configure GRAYLOG_PASSWORD_SECRET in the .env file}"
-      GRAYLOG_ROOT_PASSWORD_SHA2: "${GRAYLOG_ROOT_PASSWORD_SHA2:?Please configure GRAYLOG_ROOT_PASSWORD_SHA2 in the .env file}"
-      GRAYLOG_HTTP_BIND_ADDRESS: "0.0.0.0:9000"
-      GRAYLOG_HTTP_EXTERNAL_URI: "http://localhost:9000/"
-      GRAYLOG_MONGODB_URI: "mongodb://mongodb:27017/graylog"
-    ports:
-    - "5044:5044/tcp"   # Beats
-    - "5140:5140/udp"   # Syslog
-    - "5140:5140/tcp"   # Syslog
-    - "5555:5555/tcp"   # RAW TCP
-    - "5555:5555/udp"   # RAW UDP
-    - "9000:9000/tcp"   # Server API
-    - "12201:12201/tcp" # GELF TCP
-    - "12201:12201/udp" # GELF UDP
-    - "13301:13301/tcp" # Forwarder data
-    - "13302:13302/tcp" # Forwarder config
-    networks:
-      - graylog
-      - default
-    volumes:
-      - "graylog_data:/usr/share/graylog/data/data"
-    restart: "on-failure"
 
 networks:
-  graylog:
-    driver: "bridge"
-
-volumes:
-  mongodb_data:
-  mongodb_config:
-  graylog-datanode:
-  graylog_data:
-  consul_data:
-
+  shared-net:
+    external: true

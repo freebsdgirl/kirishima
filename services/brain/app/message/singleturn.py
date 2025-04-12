@@ -21,9 +21,9 @@ Routes:
         - Handles HTTP and connection errors gracefully.
 """
 
-import app.config
-
 from shared.models.proxy import ProxyOneShotRequest, ProxyResponse
+
+import shared.consul
 
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
@@ -57,7 +57,7 @@ async def incoming_singleturn_message(message: ProxyOneShotRequest) -> ProxyResp
     payload = message.model_dump()
     logger.debug(f"Payload for proxy service: {payload}")
 
-    target_url = f"{app.config.PROXY_URL}/from/api/completions"
+    target_url = f"{shared.consul.proxy_address}:{shared.consul.proxy_port}/from/api/completions"
     
     async with httpx.AsyncClient(timeout=60) as client:
         try:

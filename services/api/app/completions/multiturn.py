@@ -31,6 +31,8 @@ Environment Variables:
 from shared.models.proxy import ProxyMultiTurnRequest, ProxyResponse, ProxyMessage
 from shared.models.openai import ChatMessage, ChatCompletionRequest, OpenAICompletionRequest, ChatCompletionResponse, ChatCompletionChoice, ChatUsage
 
+import shared.consul
+
 from shared.log_config import get_logger
 logger = get_logger(f"api.{__name__}")
 
@@ -43,11 +45,6 @@ from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import RedirectResponse
 router = APIRouter()
 
-import os
-brain_host = os.getenv("BRAIN_HOST", "brain")
-brain_port = os.getenv("BRAIN_PORT", "4207")
-brain_url = os.getenv("BRAIN_URL", f"http://{brain_host}:{brain_port}")
-service_port = os.getenv("SERVICE_PORT", "4200")
 
 @router.post("/chat/completions", response_model=ChatCompletionResponse)
 async def openai_completions(request: ChatCompletionRequest) -> RedirectResponse:
@@ -108,8 +105,9 @@ async def chat_completions(request: ChatCompletionRequest) -> ChatCompletionResp
             n=1  # Modify if you want multiple completions.
         )
 
+
         # Define the target completions endpoint URL.
-        target_url = f"http://api:{service_port}/v1/completions"
+        target_url = f"http://api:{shared.consul.api_port}/v1/completions"
         
         async with httpx.AsyncClient() as client:
             try:
@@ -183,12 +181,16 @@ async def chat_completions(request: ChatCompletionRequest) -> ChatCompletionResp
         max_tokens=request.max_tokens
     )
 
-    target_url = f"{brain_url}/message/multiturn/incoming"
-
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=60) as client:
         try:
-            response = await client.post(target_url, json=proxy_request.model_dump())
+            response = await client.post(
+                f"http://{shared.consul.brain_address}:{shared.consul.brain_port}/message/multiturn/incoming",
+                json=proxy_request.model_dump()
+            )
             response.raise_for_status()
+
+        except Exception as e:
+            logger.exception("Error retrieving service address for brain:", e)
 
         except httpx.HTTPStatusError as http_err:
             logger.error(f"HTTP error forwarding to multi-turn endpoint: {http_err.response.status_code} - {http_err.response.text}")

@@ -1,4 +1,13 @@
 services:
+  consul:
+    image: hashicorp/consul
+    command: agent -server -bootstrap -ui -client=0.0.0.0
+    ports:
+      - "8500:8500"  # for accessing the Consul UI/API
+    volumes:
+      - consul_data:/consul/data
+
+
   api:
     build:
       context: ./services/api
@@ -8,6 +17,8 @@ services:
       - SERVICE_PORT=${API_PORT}
       - BRAIN_HOST=brain
       - BRAIN_PORT=${BRAIN_PORT}
+    depends_on:
+      - consul
     ports:
       - "${API_PORT}:${API_PORT}"
     volumes:
@@ -29,6 +40,8 @@ services:
       - SUMMARIZE_PORT=${SUMMARIZE_PORT}
       - SCHEDULER_HOST=scheduler
       - SCHEDULER_PORT=${SCHEDULER_PORT}
+    depends_on:
+      - consul
     ports:
       - "${BRAIN_PORT}:${BRAIN_PORT}"
     volumes:
@@ -42,6 +55,8 @@ services:
         SERVICE_PORT: ${CHROMADB_PORT}
     environment:
       - SERVICE_PORT=${CHROMADB_PORT}
+    depends_on:
+      - consul
     ports:
       - "${CHROMADB_PORT}:${CHROMADB_PORT}"
     volumes:
@@ -55,6 +70,8 @@ services:
         SERVICE_PORT: ${CONTACTS_PORT}
     environment:
       - SERVICE_PORT=${CONTACTS_PORT}
+    depends_on:
+      - consul
     ports:
       - "${CONTACTS_PORT}:${CONTACTS_PORT}"
     volumes:
@@ -73,6 +90,8 @@ services:
       - BLUEBUBBLES_PASSWORD=${BLUEBUBBLES_PASSWORD}
       - BRAIN_HOST=brain
       - BRAIN_PORT=${BRAIN_PORT}
+    depends_on:
+      - consul
     ports:
       - "${IMESSAGE_PORT}:${IMESSAGE_PORT}"
     volumes:
@@ -89,6 +108,8 @@ services:
       - LLM_MODEL_NAME=${LLM_MODEL_NAME}
       - OLLAMA_SERVER_HOST=${OLLAMA_SERVER_HOST}
       - OLLAMA_SERVER_PORT=${OLLAMA_SERVER_PORT}
+    depends_on:
+      - consul
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
@@ -104,6 +125,8 @@ services:
         SERVICE_PORT: ${SCHEDULER_PORT}
     environment:
       - SERVICE_PORT=${SCHEDULER_PORT}
+    depends_on:
+      - consul
     ports:
       - "${SCHEDULER_PORT}:${SCHEDULER_PORT}"
     volumes:
@@ -119,6 +142,8 @@ services:
       - SERVICE_PORT=${SUMMARIZE_PORT}
       - CHROMADB_HOST=chromadb
       - CHROMADB_PORT=${CHROMADB_PORT}
+    depends_on:
+      - consul
     ports:
       - "${SUMMARIZE_PORT}:${SUMMARIZE_PORT}"
     volumes:
@@ -205,4 +230,5 @@ volumes:
   mongodb_config:
   graylog-datanode:
   graylog_data:
+  consul_data:
 

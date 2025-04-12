@@ -6,13 +6,7 @@ Modules and Imports:
 - `shared.models.models`: Contains the `OllamaModelList` and `OpenAIModelList` models.
 - `shared.log_config`: Provides a logger for logging messages.
 - `httpx`: Used for making asynchronous HTTP requests.
-- `os`: Used for environment variable access.
 - `fastapi`: Provides the `APIRouter`, `HTTPException`, and `status` utilities for API routing and error handling.
-
-Environment Variables:
-- `BRAIN_HOST`: Hostname for the brain service (default: "brain").
-- `BRAIN_PORT`: Port for the brain service (default: "4207").
-- `BRAIN_URL`: Full URL for the brain service (default: "http://brain:4207").
 
 Endpoint:
 - `/v1/models`: A GET endpoint that lists available models in an OpenAI-style format.
@@ -36,15 +30,12 @@ import app.config
 
 from shared.models.models import OllamaModelList, OpenAIModelList
 
+from shared.consul import get_service_address
+
 from shared.log_config import get_logger
 logger = get_logger(f"api.{__name__}")
 
 import httpx
-
-import os
-brain_host = os.getenv("BRAIN_HOST", "brain")
-brain_port = os.getenv("BRAIN_PORT", "4207")
-brain_url = os.getenv("BRAIN_URL", f"http://{brain_host}:{brain_port}")
 
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import RedirectResponse
@@ -86,7 +77,9 @@ async def list_models():
 
     async with httpx.AsyncClient(timeout=60) as client:
         try:
-            response = await client.get(f"{brain_url}/models")
+            brain_address, brain_port = get_service_address('brain')
+
+            response = await client.get(f"http://{brain_address}:{brain_port}/models")
             response.raise_for_status()
 
         except Exception as exc:

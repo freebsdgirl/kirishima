@@ -24,9 +24,9 @@ Error Handling:
     - Raises HTTPException for HTTP errors, request errors, and response parsing issues.
 """
 
-import app.config
-
 from shared.models.models import OllamaModel, OllamaModelList
+
+import shared.consul
 
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
@@ -56,7 +56,7 @@ async def get_models() -> OllamaModelList:
 
     async with httpx.AsyncClient(timeout=60) as client:
         try:
-            response = await client.get(f"{app.config.PROXY_URL}/api/models")
+            response = await client.get(f"{shared.consul.proxy_address}:{shared.consul.proxy_port}/api/models")
             response.raise_for_status()
 
         except httpx.HTTPStatusError as http_err:
@@ -117,7 +117,7 @@ async def from_api_completions(model_name: str) -> OllamaModel:
     # Send the POST request using an async HTTP client
     async with httpx.AsyncClient(timeout=60) as client:
         try:
-            response = await client.get(f"{app.config.PROXY_URL}/api/models/{model_name}")
+            response = await client.get(f"{shared.consul.proxy_address}:{shared.consul.proxy_port}/api/models/{model_name}")
             response.raise_for_status()
 
         except httpx.HTTPStatusError as http_err:

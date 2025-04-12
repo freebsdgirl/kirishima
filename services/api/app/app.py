@@ -35,8 +35,8 @@ app = FastAPI()
 app.include_router(singleturn_router, tags=["completions"])
 app.include_router(multiturn_router, tags=["completions"])
 app.include_router(embeddings_router, tags=["embeddings"])
-app.include_router(get_model_router, tags=["get_model"])
-app.include_router(list_models_router, tags=["list_models"])
+app.include_router(get_model_router, tags=["models"])
+app.include_router(list_models_router, tags=["models"])
 app.include_router(docs_router, tags=["docs"])
 
 

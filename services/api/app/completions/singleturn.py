@@ -34,6 +34,8 @@ Notes:
 from shared.models.proxy import ProxyResponse
 from shared.models.openai import OpenAICompletionRequest, OpenAICompletionResponse, OpenAICompletionChoice, OpenAIUsage
 
+from shared.consul import get_service_address
+
 from shared.log_config import get_logger
 logger = get_logger(f"api.{__name__}")
 
@@ -47,11 +49,6 @@ from typing import Optional, List
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import RedirectResponse
 router = APIRouter()
-
-import os
-brain_host = os.getenv("BRAIN_HOST", "brain")
-brain_port = os.getenv("BRAIN_PORT", "4207")
-brain_url = os.getenv("BRAIN_URL", f"http://{brain_host}:{brain_port}")
 
 
 @router.post("/completions", response_model=OpenAICompletionResponse)
@@ -111,8 +108,9 @@ async def openai_v1_completions(request: OpenAICompletionRequest) -> OpenAICompl
     async with httpx.AsyncClient() as client:
         for i in range(n):
             try:
+                brain_address, brain_port = get_service_address('brain')
                 response = await client.post(
-                    f"{brain_url}/message/single/incoming", 
+                    f"http://{brain_address}:{brain_port}/message/single/incoming", 
                     json=proxy_request_data
                 )
                 response.raise_for_status()

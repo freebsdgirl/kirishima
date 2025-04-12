@@ -7,7 +7,6 @@ Modules:
     - httpx: Used for making asynchronous HTTP requests to external services.
     - logging: Used for logging errors and debugging information.
     - shared_models: Contains data models such as IncomingMessage, MessageBufferEntry, and AddMessageBufferResponse.
-    - brain.config: Provides configuration values such as service URLs.
 Routes:
     - POST /incoming: Handles incoming messages by performing the following steps:
         1. Resolves the sender's identity using the Contacts service.
@@ -22,6 +21,8 @@ Exceptions:
 from shared.models.proxy import IncomingMessage
 from shared.models.summarize import MessageBufferEntry, AddMessageBufferResponse
 
+import shared.consul
+
 from shared.log_config import get_logger
 logger = get_logger(__name__)
 
@@ -29,14 +30,6 @@ import httpx
 
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
-
-import os
-contacts_host = os.getenv("CONTACTS_HOST", "localhost")
-contacts_port = os.getenv("CONTACTS_PORT", "4202")
-contacts_url = f"http://{contacts_host}:{contacts_port}"
-summarize_host = os.getenv("SUMMARIZE_HOST", "localhost")
-summarize_port = os.getenv("SUMMARIZE_PORT", "4206")
-summarize_url = f"http://{summarize_host}:{summarize_port}"
 
 
 @router.post("/incoming", status_code=status.HTTP_200_OK, response_model=dict)
@@ -70,7 +63,7 @@ async def incoming_message(message: IncomingMessage) -> dict:
         # 1. Identity Resolution via Contacts search.
         try:
             contacts_response = await client.get(
-                f"{contacts_url}/search",
+                f"http://{shared.consul.contacts_address}:{shared.consul.contacts_port}/search",
                 params={"key": message.platform, "value": message.sender_id}
             )
         except Exception as e:
@@ -95,7 +88,7 @@ async def incoming_message(message: IncomingMessage) -> dict:
 
             try:
                 create_response = await client.post(
-                    f"{contacts_url}/contact",
+                    f"http://{shared.consul.contacts_address}:{shared.consul.contacts_port}/contact",
                     json=placeholder_contact
                 )
 
@@ -133,8 +126,8 @@ async def incoming_message(message: IncomingMessage) -> dict:
 
         try:
             buffer_response = await client.post(
-                f"{summarize_url}/buffer",
-                json=buffer_entry.dict()
+                f"http://{shared.consul.summarize_address}:{shared.consul.summarize_port}/buffer",
+                json=buffer_entry.model_dump()
             )
     
         except Exception as e:
@@ -154,7 +147,7 @@ async def incoming_message(message: IncomingMessage) -> dict:
             )
 
         # Parse the buffer service response using AddMessageBufferResponse model.
-        add_buffer_resp = AddMessageBufferResponse.parse_obj(buffer_response.json())
+        add_buffer_resp = AddMessageBufferResponse.model_validate(buffer_response.json())
 
         # 3. Summarization Scheduling (Optional placeholder for additional logic)
     

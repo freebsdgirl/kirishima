@@ -19,26 +19,18 @@ Dependencies:
     - shared.log_config: Provides logging functionality.
     - httpx: For making asynchronous HTTP requests.
     - fastapi: For building the API endpoints.
-    - os: For environment variable access.
-Environment Variables:
-    - BRAIN_HOST: Hostname of the brain service (default: "brain").
-    - BRAIN_PORT: Port of the brain service (default: "4207").
-    - BRAIN_URL: Full URL of the brain service (default: "http://{BRAIN_HOST}:{BRAIN_PORT}").
 """
 
 import app.config
 
 from shared.models.models import OpenAIModel, OllamaModel
 
+from shared.consul import get_service_address
+
 from shared.log_config import get_logger
 logger = get_logger(f"api.{__name__}")
 
 import httpx
-
-import os
-brain_host = os.getenv("BRAIN_HOST", "brain")
-brain_port = os.getenv("BRAIN_PORT", "4207")
-brain_url = os.getenv("BRAIN_URL", f"http://{brain_host}:{brain_port}")
 
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import RedirectResponse
@@ -85,7 +77,8 @@ async def get_model(model_id: str):
 
     async with httpx.AsyncClient(timeout=60) as client:
         try:
-            response = await client.get(f"{brain_url}/model/{model_id}")
+            brain_address, brain_port = get_service_address('brain')
+            response = await client.get(f"http://{brain_address}:{brain_port}/model/{model_id}")
             response.raise_for_status()
 
         except Exception as exc:

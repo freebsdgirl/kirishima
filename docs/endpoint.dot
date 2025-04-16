@@ -1,0 +1,43 @@
+graph Microservices {
+  /* Force‑directed layout: neato or sfdp are your friends */
+  layout=neato;       /* or use sfdp for bigger graphs */
+  overlap=false;      /* prevent nodes from colliding */
+  splines=true;       /* smooth, curved edges */
+
+  /* Global node styling */
+  node [
+    shape=box,
+    style="filled,rounded",
+    fillcolor=lightblue,
+    fontcolor=dimgray
+  ];
+
+  /* Optional: give heavier “gravity” to high‑degree nodes */
+  edge [
+    weight=2         /* boost spring strength */
+  ];
+
+  /* Define nodes (your endpoints as labels) */
+  "API: POST /v1/chat/completions"
+  "API: POST /v1/completions"
+  "Brain: POST /message/multiturn/incoming"
+  "Brain: POST /message/single/incoming"
+  "API: GET /v1/models/MODEL_ID"
+  "Brain: GET /model/MODEL_ID"
+  "API: GET /v1/models"
+  "Brain: GET /v1/models"
+  "Proxy: POST /from/api/multiturn"
+  "Proxy: POST /from/api/completions"
+
+  /* Describe connections */
+  "API: POST /v1/chat/completions"          -- "API: POST /v1/completions"
+  "API: POST /v1/chat/completions"          -- "Brain: POST /message/multiturn/incoming"
+  "API: POST /v1/completions"               -- "Brain: POST /message/single/incoming"
+  "API: GET /v1/models/MODEL_ID"            -- "Brain: GET /model/MODEL_ID"
+  "API: GET /v1/models"                     -- "Brain: GET /v1/models"
+  "Brain: POST /message/multiturn/incoming" -- "Proxy: POST /from/api/multiturn"
+  "Brain: POST /message/multiturn/incoming" -- "Proxy: POST /from/api/completions"
+
+}
+
+/* generate with twopi -Tsvg endpoint.dot -o endpoint.svg or neato -Tpng endpoint.dot -o endpoint.png */

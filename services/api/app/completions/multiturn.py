@@ -89,7 +89,7 @@ async def chat_completions(data: ChatCompletionRequest):
     Raises:
         HTTPException: For various error scenarios including HTTP and request errors.
     """
-    logger.debug(f"/message/single/incoming Request:\n{data.model_dump_json(indent=4)}")
+    logger.debug(f"/v1/chat/completions Request:\n{data.model_dump_json(indent=4)}")
 
     #logger.info(f"/chat/completions Request\n{json.dumps(raw_body, indent=4, ensure_ascii=False)}")
 

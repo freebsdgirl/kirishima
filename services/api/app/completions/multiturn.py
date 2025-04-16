@@ -46,8 +46,8 @@ from fastapi.responses import RedirectResponse
 router = APIRouter()
 
 
-@router.post("/chat/completions2", response_model=ChatCompletionResponse)
-async def openai_completions2(request: ChatCompletionRequest) -> RedirectResponse:
+@router.post("/chat/completions", response_model=ChatCompletionResponse)
+async def openai_completions(request: ChatCompletionRequest) -> RedirectResponse:
 
     """
     Redirects requests from the '/completions' endpoint to the '/v1/completions' endpoint.

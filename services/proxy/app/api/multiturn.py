@@ -31,6 +31,7 @@ from shared.log_config import get_logger
 logger = get_logger(f"proxy.{__name__}")
 
 import httpx
+import json
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, status
@@ -120,7 +121,7 @@ async def from_api_multiturn(request: ProxyMultiTurnRequest) -> ProxyResponse:
     Raises:
         HTTPException: If the model is not instruct‑compatible or if there are errors communicating with the API.
     """
-    logger.debug(f"Received multi-turn proxy request: {request}")
+    logger.debug(f"/from/api/multiturn Request:\n{request.model_dump_json(indent=4)}")
 
     # Check if the model supports instruct formatting.
     if not await is_instruct_model(request.model):
@@ -133,7 +134,6 @@ async def from_api_multiturn(request: ProxyMultiTurnRequest) -> ProxyResponse:
 
     # Construct the multi-turn prompt using raw formatting.
     formatted_prompt = build_multiturn_prompt(request, system_prompt)
-    logger.debug(f"Constructed multi-turn prompt: {formatted_prompt}")
 
     # Construct the payload for the Ollama API call
     payload = {
@@ -145,7 +145,7 @@ async def from_api_multiturn(request: ProxyMultiTurnRequest) -> ProxyResponse:
         "raw": True
     }
 
-    logger.debug(f"Payload for Ollama API (multi-turn): {payload}")
+    logger.debug(f"Request from Ollama API:\n{json.dumps(payload, indent=4, ensure_ascii=False)}")
 
     # Send the POST request using an async HTTP client
     async with httpx.AsyncClient(timeout=60) as client:
@@ -166,7 +166,7 @@ async def from_api_multiturn(request: ProxyMultiTurnRequest) -> ProxyResponse:
             )
 
     json_response = response.json()
-    logger.debug(f"Response from Ollama API (multi-turn): {json_response}")
+    logger.debug(f"Response from Ollama API:\n{json.dumps(json_response, indent=4, ensure_ascii=False)}")
 
     # Construct the ProxyResponse from the API response data.
     proxy_response = ProxyResponse(
@@ -175,5 +175,5 @@ async def from_api_multiturn(request: ProxyMultiTurnRequest) -> ProxyResponse:
         timestamp=datetime.now().isoformat()
     )
 
-    logger.debug(f"Returning multi-turn proxy response: {proxy_response}")
+    logger.debug(f"/from/api/multiturn Response:\n{proxy_response.model_dump_json(indent=4)}")
     return proxy_response

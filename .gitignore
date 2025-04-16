@@ -5,3 +5,4 @@
 kirishima.code-workspace
 __pycache__
 *.sqlite3
+/ollama

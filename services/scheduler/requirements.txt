@@ -4,3 +4,10 @@ graypy
 apscheduler
 requests
 SQLAlchemy
+transformers
+opentelemetry-sdk
+opentelemetry-exporter-otlp
+opentelemetry-instrumentation-fastapi
+opentelemetry-exporter-otlp-proto-http
+opentelemetry-instrumentation-fastapi
+pygelf

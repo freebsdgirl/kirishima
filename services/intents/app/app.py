@@ -1,29 +1,12 @@
+
+from shared.routes import router as routes_router
+
 from fastapi import FastAPI
-from fastapi.routing import APIRoute
 app = FastAPI()
+app.include_router(routes_router, tags=["system"])
 
 
-"""
-Health check endpoint that returns the service status.
-
-Returns:
-    Dict[str, str]: A dictionary with a 'status' key indicating the service is operational.
-"""
-@app.get("/ping")
-def ping():
-    return {"status": "ok"}
-
-
-"""
-Endpoint to list all registered API routes in the application.
-
-Returns:
-    List[Dict[str, Union[str, List[str]]]]: A list of dictionaries containing route paths and their supported HTTP methods.
-"""
-@app.get("/__list_routes__")
-def list_routes():
-    return [
-        {"path": route.path, "methods": list(route.methods)}
-        for route in app.routes
-        if isinstance(route, APIRoute)
-    ]
+import shared.config
+if shared.config.TRACING_ENABLED:
+    from shared.tracing import setup_tracing
+    setup_tracing(app, service_name="intents")

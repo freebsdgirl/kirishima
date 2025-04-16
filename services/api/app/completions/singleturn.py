@@ -41,12 +41,13 @@ logger = get_logger(f"api.{__name__}")
 
 import uuid
 import datetime
+import json
 import httpx
 from dateutil import parser
-import tiktoken
+from transformers import AutoTokenizer
 from typing import Optional, List
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Request
 from fastapi.responses import RedirectResponse
 router = APIRouter()
 
@@ -72,7 +73,7 @@ async def openai_completions(request: OpenAICompletionRequest) -> RedirectRespon
 
 
 @router.post("/v1/completions", response_model=OpenAICompletionResponse)
-async def openai_v1_completions(request: OpenAICompletionRequest) -> OpenAICompletionResponse:
+async def openai_v1_completions(request: OpenAICompletionRequest, request_data: Request) -> OpenAICompletionResponse:
     """
     Handles an OpenAI-style completions request and proxies it to the internal
     proxy service (/from/api/completions). All incoming request data is logged.
@@ -87,8 +88,8 @@ async def openai_v1_completions(request: OpenAICompletionRequest) -> OpenAICompl
     Returns:
         OpenAICompletionResponse: A simulated OpenAI completions response.
     """
-    # Log the incoming request data
-    logger.info(f"Received OpenAI completions request: {request.model_dump()}")
+    raw_body = await request_data.json()
+    logger.info(f"/completions Request:\n{json.dumps(raw_body, indent=4, ensure_ascii=False)}")
 
     n = request.n if request.n and request.n > 0 else 1
     completions: List[OpenAICompletionChoice] = []
@@ -130,7 +131,6 @@ async def openai_v1_completions(request: OpenAICompletionRequest) -> OpenAICompl
                 )
 
             json_response = response.json()
-            logger.debug(f"Response from proxy service (call {i}): {json_response}")
 
             try:
                 # Use model_validate per Pydantic v2 practices (replacing deprecated parse_obj)
@@ -164,15 +164,23 @@ async def openai_v1_completions(request: OpenAICompletionRequest) -> OpenAICompl
             )
             completions.append(choice)
 
-    # Calculate the prompt token count using tiktoken for accuracy
     try:
-        encoding = tiktoken.encoding_for_model(request.model)
+        # we're hardcoding this because... there's no real good way to get around this.
+        # the model name doesn't always easily translate to a tokenizer name.
+        # but we're using this model for chromadb embedding, so it makes sense to use it here.
+        # this is a bit of a hack, but it works for now.
+        tokenizer = AutoTokenizer.from_pretrained("intfloat/e5-small-v2")
+        tokens = tokenizer.encode(request.prompt)
 
     except Exception as err:
-        logger.warning(f"Error retrieving encoding for model '{request.model}': {err}. Falling back to default encoding.")
-        encoding = tiktoken.get_encoding("gpt2")
+        logger.warning(f"Error retrieving encoding for model '{request.model}': {err}.")
 
-    prompt_tokens = len(encoding.encode(request.prompt))
+        raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error retrieving encoding for model '{request.model}': {err}"
+            )
+
+    prompt_tokens = len(tokens)
     total_tokens = prompt_tokens + total_completion_tokens
 
     # Construct the final OpenAI completions response
@@ -190,5 +198,6 @@ async def openai_v1_completions(request: OpenAICompletionRequest) -> OpenAICompl
         system_fingerprint="kirishima"
     )
 
-    logger.info(f"Returning OpenAI completion response: {openai_response.model_dump()}")
+    logger.debug(f"/completions Returns:\n{openai_response.model_dump_json(indent=4)}")
+
     return openai_response

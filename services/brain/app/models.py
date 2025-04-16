@@ -52,11 +52,20 @@ async def get_models() -> OllamaModelList:
     Raises:
         HTTPException: If there are issues with the proxy service request or response parsing.
     """
-    logger.debug(f"Received /models request message")
+    logger.debug(f"/models Request")
 
     async with httpx.AsyncClient(timeout=60) as client:
         try:
-            response = await client.get(f"{shared.consul.proxy_address}:{shared.consul.proxy_port}/api/models")
+            proxy_address, proxy_port = shared.consul.get_service_address('proxy')
+            if not proxy_address or not proxy_port:
+                logger.error("Proxy service address or port is not available.")
+
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Proxy service is unavailable."
+                )
+
+            response = await client.get(f"http://{proxy_address}:{proxy_port}/api/models")
             response.raise_for_status()
 
         except httpx.HTTPStatusError as http_err:
@@ -77,7 +86,6 @@ async def get_models() -> OllamaModelList:
 
     try:
         json_response = response.json()
-        logger.debug(f"Response from proxy service: {json_response}")
 
         proxy_response = OllamaModelList.model_validate(json_response)
 
@@ -89,7 +97,7 @@ async def get_models() -> OllamaModelList:
             detail="Failed to parse response from proxy service: {req_err}"
         )
 
-    logger.debug(f"Sending brain response: {proxy_response}")
+    logger.debug(f"/models Returns:\n{proxy_response.model_dump_json(indent=4)}")
 
     return proxy_response
 
@@ -112,12 +120,21 @@ async def from_api_completions(model_name: str) -> OllamaModel:
     Raises:
         HTTPException: If there are issues with the proxy service request or response.
     """
-    logger.debug(f"Received /model request message: {model_name}")
+    logger.debug(f"/model Request: {model_name}")
 
     # Send the POST request using an async HTTP client
     async with httpx.AsyncClient(timeout=60) as client:
         try:
-            response = await client.get(f"{shared.consul.proxy_address}:{shared.consul.proxy_port}/api/models/{model_name}")
+            proxy_address, proxy_port = shared.consul.get_service_address('proxy')
+            if not proxy_address or not proxy_port:
+                logger.error("Proxy service address or port is not available.")
+
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Proxy service is unavailable."
+                )
+
+            response = await client.get(f"http://{proxy_address}:{proxy_port}/api/models/{model_name}")
             response.raise_for_status()
 
         except httpx.HTTPStatusError as http_err:
@@ -138,7 +155,6 @@ async def from_api_completions(model_name: str) -> OllamaModel:
 
     try:
         json_response = response.json()
-        logger.debug(f"Response from proxy service: {json_response}")
 
         proxy_response = OllamaModel.model_validate(json_response)
 
@@ -150,6 +166,6 @@ async def from_api_completions(model_name: str) -> OllamaModel:
             detail="Failed to parse response from proxy service: {req_err}"
         )
 
-    logger.debug(f"Sending brain response: {proxy_response}")
+    logger.debug(f"/model Returns:\n{proxy_response.model_dump_json(indent=4)}")
 
     return proxy_response

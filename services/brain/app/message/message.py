@@ -62,8 +62,10 @@ async def incoming_message(message: IncomingMessage) -> dict:
         logger.debug(f"Incoming message: {message} from {message.platform} with sender_id {message.sender_id}")
         # 1. Identity Resolution via Contacts search.
         try:
+            contacts_address, contacts_port = shared.consul.get_service_address("contacts")
+
             contacts_response = await client.get(
-                f"http://{shared.consul.contacts_address}:{shared.consul.contacts_port}/search",
+                f"http://{contacts_address}:{contacts_port}/search",
                 params={"key": message.platform, "value": message.sender_id}
             )
         except Exception as e:
@@ -88,7 +90,7 @@ async def incoming_message(message: IncomingMessage) -> dict:
 
             try:
                 create_response = await client.post(
-                    f"http://{shared.consul.contacts_address}:{shared.consul.contacts_port}/contact",
+                    f"http://{contacts_address}:{contacts_port}/contact",
                     json=placeholder_contact
                 )
 
@@ -125,8 +127,17 @@ async def incoming_message(message: IncomingMessage) -> dict:
         )
 
         try:
+            summarize_address, summarize_port = shared.consul.get_service_address('summarize')
+            if not summarize_address or not summarize_port:
+                logger.error("Proxy service address or port is not available.")
+
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Proxy service is unavailable."
+                )
+
             buffer_response = await client.post(
-                f"http://{shared.consul.summarize_address}:{shared.consul.summarize_port}/buffer",
+                f"http://{summarize_address}:{summarize_port}/buffer",
                 json=buffer_entry.model_dump()
             )
     

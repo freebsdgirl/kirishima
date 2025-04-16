@@ -73,7 +73,7 @@ async def list_models():
     Raises:
         HTTPException: If there are errors fetching or parsing models from the brain service.
     """
-    logger.debug(f"Received list models request")
+    logger.debug(f"/models Request.")
 
     async with httpx.AsyncClient(timeout=60) as client:
         try:
@@ -100,5 +100,7 @@ async def list_models():
     # Convert each OllamaModel to an OpenAIModel
     openai_models = [model.to_openai_model() for model in ollama_models.data]
     openai_model_list = OpenAIModelList(data=openai_models)
+
+    logger.debug(f"/models Returns:\n{openai_model_list.model_dump_json(indent=4)}")
 
     return openai_model_list

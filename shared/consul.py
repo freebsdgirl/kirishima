@@ -1,5 +1,6 @@
 import requests
 
+from time import sleep
 def get_service_address(service_name):
     # Query Consul API for a specific service
     response = requests.get(f'http://consul:8500/v1/catalog/service/{service_name}')
@@ -14,13 +15,3 @@ def get_service_address(service_name):
             raise Exception("Service not found")
     else:
         raise Exception(f"Consul API returned {response.status_code}")
-
-
-api_address, api_port               = get_service_address('api')
-brain_address, brain_port           = get_service_address('brain')
-chromadb_address, chromadb_port     = get_service_address('chromadb')
-contacts_address, contacts_port     = get_service_address('contacts')
-imessage_address, imessage_port     = get_service_address('imessage')
-proxy_address, proxy_port           = get_service_address('proxy')
-scheduler_address, scheduler_port   = get_service_address('scheduler')
-summarize_address, summarize_port   = get_service_address('summarize')

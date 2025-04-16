@@ -56,16 +56,22 @@ async def outgoing_multiturn_message(message: ProxyMultiTurnRequest) -> ProxyRes
     Raises:
         HTTPException: If any error occurs when contacting the proxy service.
     """
-    logger.debug(f"Received multi-turn message: {message}")
+    logger.debug(f"/message/multiturn/incoming Request:\n{message.model_dump_json(indent=4)}")
 
     payload = message.model_dump()
-    logger.debug(f"Payload for proxy service: {payload}")
-
-    target_url = f"http://{shared.consul.proxy_address}:{shared.consul.proxy_port}/from/api/multiturn"
 
     async with httpx.AsyncClient(timeout=60) as client:
         try:
-            response = await client.post(target_url, json=payload)
+            proxy_address, proxy_port = shared.consul.get_service_address('proxy')
+            if not proxy_address or not proxy_port:
+                logger.error("Proxy service address or port is not available.")
+
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Proxy service is unavailable."
+                )
+            
+            response = await client.post(f"http://{proxy_address}:{proxy_port}/from/api/multiturn", json=payload)
             response.raise_for_status()
 
         except httpx.HTTPStatusError as http_err:
@@ -86,7 +92,6 @@ async def outgoing_multiturn_message(message: ProxyMultiTurnRequest) -> ProxyRes
 
     try:
         json_response = response.json()
-        logger.debug(f"Response from proxy service: {json_response}")
 
         proxy_response = ProxyResponse.model_validate(json_response)
 
@@ -98,6 +103,6 @@ async def outgoing_multiturn_message(message: ProxyMultiTurnRequest) -> ProxyRes
             detail="Failed to parse response from proxy service."
         )
 
-    logger.debug(f"Sending brain response: {proxy_response}")
+    logger.debug(f"/message/multiturn/incoming Returns:\n{proxy_response.model_dump_json(indent=4)}")
 
     return proxy_response

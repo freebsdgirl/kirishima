@@ -1,24 +1,23 @@
 """
-This module defines the main FastAPI application and includes various API routers for different functionalities.
+This module defines the FastAPI application and includes various routers for handling
+different API endpoints. The application is configured with the following features:
 
-Modules:
-    - app.v1.chat.completions: Handles chat completion-related endpoints.
-    - app.v1.completions: Handles general completion-related endpoints.
-    - app.v1.embeddings: Handles embedding-related endpoints.
-    - app.v1.models.get_model: Handles fetching details of a specific model.
-    - app.v1.models.list_models: Handles listing all available models.
-    - app.docs: Handles API documentation endpoints.
+Routers:
+- `routes_router`: Handles system-related routes.
+- `docs_router`: Provides API documentation routes.
+- `singleturn_router`: Manages single-turn completion endpoints.
+- `multiturn_router`: Manages multi-turn completion endpoints.
+- `embeddings_router`: Handles embedding-related endpoints.
+- `get_model_router`: Retrieves information about a specific model.
+- `list_models_router`: Lists all available models.
 
-Routes:
-    - /ping: Health check endpoint to verify the service status.
-    - /__list_routes__: Endpoint to list all registered API routes in the application.
+Tracing:
+- If tracing is enabled (`shared.config.TRACING_ENABLED`), the application sets up
+    tracing using the `setup_tracing` function from the `shared.tracing` module.
 
-Attributes:
-    app (FastAPI): The main FastAPI application instance.
-
-Functions:
-    - ping(): Health check endpoint that returns the service status.
-    - list_routes(): Lists all registered API routes in the application.
+Dependencies:
+- FastAPI is used to create the application and manage routing.
+- Shared configurations and tracing utilities are imported from the `shared` module.
 """
 
 from app.completions.singleturn import router as singleturn_router
@@ -27,40 +26,24 @@ from app.v1.embeddings import router as embeddings_router
 from app.models.getmodel import router as get_model_router
 from app.models.listmodels import router as list_models_router
 from app.docs import router as docs_router
+from shared.routes import router as routes_router
 
-
+from shared.models.middleware import CacheRequestBodyMiddleware
 from fastapi import FastAPI
-from fastapi.routing import APIRoute
+
 app = FastAPI()
+app.add_middleware(CacheRequestBodyMiddleware)
+
+app.include_router(routes_router, tags=["system"])
+app.include_router(docs_router, tags=["docs"])
 app.include_router(singleturn_router, tags=["completions"])
 app.include_router(multiturn_router, tags=["completions"])
 app.include_router(embeddings_router, tags=["embeddings"])
 app.include_router(get_model_router, tags=["models"])
 app.include_router(list_models_router, tags=["models"])
-app.include_router(docs_router, tags=["docs"])
 
 
-"""
-Health check endpoint that returns the service status.
-
-Returns:
-    Dict[str, str]: A dictionary with a 'status' key indicating the service is operational.
-"""
-@app.get("/ping")
-def ping():
-    return {"status": "ok"}
-
-
-"""
-Endpoint to list all registered API routes in the application.
-
-Returns:
-    List[Dict[str, Union[str, List[str]]]]: A list of dictionaries containing route paths and their supported HTTP methods.
-"""
-@app.get("/__list_routes__")
-def list_routes():
-    return [
-        {"path": route.path, "methods": list(route.methods)}
-        for route in app.routes
-        if isinstance(route, APIRoute)
-    ]
+import shared.config
+if shared.config.TRACING_ENABLED:
+    from shared.tracing import setup_tracing
+    setup_tracing(app, service_name="api")

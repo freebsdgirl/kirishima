@@ -6,10 +6,14 @@ services:
         SERVICE_PORT: ${API_PORT}
     environment:
       - SERVICE_PORT=${API_PORT}
+      - SERVICE_NAME=api
       - BRAIN_HOST=brain
       - BRAIN_PORT=${BRAIN_PORT}
     depends_on:
+      - consul
+      - graylog
       - brain
+      - ollama
     ports:
       - "${API_PORT}:${API_PORT}"
     volumes:
@@ -17,7 +21,7 @@ services:
       - ./shared:/app/shared
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:${API_PORT}/ping"]
-      interval: 30s
+      interval: 60s
       timeout: 10s
       retries: 3
       start_period: 10s
@@ -35,6 +39,7 @@ services:
         SERVICE_PORT: ${BRAIN_PORT}
     environment:
       - SERVICE_PORT=${BRAIN_PORT}
+      - SERVICE_NAME=brain
       - CHROMADB_HOST=chromadb
       - CHROMADB_PORT=${CHROMADB_PORT}
       - CONTACTS_HOST=contacts
@@ -44,6 +49,8 @@ services:
       - SCHEDULER_HOST=scheduler
       - SCHEDULER_PORT=${SCHEDULER_PORT}
     depends_on:
+      - consul
+      - graylog
       - chromadb
     ports:
       - "${BRAIN_PORT}:${BRAIN_PORT}"
@@ -52,7 +59,7 @@ services:
       - ./shared:/app/shared
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:${BRAIN_PORT}/ping"]
-      interval: 30s
+      interval: 60s
       timeout: 10s
       retries: 3
       start_period: 10s
@@ -70,6 +77,10 @@ services:
         SERVICE_PORT: ${CHROMADB_PORT}
     environment:
       - SERVICE_PORT=${CHROMADB_PORT}
+      - SERVICE_NAME=chromadb
+    depends_on:
+      - consul
+      - graylog
     ports:
       - "${CHROMADB_PORT}:${CHROMADB_PORT}"
     volumes:
@@ -77,7 +88,7 @@ services:
       - ./shared:/app/shared
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:${CHROMADB_PORT}/ping"]
-      interval: 30s
+      interval: 60s
       timeout: 10s
       retries: 3
       start_period: 10s
@@ -95,6 +106,10 @@ services:
         SERVICE_PORT: ${CONTACTS_PORT}
     environment:
       - SERVICE_PORT=${CONTACTS_PORT}
+      - SERVICE_NAME=contacts
+    depends_on:
+      - consul
+      - graylog
     ports:
       - "${CONTACTS_PORT}:${CONTACTS_PORT}"
     volumes:
@@ -102,7 +117,7 @@ services:
       - ./shared:/app/shared
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:${CONTACTS_PORT}/ping"]
-      interval: 30s
+      interval: 60s
       timeout: 10s
       retries: 3
       start_period: 10s
@@ -120,12 +135,15 @@ services:
         SERVICE_PORT: ${IMESSAGE_PORT}
     environment:
       - SERVICE_PORT=${IMESSAGE_PORT}
+      - SERVICE_NAME=imessage
       - BLUEBUBBLES_HOST=${BLUEBUBBLES_HOST}
       - BLUEBUBBLES_PORT=${BLUEBUBBLES_PORT}
       - BLUEBUBBLES_PASSWORD=${BLUEBUBBLES_PASSWORD}
       - BRAIN_HOST=brain
       - BRAIN_PORT=${BRAIN_PORT}
     depends_on:
+      - consul
+      - graylog
       - brain
     ports:
       - "${IMESSAGE_PORT}:${IMESSAGE_PORT}"
@@ -134,7 +152,7 @@ services:
       - ./shared:/app/shared
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:${IMESSAGE_PORT}/ping"]
-      interval: 30s
+      interval: 60s
       timeout: 10s
       retries: 3
       start_period: 10s
@@ -152,6 +170,10 @@ services:
         SERVICE_PORT: ${INTENTS_PORT}
     environment:
       - SERVICE_PORT=${INTENTS_PORT}
+      - SERVICE_NAME=intents
+    depends_on:
+      - consul
+      - graylog
     ports:
       - "${INTENTS_PORT}:${INTENTS_PORT}"
     volumes:
@@ -159,7 +181,7 @@ services:
       - ./shared:/app/shared
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:${INTENTS_PORT}/ping"]
-      interval: 30s
+      interval: 60s
       timeout: 10s
       retries: 3
       start_period: 10s
@@ -177,9 +199,13 @@ services:
         SERVICE_PORT: ${PROXY_PORT}
     environment:
       - SERVICE_PORT=${PROXY_PORT}
+      - SERVICE_NAME=proxy
       - LLM_MODEL_NAME=${LLM_MODEL_NAME}
       - OLLAMA_SERVER_HOST=${OLLAMA_SERVER_HOST}
       - OLLAMA_SERVER_PORT=${OLLAMA_SERVER_PORT}
+    depends_on:
+      - consul
+      - graylog
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
@@ -189,7 +215,7 @@ services:
       - ./shared:/app/shared
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:${PROXY_PORT}/ping"]
-      interval: 30s
+      interval: 60s
       timeout: 10s
       retries: 3
       start_period: 10s
@@ -207,8 +233,11 @@ services:
         SERVICE_PORT: ${SCHEDULER_PORT}
     environment:
       - SERVICE_PORT=${SCHEDULER_PORT}
+      - SERVICE_NAME=scheduler
     depends_on:
       - brain
+      - consul
+      - graylog
     ports:
       - "${SCHEDULER_PORT}:${SCHEDULER_PORT}"
     volumes:
@@ -216,7 +245,7 @@ services:
       - ./shared:/app/shared
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:${SCHEDULER_PORT}/ping"]
-      interval: 30s
+      interval: 60s
       timeout: 10s
       retries: 3
       start_period: 10s
@@ -234,10 +263,13 @@ services:
         SERVICE_PORT: ${SUMMARIZE_PORT}
     environment:
       - SERVICE_PORT=${SUMMARIZE_PORT}
+      - SERVICE_NAME=summarize
       - CHROMADB_HOST=chromadb
       - CHROMADB_PORT=${CHROMADB_PORT}
     depends_on:
       - brain
+      - consul
+      - graylog
     ports:
       - "${SUMMARIZE_PORT}:${SUMMARIZE_PORT}"
     volumes:
@@ -245,7 +277,7 @@ services:
       - ./shared:/app/shared
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:${SUMMARIZE_PORT}/ping"]
-      interval: 30s
+      interval: 60s
       timeout: 10s
       retries: 3
       start_period: 10s
@@ -257,6 +289,150 @@ services:
       - shared-net
 
 
+  consul:
+    image: hashicorp/consul
+    command: agent -server -bootstrap -ui -client=0.0.0.0
+    ports:
+      - "8500:8500"  # for accessing the Consul UI/API
+    volumes:
+      - consul_data:/consul/data
+    networks:
+      - shared-net
+
+
+##### Graylog
+
+  mongodb:
+    image: "mongo:6.0"  
+    restart: "on-failure"
+    networks:
+      - graylog
+    volumes:
+      - "mongodb_data:/data/db"
+      - "mongodb_config:/data/configdb"  
+
+  datanode:
+    image: "${DATANODE_IMAGE:-graylog/graylog-datanode:6.1}"
+    hostname: "datanode"
+    environment:
+      GRAYLOG_DATANODE_NODE_ID_FILE: "/var/lib/graylog-datanode/node-id"
+      # GRAYLOG_DATANODE_PASSWORD_SECRET and GRAYLOG_PASSWORD_SECRET MUST be the same value
+      GRAYLOG_DATANODE_PASSWORD_SECRET: "${GRAYLOG_PASSWORD_SECRET:?Please configure GRAYLOG_PASSWORD_SECRET in the .env file}"
+      GRAYLOG_DATANODE_MONGODB_URI: "mongodb://mongodb:27017/graylog"
+    ulimits:
+      memlock:
+        hard: -1
+        soft: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    ports:
+      - "8999:8999/tcp"   # DataNode API
+      - "9200:9200/tcp"
+      - "9300:9300/tcp"
+    networks:
+      - graylog
+    volumes:
+      - "graylog-datanode:/var/lib/graylog-datanode"
+    restart: "on-failure"
+
+  # Graylog: https://hub.docker.com/r/graylog/graylog-enterprise
+  graylog:
+    hostname: "server"
+    image: "${GRAYLOG_IMAGE:-graylog/graylog:6.1}"
+    depends_on:
+      mongodb:
+        condition: "service_started"
+      datanode:
+        condition: "service_started"
+    entrypoint: "/usr/bin/tini --  /docker-entrypoint.sh"
+    environment:
+      GRAYLOG_NODE_ID_FILE: "/usr/share/graylog/data/data/node-id"
+      # GRAYLOG_DATANODE_PASSWORD_SECRET and GRAYLOG_PASSWORD_SECRET MUST be the same value
+      GRAYLOG_PASSWORD_SECRET: "${GRAYLOG_PASSWORD_SECRET:?Please configure GRAYLOG_PASSWORD_SECRET in the .env file}"
+      GRAYLOG_ROOT_PASSWORD_SHA2: "${GRAYLOG_ROOT_PASSWORD_SHA2:?Please configure GRAYLOG_ROOT_PASSWORD_SHA2 in the .env file}"
+      GRAYLOG_HTTP_BIND_ADDRESS: "0.0.0.0:9000"
+      GRAYLOG_HTTP_EXTERNAL_URI: "http://localhost:9000/"
+      GRAYLOG_MONGODB_URI: "mongodb://mongodb:27017/graylog"
+    ports:
+    - "5044:5044/tcp"   # Beats
+    - "5140:5140/udp"   # Syslog
+    - "5140:5140/tcp"   # Syslog
+    - "5555:5555/tcp"   # RAW TCP
+    - "5555:5555/udp"   # RAW UDP
+    - "9000:9000/tcp"   # Server API
+    - "12201:12201/tcp" # GELF TCP
+    - "12201:12201/udp" # GELF UDP
+    - "13301:13301/tcp" # Forwarder data
+    - "13302:13302/tcp" # Forwarder config
+    networks:
+      - shared-net
+      - graylog
+    volumes:
+      - "graylog_data:/usr/share/graylog/data/data"
+    restart: "on-failure"
+
+
+#### ollama and openwebui
+
+  ollama:
+    volumes:
+      - ./services/ollama:/root/.ollama
+    container_name: ollama
+    pull_policy: always
+    tty: true
+    restart: unless-stopped
+    image: docker.io/ollama/ollama:latest
+    ports:
+      - 11434:11434
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+    networks:
+      - ollama-docker
+      - shared-net
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  ollama-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: ollama-webui
+    volumes:
+      - ./services/ollama-webui:/app/backend/data
+    depends_on:
+      - ollama
+    ports:
+      - 8080:8080
+    environment: # https://docs.openwebui.com/getting-started/env-configuration#default_models
+      - OLLAMA_BASE_URLS=http://host.docker.internal:11434 #comma separated ollama hosts
+      - ENV=dev
+      - WEBUI_AUTH=False
+      - WEBUI_NAME=kirishima
+      - WEBUI_URL=http://0.0.0.0:8080
+      - WEBUI_SECRET_KEY=t0p-s3cr3t
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    restart: unless-stopped
+    networks:
+      - ollama-docker
+      - shared-net
+
+
 networks:
   shared-net:
     external: true
+  graylog:
+    driver: bridge
+  ollama-docker:
+    external: false
+
+volumes:
+  mongodb_data:
+  mongodb_config:
+  graylog-datanode:
+  graylog_data:
+  consul_data:

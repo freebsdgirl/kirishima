@@ -39,9 +39,9 @@ logger = get_logger(f"api.{__name__}")
 import uuid
 import httpx
 from datetime import datetime
-import tiktoken
+from transformers import AutoTokenizer
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Request
 from fastapi.responses import RedirectResponse
 router = APIRouter()
 
@@ -66,8 +66,12 @@ async def openai_completions(request: ChatCompletionRequest) -> RedirectResponse
     )
 
 
-@router.post("/v1/chat/completions", response_model=ChatCompletionResponse)
-async def chat_completions(request: ChatCompletionRequest) -> ChatCompletionResponse:
+@router.post("/v1/chat/completions")
+#async def chat_completions(request: ChatCompletionRequest, request_data: Request) -> ChatCompletionResponse:
+async def chat_completions(
+    req: Request,
+    data: ChatCompletionRequest
+):
     """
     Handle OpenAI chat completions with support for special task routing and multi-turn conversations.
 
@@ -87,27 +91,31 @@ async def chat_completions(request: ChatCompletionRequest) -> ChatCompletionResp
     Raises:
         HTTPException: For various error scenarios including HTTP and request errors.
     """
-    logger.info(f"Received OpenAI chat completion request: {request.model_dump()}")
+    raw_body = req.state.raw_body.decode("utf-8")
+    logger.debug(f"/chat/completions Request\n{raw_body}")
+
+    #logger.info(f"/chat/completions Request\n{json.dumps(raw_body, indent=4, ensure_ascii=False)}")
 
     # Check if the first user message starts with "### Task"
-    if request.messages and request.messages[0].role == "user" and request.messages[0].content.startswith("### Task"):
+    if data.messages and data.messages[0].role == "user" and data.messages[0].content.startswith("### Task"):
 
         # Remove the prefix and trim the remaining content.
-        task_prompt = request.messages[0].content[len("### Task"):].lstrip()
+        task_prompt = data.messages[0].content[len("### Task"):].lstrip()
         logger.debug("Detected special '### Task' prefix. Delegating request to the completions endpoint.")
         
         # Create an OpenAICompletionRequest using the shared model.
         openai_request = OpenAICompletionRequest(
             prompt=task_prompt,
-            model=request.model,
-            temperature=request.temperature,
-            max_tokens=request.max_tokens,
+            model=data.model,
+            temperature=data.temperature,
+            max_tokens=data.max_tokens,
             n=1  # Modify if you want multiple completions.
         )
 
 
         # Define the target completions endpoint URL.
-        target_url = f"http://api:{shared.consul.api_port}/v1/completions"
+        api_address, api_port = shared.consul.get_service_address('api')
+        target_url = f"http://api:{api_port}/v1/completions"
         
         async with httpx.AsyncClient() as client:
             try:
@@ -161,7 +169,7 @@ async def chat_completions(request: ChatCompletionRequest) -> ChatCompletionResp
 
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Error processing completions response."
+                detail="Error converting completions response to chat format: {conversion_err}"
             )
 
         return chat_response
@@ -171,20 +179,22 @@ async def chat_completions(request: ChatCompletionRequest) -> ChatCompletionResp
     # Filter messages to only include 'user' and 'assistant' roles.
     filtered_messages = [
         ProxyMessage(role=msg.role, content=msg.content)
-        for msg in request.messages if msg.role in ["user", "assistant"]
+        for msg in data.messages if msg.role in ["user", "assistant"]
     ]
 
     proxy_request = ProxyMultiTurnRequest(
-        model=request.model,
+        model=data.model,
         messages=filtered_messages,
-        temperature=request.temperature,
-        max_tokens=request.max_tokens
+        temperature=data.temperature,
+        max_tokens=data.max_tokens
     )
 
     async with httpx.AsyncClient(timeout=60) as client:
         try:
+            brain_address, brain_port = shared.consul.get_service_address('brain')
+        
             response = await client.post(
-                f"http://{shared.consul.brain_address}:{shared.consul.brain_port}/message/multiturn/incoming",
+                f"http://{brain_address}:{brain_port}/message/multiturn/incoming",
                 json=proxy_request.model_dump()
             )
             response.raise_for_status()
@@ -219,8 +229,6 @@ async def chat_completions(request: ChatCompletionRequest) -> ChatCompletionResp
             detail="Invalid response format from multi-turn brain endpoint."
         )
 
-    logger.info(f"Received ProxyResponse: {proxy_response}")
-
     try:
         created_dt = datetime.fromisoformat(proxy_response.timestamp)
         created_unix = int(created_dt.timestamp())
@@ -228,16 +236,25 @@ async def chat_completions(request: ChatCompletionRequest) -> ChatCompletionResp
     except Exception:
         created_unix = int(datetime.now().timestamp())
 
-    prompt_text = " ".join(msg.content for msg in request.messages if msg.role in ["user", "assistant"])
+    prompt_text = " ".join(msg.content for msg in data.messages if msg.role in ["user", "assistant"])
 
     try:
-        encoding = tiktoken.encoding_for_model(request.model)
+        # we're hardcoding this because... there's no real good way to get around this.
+        # the model name doesn't always easily translate to a tokenizer name.
+        # but we're using this model for chromadb embedding, so it makes sense to use it here.
+        # this is a bit of a hack, but it works for now.
+        tokenizer = AutoTokenizer.from_pretrained("intfloat/e5-small-v2")
+        tokens = tokenizer.encode(prompt_text)
 
     except Exception as err:
-        logger.warning(f"Error retrieving encoding for model '{request.model}': {err}. Falling back to default encoding.")
-        encoding = tiktoken.get_encoding("gpt2")
+        logger.warning(f"Error retrieving encoding for model '{data.model}': {err}.")
 
-    prompt_tokens = len(encoding.encode(prompt_text))
+        raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error retrieving encoding for model '{data.model}': {err}"
+            )
+
+    prompt_tokens = len(tokens)
     completion_tokens = proxy_response.generated_tokens
     total_tokens = prompt_tokens + completion_tokens
 
@@ -245,7 +262,7 @@ async def chat_completions(request: ChatCompletionRequest) -> ChatCompletionResp
         id=f"chatcmpl-{uuid.uuid4()}",
         object="chat.completion",
         created=created_unix,
-        model=request.model,
+        model=data.model,
         choices=[
             ChatCompletionChoice(
                 index=0,
@@ -260,6 +277,6 @@ async def chat_completions(request: ChatCompletionRequest) -> ChatCompletionResp
         )
     )
 
-    logger.info(f"Returning OpenAI chat completion response: {chat_response.model_dump()}")
+    logger.debug(f"/chat/completions Returns:\n{chat_response.model_dump_json(indent=4)}")
 
     return chat_response

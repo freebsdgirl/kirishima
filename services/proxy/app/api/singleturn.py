@@ -29,6 +29,7 @@ from shared.log_config import get_logger
 logger = get_logger(f"proxy.{__name__}")
 
 import httpx
+import json
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, status
@@ -54,7 +55,7 @@ async def from_api_completions(message: ProxyOneShotRequest) -> ProxyResponse:
     Raises:
         HTTPException: If there are connection or communication errors with the Ollama service.
     """
-    logger.debug(f"Received API completions request: {message}")
+    logger.debug(f"/from/api/completions Request:\n{message.model_dump_json(indent=4)}")
 
     # Construct the payload for the Ollama API request
     payload = {
@@ -64,8 +65,6 @@ async def from_api_completions(message: ProxyOneShotRequest) -> ProxyResponse:
         "max_tokens": message.max_tokens,
         "stream": False
     }
-
-    logger.debug(f"Constructed payload for Ollama API: {payload}")
 
     # Send the POST request using an async HTTP client
     async with httpx.AsyncClient(timeout=60) as client:
@@ -91,7 +90,8 @@ async def from_api_completions(message: ProxyOneShotRequest) -> ProxyResponse:
 
     # Log the raw response from the Ollama API
     json_response = response.json()
-    logger.debug(f"Response from Ollama API: {json_response}")
+    
+    logger.debug(f"Response from Ollama API:\n{json.dumps(json_response, indent=4, ensure_ascii=False)}")
 
     # Construct the ProxyResponse from the API response data
     proxy_response = ProxyResponse(
@@ -100,5 +100,6 @@ async def from_api_completions(message: ProxyOneShotRequest) -> ProxyResponse:
         timestamp=datetime.now().isoformat()
     )
 
-    logger.debug(f"Sending API completions response: {proxy_response}")
+    logger.debug(f"/from/api/completions Response:\n{proxy_response.model_dump_json(indent=4)}")
+
     return proxy_response

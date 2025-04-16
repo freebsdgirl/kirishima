@@ -47,3 +47,32 @@ import shared.config
 if shared.config.TRACING_ENABLED:
     from shared.tracing import setup_tracing
     setup_tracing(app, service_name="api")
+
+from fastapi import Request
+from fastapi.responses import JSONResponse
+
+@app.api_route("/chat/completions", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
+async def echo(request: Request):
+    # Print method, URL, and headers to stdout
+    print("=== Incoming Request ===")
+    print("Method:", request.method)
+    print("URL:", request.url)
+    print("Headers:", dict(request.headers))
+    
+    # Read and print the raw body
+    body_bytes = await request.body()
+    try:
+        body_str = body_bytes.decode("utf-8")
+    except Exception as e:
+        body_str = f"<cannot decode body: {e}>"
+    
+    print("Body:", body_str)
+    print("========================")
+    
+    # Return a JSON response echoing back some information
+    return JSONResponse(content={
+        "method": request.method,
+        "url": str(request.url),
+        "headers": dict(request.headers),
+        "body": body_str
+    })

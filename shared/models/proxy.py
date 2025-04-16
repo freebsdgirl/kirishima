@@ -108,7 +108,7 @@ class ProxyMessage(BaseModel):
         role (str): The role of the message sender, such as 'user' or 'assistant'.
         content (str): The textual content of the message.
     """
-    role: Literal["user", "assistant"]  = Field(..., description="The role of the message sender (e.g., 'user', 'assistant').")
+    role: Literal["user", "assistant", "system"]  = Field(..., description="The role of the message sender (e.g., 'user', 'assistant').")
     content: str                        = Field(..., description="The content of the message.")
 
 

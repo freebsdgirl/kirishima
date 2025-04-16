@@ -1,5 +1,5 @@
 from typing import List, Optional, Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, Extra
 
 class OpenAICompletionRequest(BaseModel):
     """
@@ -79,7 +79,7 @@ class ChatMessage(BaseModel):
         role (str): The role of the message sender; one of "user" or "assistant".
         content (str): The message content.
     """
-    role: Literal["user", "assistant"] = Field(..., description="The role of the message sender.")
+    role: Literal["user", "assistant", "system"] = Field(..., description="The role of the message sender.")
     content: str = Field(..., description="The textual content of the message.")
 
 
@@ -110,6 +110,7 @@ class ChatCompletionRequest(BaseModel):
                 "max_tokens": 256
             }
         }
+        extra = Extra.allow
 
 
 class ChatCompletionChoice(BaseModel):

@@ -46,8 +46,9 @@ from fastapi.responses import RedirectResponse
 router = APIRouter()
 
 
-@router.post("/chat/completions", response_model=ChatCompletionResponse)
-async def openai_completions(request: ChatCompletionRequest) -> RedirectResponse:
+@router.post("/chat/completions2", response_model=ChatCompletionResponse)
+async def openai_completions2(request: ChatCompletionRequest) -> RedirectResponse:
+
     """
     Redirects requests from the '/completions' endpoint to the '/v1/completions' endpoint.
 
@@ -60,18 +61,15 @@ async def openai_completions(request: ChatCompletionRequest) -> RedirectResponse
     Returns:
         RedirectResponse: A temporary redirect to the '/v1/completions' endpoint.
     """
-    return RedirectResponse(
-        url="/v1/chat/completions",
-        status_code=status.HTTP_307_TEMPORARY_REDIRECT
-    )
+#    return RedirectResponse(
+#        url="/v1/chat/completions",
+#        status_code=status.HTTP_307_TEMPORARY_REDIRECT
+#    )
 
 
 @router.post("/v1/chat/completions")
 #async def chat_completions(request: ChatCompletionRequest, request_data: Request) -> ChatCompletionResponse:
-async def chat_completions(
-    req: Request,
-    data: ChatCompletionRequest
-):
+async def chat_completions(data: ChatCompletionRequest):
     """
     Handle OpenAI chat completions with support for special task routing and multi-turn conversations.
 
@@ -91,8 +89,7 @@ async def chat_completions(
     Raises:
         HTTPException: For various error scenarios including HTTP and request errors.
     """
-    raw_body = req.state.raw_body.decode("utf-8")
-    logger.debug(f"/chat/completions Request\n{raw_body}")
+    logger.debug(f"/message/single/incoming Request:\n{data.model_dump_json(indent=4)}")
 
     #logger.info(f"/chat/completions Request\n{json.dumps(raw_body, indent=4, ensure_ascii=False)}")
 
@@ -179,7 +176,7 @@ async def chat_completions(
     # Filter messages to only include 'user' and 'assistant' roles.
     filtered_messages = [
         ProxyMessage(role=msg.role, content=msg.content)
-        for msg in data.messages if msg.role in ["user", "assistant"]
+        for msg in data.messages if msg.role in ["user", "assistant", "system"]
     ]
 
     proxy_request = ProxyMultiTurnRequest(

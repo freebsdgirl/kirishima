@@ -41,52 +41,55 @@ router = APIRouter()
 def build_multiturn_prompt(request: ProxyMultiTurnRequest, system_prompt: str) -> str:
     """
     Builds a raw, instruct-style prompt for a multi-turn conversation.
+
+    The prompt starts with a global system prompt block, then processes the conversation history.
+    If a message has role "system", it is converted into an instruct-style system block:
     
-    The prompt is constructed using the following template:
+        [INST] <<SYS>>{system message content}<<SYS>> [/INST]
     
-      [INST] <<SYS>>{system_prompt}<<SYS>> [/INST]
-      
-      [INST] user message 1 [/INST] assistant reply 1
-      [INST] user message 2 [/INST] assistant reply 2
-      [INST] user message 3 [/INST]
-      
+    User messages (and their following assistant reply, if present) are processed as before.
+    
     Args:
         request (ProxyMultiTurnRequest): The request containing conversation messages.
-        system_prompt (str): A placeholder system prompt to be injected.
+        system_prompt (str): The global system prompt.
     
     Returns:
-        str: The fully formatted multi-turn prompt.
+        str: The fully formatted instruct-style prompt.
     """
-    # Start with the system message block
+    # Start with the overall system prompt.
     prompt = f"[INST] <<SYS>>{system_prompt}<<SYS>> [/INST]\n\n"
-    
+
     messages = request.messages
     num_messages = len(messages)
-
-    # Build the conversation turns.
-    # We expect that turns alternate: a user message (wrapped) optionally followed by an assistant reply.
     i = 0
+
     while i < num_messages:
-        # Check that the current message is from user
-        if messages[i].role != "user":
-            logger.warning(f"Unexpected message role at position {i}: expected 'user', got '{messages[i].role}'.")
-            # Skip non-user messages or optionally raise an error.
+        message = messages[i]
+
+        if message.role == "system":
+            # Turn system messages into dedicated instruct blocks.
+            prompt += f"[INST] <<SYS>>{message.content}<<SYS>> [/INST]\n"
             i += 1
             continue
 
-        # Wrap the user message in [INST] tags.
-        prompt += f"[INST] {messages[i].content} [/INST]"
-
-        # Look ahead for an assistant reply
-        if (i + 1 < num_messages) and (messages[i + 1].role == "assistant"):
-            prompt += f" {messages[i + 1].content}\n"
-            i += 2
+        elif message.role == "user":
+            # Wrap user messages in an [INST] block.
+            prompt += f"[INST] {message.content} [/INST]"
+            # Look ahead: if the next message is an assistant reply, append it.
+            if (i + 1 < num_messages) and (messages[i + 1].role == "assistant"):
+                prompt += f" {messages[i + 1].content}\n"
+                i += 2
+            else:
+                # No assistant reply follows.
+                prompt += "\n"
+                i += 1
         else:
-            # No assistant reply found, meaning this is the last user message prompting a response.
-            prompt += "\n"
+            # For any messages not expected (such as an assistant message on its own), log and skip.
+            logger.warning(f"Unexpected standalone message with role '{message.role}' at position {i}.")
             i += 1
 
     return prompt
+
 
 
 @router.post("/from/api/multiturn", response_model=ProxyResponse)

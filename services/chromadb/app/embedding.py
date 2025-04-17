@@ -1,20 +1,30 @@
 """
-This module provides functionality for generating dense vector embeddings from text inputs 
-using a pre-configured SentenceTransformer model. It includes a Pydantic model for validating 
-embedding requests and a function to process the requests.
-Classes:
-    EmbeddingRequest: A Pydantic model representing a request for generating a text embedding.
+This module provides an API endpoint for generating dense vector embeddings from text input
+using a pre-configured SentenceTransformer model. The embeddings can be used for tasks such
+as semantic similarity and other natural language processing applications.
+Modules:
+    - shared.log_config: Provides logging functionality.
+    - app.config: Contains application-specific configurations.
+    - shared.models.embedding: Defines the data model for embedding requests.
+    - sentence_transformers: Library for generating text embeddings using transformer models.
+    - fastapi: Framework for building API endpoints.
+    router (APIRouter): FastAPI router for defining API endpoints.
 Functions:
-    get_embedding(request: EmbeddingRequest) -> list: Generates a dense vector embedding 
-    for the given text input using the SentenceTransformer model.
-    model (SentenceTransformer): A pre-configured SentenceTransformer model initialized 
-    with the model name specified in the chroma configuration.
+    - get_embedding(request: EmbeddingRequest) -> list:
+        Generates a dense vector embedding for the given text input and returns it as a list of floats.
 """
+
+from shared.log_config import get_logger
+logger = get_logger(f"chromadb.{__name__}")
 
 import app.config
 
+from shared.models.embedding import EmbeddingRequest
+
 from sentence_transformers import SentenceTransformer
-from pydantic import BaseModel
+
+from fastapi import HTTPException, status, APIRouter
+router = APIRouter()
 
 
 """
@@ -29,16 +39,7 @@ Attributes:
 model = SentenceTransformer(app.config.CHROMADB_MODEL_NAME)
 
 
-class EmbeddingRequest(BaseModel):
-    """
-    Represents a request for generating a text embedding.
-    
-    Attributes:
-        input (str): The text input to be converted into a dense vector representation.
-    """
-    input: str
-
-
+@router.post("/embedding", response_model=list)
 def get_embedding(request: EmbeddingRequest) -> list:
     """
     Generate a dense vector embedding for the given text input.
@@ -49,4 +50,25 @@ def get_embedding(request: EmbeddingRequest) -> list:
     Returns:
         list: A list of float values representing the text embedding.
     """
-    return model.encode(request.input).tolist()
+    try: 
+        logger.debug(f"/embedding Request:\n{request.model_dump_json(indent=4)}")
+
+    except:
+        logger.error("Error converting request to JSON format.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid input format."
+        )
+
+    try:
+        # Generate the embedding using the model
+        embedding = model.encode(request.input).tolist()
+
+    except Exception as e:
+        logger.error(f"Error generating embedding: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error generating embedding: {e}"
+        )
+
+    return embedding

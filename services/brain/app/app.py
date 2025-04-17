@@ -2,30 +2,26 @@
 This module initializes and configures the FastAPI application for the "brain" service.
 
 It includes the following functionalities:
-- Registers routers for various components such as memory, buffer, modes, scheduler, docs, and message handling.
-- Supports both single-turn and multi-turn message processing.
-- Integrates shared system routes and models.
-- Configures tracing if enabled in the shared configuration.
+- Registers routers for various components such as memory, buffer, modes, scheduler, docs, message handling, models, and embeddings.
+- Sets up system-level routes and documentation routes.
+- Configures message-related routes with specific prefixes and tags.
+- Optionally enables tracing if the `TRACING_ENABLED` configuration is set to `True`.
 
-Routers:
-- `routes_router`: System-level routes.
-- `docs_router`: Documentation-related routes.
-- `memory_router`: Memory management routes.
-- `buffer_router`: Buffer management routes.
-- `modes_router`: Modes configuration routes.
-- `scheduler_router`: Task scheduling routes.
-- `message_router`: General message handling routes with a prefix `/message`.
-- `message_multiturn_router`: Multi-turn message handling routes.
-- `message_singleturn_router`: Single-turn message handling routes.
-- `models_router`: Model-related routes.
+Modules and Routers:
+- `memory_router`: Handles memory-related operations.
+- `buffer_router`: Manages buffer-related functionalities.
+- `modes_router`: Provides endpoints for mode configurations.
+- `scheduler_router`: Manages scheduling tasks.
+- `docs_router`: Serves API documentation.
+- `message_router`: Handles general message-related operations.
+- `message_multiturn_router`: Manages multi-turn message interactions.
+- `message_singleturn_router`: Handles single-turn message interactions.
+- `models_router`: Provides endpoints for model-related operations.
+- `embedding_router`: Manages embedding-related functionalities.
+- `routes_router`: Defines shared system-level routes.
 
 Tracing:
-- If tracing is enabled (`shared.config.TRACING_ENABLED`), the application sets up
-    tracing using the `setup_tracing` function from the `shared.tracing` module.
-
-Dependencies:
-- FastAPI is used to create the application and manage routing.
-- Shared configurations and tracing utilities are imported from the `shared` module.
+- If tracing is enabled via the `TRACING_ENABLED` configuration, the `setup_tracing` function is invoked to integrate tracing capabilities with the application.
 """
 
 from app.memory import router as memory_router
@@ -37,6 +33,7 @@ from app.message.message import router as message_router
 from app.message.multiturn import router as message_multiturn_router
 from app.message.singleturn import router as message_singleturn_router
 from app.models import router as models_router
+from app.embedding import router as embedding_router
 from shared.routes import router as routes_router
 
 
@@ -52,6 +49,7 @@ app.include_router(message_router, prefix="/message", tags=["message"])
 app.include_router(message_multiturn_router, tags=["message"])
 app.include_router(message_singleturn_router, tags=["message"])
 app.include_router(models_router, tags=["models"])
+app.include_router(embedding_router, tags=["embedding"])
 
 
 import shared.config

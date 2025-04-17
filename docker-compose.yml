@@ -9,6 +9,7 @@ services:
       - SERVICE_NAME=api
       - BRAIN_HOST=brain
       - BRAIN_PORT=${BRAIN_PORT}
+      - TZ=America/Los_Angeles
     depends_on:
       - consul
       - graylog
@@ -48,6 +49,7 @@ services:
       - SUMMARIZE_PORT=${SUMMARIZE_PORT}
       - SCHEDULER_HOST=scheduler
       - SCHEDULER_PORT=${SCHEDULER_PORT}
+      - TZ=America/Los_Angeles
     depends_on:
       - consul
       - graylog
@@ -78,6 +80,7 @@ services:
     environment:
       - SERVICE_PORT=${CHROMADB_PORT}
       - SERVICE_NAME=chromadb
+      - TZ=America/Los_Angeles
     depends_on:
       - consul
       - graylog
@@ -107,6 +110,7 @@ services:
     environment:
       - SERVICE_PORT=${CONTACTS_PORT}
       - SERVICE_NAME=contacts
+      - TZ=America/Los_Angeles
     depends_on:
       - consul
       - graylog
@@ -141,6 +145,7 @@ services:
       - BLUEBUBBLES_PASSWORD=${BLUEBUBBLES_PASSWORD}
       - BRAIN_HOST=brain
       - BRAIN_PORT=${BRAIN_PORT}
+      - TZ=America/Los_Angeles
     depends_on:
       - consul
       - graylog
@@ -171,6 +176,7 @@ services:
     environment:
       - SERVICE_PORT=${INTENTS_PORT}
       - SERVICE_NAME=intents
+      - TZ=America/Los_Angeles
     depends_on:
       - consul
       - graylog
@@ -203,6 +209,7 @@ services:
       - LLM_MODEL_NAME=${LLM_MODEL_NAME}
       - OLLAMA_SERVER_HOST=${OLLAMA_SERVER_HOST}
       - OLLAMA_SERVER_PORT=${OLLAMA_SERVER_PORT}
+      - TZ=America/Los_Angeles
     depends_on:
       - consul
       - graylog
@@ -234,6 +241,7 @@ services:
     environment:
       - SERVICE_PORT=${SCHEDULER_PORT}
       - SERVICE_NAME=scheduler
+      - TZ=America/Los_Angeles
     depends_on:
       - brain
       - consul
@@ -266,6 +274,7 @@ services:
       - SERVICE_NAME=summarize
       - CHROMADB_HOST=chromadb
       - CHROMADB_PORT=${CHROMADB_PORT}
+      - TZ=America/Los_Angeles
     depends_on:
       - brain
       - consul
@@ -292,6 +301,8 @@ services:
   consul:
     image: hashicorp/consul
     command: agent -server -bootstrap -ui -client=0.0.0.0
+    environment:
+      - TZ=America/Los_Angeles
     ports:
       - "8500:8500"  # for accessing the Consul UI/API
     volumes:
@@ -387,6 +398,7 @@ services:
       - 11434:11434
     environment:
       - OLLAMA_KEEP_ALIVE=24h
+      - TZ=America/Los_Angeles
     networks:
       - ollama-docker
       - shared-net
@@ -414,6 +426,7 @@ services:
       - WEBUI_NAME=kirishima
       - WEBUI_URL=http://0.0.0.0:8080
       - WEBUI_SECRET_KEY=t0p-s3cr3t
+      - TZ=America/Los_Angeles
     extra_hosts:
       - host.docker.internal:host-gateway
     restart: unless-stopped

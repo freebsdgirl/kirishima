@@ -61,10 +61,10 @@ async def openai_completions(request: ChatCompletionRequest) -> RedirectResponse
     Returns:
         RedirectResponse: A temporary redirect to the '/v1/completions' endpoint.
     """
-#    return RedirectResponse(
-#        url="/v1/chat/completions",
-#        status_code=status.HTTP_307_TEMPORARY_REDIRECT
-#    )
+    return RedirectResponse(
+        url="/v1/chat/completions",
+        status_code=status.HTTP_307_TEMPORARY_REDIRECT
+    )
 
 
 @router.post("/v1/chat/completions")

@@ -1,18 +1,14 @@
 from pydantic import BaseModel
-from typing import Optional
-
+from typing import Optional, List
+from shared.models.proxy import ProxyMessage
 
 class IntentRequest(BaseModel):
     """
     IntentRequest is a data model representing a request with optional flags.
 
     Attributes:
+        message (List[ProxyMessage]): A list of messages representing the conversation history.
         mode (Optional[bool]): A flag indicating the mode of the request. Defaults to False.
-        # Additional flags can be added as needed, such as:
-        # sync (Optional[bool]): A flag indicating whether the request should be synchronized. Defaults to False.
-        # cleanup (Optional[bool]): A flag indicating whether cleanup operations should be performed. Defaults to False.
     """
+    message: List[ProxyMessage] = []
     mode: Optional[bool] = False
-    # add more flags here, e.g.:
-    # sync: Optional[bool] = False
-    # cleanup: Optional[bool] = False

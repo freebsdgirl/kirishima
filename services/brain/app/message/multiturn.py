@@ -28,6 +28,7 @@ Dependencies:
 """
 
 from shared.models.proxy import ProxyMultiTurnRequest, ProxyResponse
+from shared.models.intents import IntentRequest
 
 import shared.consul
 
@@ -60,6 +61,42 @@ async def outgoing_multiturn_message(message: ProxyMultiTurnRequest) -> ProxyRes
 
     payload = message.model_dump()
 
+    # check for intents on user input. the only intent we're checking for right now is mode.
+    intentreq = IntentRequest(
+        mode=True,
+        message=message.messages
+    )
+
+    async with httpx.AsyncClient(timeout=60) as client:
+        try:
+            intents_address, intents_port = shared.consul.get_service_address('intents')
+            if not intents_address or not intents_port:
+                logger.error("Intents service address or port is not available.")
+
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Intents service is unavailable."
+                )
+            
+            response = await client.post(f"http://{intents_address}:{intents_port}/intents", json=intentreq.model_dump())
+            response.raise_for_status()
+
+        except httpx.HTTPStatusError as http_err:
+            logger.error(f"HTTP error from intents service: {http_err.response.status_code} - {http_err.response.text}")
+
+            raise HTTPException(
+                status_code=http_err.response.status_code,
+                detail=f"Error forwarding to intents service: {http_err.response.text}"
+            )
+
+        except httpx.RequestError as req_err:
+            logger.error(f"Request error forwarding to intents service: {req_err}")
+
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Connection error to intents service: {req_err}"
+            )
+
     async with httpx.AsyncClient(timeout=60) as client:
         try:
             proxy_address, proxy_port = shared.consul.get_service_address('proxy')
@@ -87,7 +124,7 @@ async def outgoing_multiturn_message(message: ProxyMultiTurnRequest) -> ProxyRes
 
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Connection error: {req_err}"
+                detail=f"Connection error to proxy service: {req_err}"
             )
 
     try:
@@ -102,6 +139,46 @@ async def outgoing_multiturn_message(message: ProxyMultiTurnRequest) -> ProxyRes
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to parse response from proxy service."
         )
+
+    # check for intents on the model's output. Note that we don't have a shared model+user function
+    # because some intents are only relevant to the user's or model's output.]
+    intentreq = IntentRequest(
+        mode=True,
+        message=[{
+            "role": "assistant",
+            "content": proxy_response.response
+        }]
+    )
+
+    async with httpx.AsyncClient(timeout=60) as client:
+        try:
+            intents_address, intents_port = shared.consul.get_service_address('intents')
+            if not intents_address or not intents_port:
+                logger.error("Intents service address or port is not available.")
+
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Intents service is unavailable."
+                )
+            
+            response = await client.post(f"http://{intents_address}:{intents_port}/intents", json=intentreq.model_dump())
+            response.raise_for_status()
+
+        except httpx.HTTPStatusError as http_err:
+            logger.error(f"HTTP error from intents service: {http_err.response.status_code} - {http_err.response.text}")
+
+            raise HTTPException(
+                status_code=http_err.response.status_code,
+                detail=f"Error forwarding to intents service: {http_err.response.text}"
+            )
+
+        except httpx.RequestError as req_err:
+            logger.error(f"Request error forwarding to intents service: {req_err}")
+
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Connection error to intents service: {req_err}"
+            )
 
     logger.debug(f"/message/multiturn/incoming Returns:\n{proxy_response.model_dump_json(indent=4)}")
 

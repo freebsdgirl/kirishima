@@ -1,17 +1,24 @@
 #!/bin/bash
 
-echo "▶ Running Brain mode tests..."
+echo "                  ✨ Brain mode ✨"
 
 test_case() {
   description="$1"
   expected_code="$2"
   cmd="$3"
-  echo -n "→ $description "
+  
+  padding_length=40
+  padded_string="$description"
+
+  for ((i=${#description}; i<padding_length; i++)); do
+    padded_string="$padded_string " # Add space to the left
+  done
+  echo -n "→ $padded_string"
   http_code=$(eval "$cmd" -s -o /dev/null -w "%{http_code}")
   if [[ "$http_code" -eq "$expected_code" ]]; then
     echo -n "✅ PASS ($http_code)"
   else
-    echo -n "❌ FAIL (Expected $expected_code, got $http_code)"
+    echo -n "💀 FAIL (Expected $expected_code, got $http_code)"
   fi
   echo
 }

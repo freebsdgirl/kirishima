@@ -1,8 +1,8 @@
 #!/bin/bash
 
 cd ..
-
-echo "🔍 Kirishima Test Runner"
+echo "              🔍 Kirishima Test Runner 🔍"
+echo
 
 if [[ -n "$1" ]]; then
   target_dir="tests/$1"
@@ -11,9 +11,9 @@ if [[ -n "$1" ]]; then
     exit 1
   fi
   echo "▶ Running tests in: $target_dir"
+  echo
   find "$target_dir" -type f -name "*.sh" -exec bash {} \;
 else
-  echo "▶ Running all tests"
   find tests -type f -name "*.sh" -exec bash {} \;
 fi
 

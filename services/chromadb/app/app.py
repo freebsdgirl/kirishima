@@ -17,7 +17,8 @@ Dependencies:
 - Shared configurations and tracing utilities are imported from the `shared` module.
 """
 
-from app.memory import router as memory_router
+from app.memory.memory import router as memory_router
+from app.memory.search import router as memory_search_router
 from app.summarize import router as summarize_router
 from app.buffer import router as buffer_router
 from app.docs import router as docs_router
@@ -30,7 +31,8 @@ app = FastAPI()
 app.include_router(routes_router, tags=["system"])
 app.include_router(docs_router, prefix="/docs", tags=["docs"])
 app.include_router(embedding_router, tags=["embedding"])
-app.include_router(memory_router, prefix="/memory", tags=["memory"])
+app.include_router(memory_router, tags=["memory"])
+app.include_router(memory_search_router, tags=["memory"])
 app.include_router(summarize_router, prefix="/summary", tags=["summary"])
 app.include_router(buffer_router, prefix="/buffer", tags=["buffer"])
 

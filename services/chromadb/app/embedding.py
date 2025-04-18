@@ -40,7 +40,7 @@ model = SentenceTransformer(app.config.CHROMADB_MODEL_NAME)
 
 
 @router.post("/embedding", response_model=list)
-def get_embedding(request: EmbeddingRequest) -> list:
+def get_embedding(request: str) -> list:
     """
     Generate a dense vector embedding for the given text input.
     
@@ -51,7 +51,7 @@ def get_embedding(request: EmbeddingRequest) -> list:
         list: A list of float values representing the text embedding.
     """
     try: 
-        logger.debug(f"/embedding Request:\n{request.model_dump_json(indent=4)}")
+        logger.debug(f"/embedding Request: {request}")
 
     except:
         logger.error("Error converting request to JSON format.")
@@ -62,7 +62,7 @@ def get_embedding(request: EmbeddingRequest) -> list:
 
     try:
         # Generate the embedding using the model
-        embedding = model.encode(request.input).tolist()
+        embedding = model.encode(request).tolist()
 
     except Exception as e:
         logger.error(f"Error generating embedding: {e}")

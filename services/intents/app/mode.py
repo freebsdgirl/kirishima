@@ -15,7 +15,6 @@ Dependencies:
     - shared.log_config.get_logger: For logging operations.
 """
 
-
 from fastapi import HTTPException, status
 from shared.models.proxy import ProxyMessage
 import re
@@ -27,7 +26,7 @@ from shared.log_config import get_logger
 logger = get_logger(f"intents.{__name__}")
 
 
-async def process_mode(message: ProxyMessage) -> int:
+async def process_mode(message: ProxyMessage) -> ProxyMessage:
     """
     Processes mode-related commands extracted from a ProxyMessage.
     
@@ -69,10 +68,11 @@ async def process_mode(message: ProxyMessage) -> int:
                         detail=f"Error fetching models from brain: {e}")
 
     except Exception as e:
-        # catch‑all
+        logger.error(f"Unexpected error in mode processing: {e}")
+
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Unexpected error in mode processing: {e}"
         )
     
-    return status.HTTP_200_OK
+    return message

@@ -64,6 +64,7 @@ async def outgoing_multiturn_message(message: ProxyMultiTurnRequest) -> ProxyRes
     # check for intents on user input. the only intent we're checking for right now is mode.
     intentreq = IntentRequest(
         mode=True,
+        memory=True,
         message=message.messages
     )
 
@@ -80,6 +81,8 @@ async def outgoing_multiturn_message(message: ProxyMultiTurnRequest) -> ProxyRes
             
             response = await client.post(f"http://{intents_address}:{intents_port}/intents", json=intentreq.model_dump())
             response.raise_for_status()
+
+            payload['messages'] = response.json()
 
         except httpx.HTTPStatusError as http_err:
             logger.error(f"HTTP error from intents service: {http_err.response.status_code} - {http_err.response.text}")

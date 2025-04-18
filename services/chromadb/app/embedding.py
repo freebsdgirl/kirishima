@@ -23,7 +23,7 @@ from shared.models.embedding import EmbeddingRequest
 
 from sentence_transformers import SentenceTransformer
 
-from fastapi import HTTPException, status, APIRouter
+from fastapi import HTTPException, status, APIRouter, Body
 router = APIRouter()
 
 
@@ -40,7 +40,7 @@ model = SentenceTransformer(app.config.CHROMADB_MODEL_NAME)
 
 
 @router.post("/embedding", response_model=list)
-def get_embedding(request: str) -> list:
+def get_embedding(request: EmbeddingRequest) -> list:
     """
     Generate a dense vector embedding for the given text input.
     
@@ -52,7 +52,6 @@ def get_embedding(request: str) -> list:
     """
     try: 
         logger.debug(f"/embedding Request: {request}")
-
     except:
         logger.error("Error converting request to JSON format.")
         raise HTTPException(
@@ -62,13 +61,12 @@ def get_embedding(request: str) -> list:
 
     try:
         # Generate the embedding using the model
-        embedding = model.encode(request).tolist()
-
+        embedding = model.encode(request.input).tolist()
     except Exception as e:
         logger.error(f"Error generating embedding: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error generating embedding: {e}"
+            detail=f"Error generating embedding: {e}"
         )
 
     return embedding

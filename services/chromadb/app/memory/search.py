@@ -32,6 +32,7 @@ logger = get_logger(f"chromadb.{__name__}")
 
 from shared.models.chromadb import MemoryView, MemoryQuery
 from fastapi import Query
+from shared.models.embedding import EmbeddingRequest
 
 from fastapi import HTTPException, status, APIRouter, Depends
 from typing import List, Optional
@@ -419,11 +420,9 @@ async def memory_semantic_search(
 
     # 2) Embed the query text
     try:
-        query_emb = get_embedding(text)
-
+        query_emb = get_embedding(EmbeddingRequest(input=text))
     except Exception as e:
         logger.error(f"Error generating query embedding: {e}")
-
         raise HTTPException(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error generating query embedding: {e}"

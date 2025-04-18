@@ -110,7 +110,7 @@ class MemoryView(BaseModel):
     memory: str                         = Field(..., description="The content of the memory")
     embedding: List[float]              = Field([], min_items=1, description="The vector embedding of the memory")
     metadata: MemoryMetadata            = Field(..., description="Metadata associated with the memory")
-    distance: Optional[float]           = Field(..., description="Distance of the memory from the query vector")
+    distance: Optional[float]           = Field(0, description="Distance of the memory from the query vector")
 
 
 class MemoryQuery(BaseModel):

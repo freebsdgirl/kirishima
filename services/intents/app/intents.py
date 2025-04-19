@@ -32,6 +32,7 @@ async def process_intents(payload: IntentRequest) -> List[ProxyMessage]:
         HTTPException: 400 if no intent flags are set or no messages exist,
                     500 if errors occur during mode or memory processing.
     """
+    logger.debug(f"/intents Request:\n{payload.model_dump_json(indent=4)}")
 
     if not (payload.mode or payload.memory):
         logger.debug(f"IntentRequest: no payload flags set to true: {payload}")
@@ -69,7 +70,7 @@ async def process_intents(payload: IntentRequest) -> List[ProxyMessage]:
 
     if payload.memory:
         try:
-            last_message = await process_memory(last_message)
+            last_message = await process_memory(last_message, payload.component)
             payload.message[-1] = last_message
         except HTTPException:
             raise

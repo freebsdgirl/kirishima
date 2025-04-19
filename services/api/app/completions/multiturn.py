@@ -39,7 +39,7 @@ logger = get_logger(f"api.{__name__}")
 import uuid
 import httpx
 from datetime import datetime
-from transformers import AutoTokenizer
+import tiktoken
 
 from fastapi import APIRouter, HTTPException, status, Request
 from fastapi.responses import RedirectResponse
@@ -236,12 +236,8 @@ async def chat_completions(data: ChatCompletionRequest):
     prompt_text = " ".join(msg.content for msg in data.messages if msg.role in ["user", "assistant"])
 
     try:
-        # we're hardcoding this because... there's no real good way to get around this.
-        # the model name doesn't always easily translate to a tokenizer name.
-        # but we're using this model for chromadb embedding, so it makes sense to use it here.
-        # this is a bit of a hack, but it works for now.
-        tokenizer = AutoTokenizer.from_pretrained("intfloat/e5-small-v2")
-        tokens = tokenizer.encode(prompt_text)
+        enc = tiktoken.get_encoding("gpt2")
+        tokens = enc.encode(prompt_text)
 
     except Exception as err:
         logger.warning(f"Error retrieving encoding for model '{data.model}': {err}.")

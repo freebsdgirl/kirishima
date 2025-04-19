@@ -128,14 +128,14 @@ async def create_memory(request: MemoryEntry) -> MemoryEntryFull:
     return MemoryEntryFull(**response.json())
 
 
-@router.delete("/memory", status_code=204)
+@router.delete("/memory", response_model=dict, status_code=200)
 async def delete_memory(request: MemoryEntry = Body(...)):
     """
     Delete a specific memory entry from ChromaDB based on memory content and mode.
 
-    Attempts to find and delete memory entries matching the provided memory and mode.
-    Returns None if no matching memories are found. Raises an HTTPException if 
-    the ChromaDB service is unavailable or if there are errors during the deletion process.
+    Attempts to find and delete the first memory entry matching the provided memory and mode.
+    Returns the id of the deleted memory if found and deleted, or 404 if not found.
+    Raises an HTTPException if the ChromaDB service is unavailable or if there are errors during the deletion process.
 
     Args:
         request (MemoryEntry): The memory entry to be deleted, containing memory content and mode.
@@ -172,24 +172,28 @@ async def delete_memory(request: MemoryEntry = Body(...)):
 
             if not matches:
                 logger.info("No matching memories found to delete.")
-                return None
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="No matching memory found to delete."
+                )
 
-            for m in matches:
-                mem_id = m["id"]
-                del_resp = await client.delete(f"http://{chromadb_host}:{chromadb_port}/memory/{mem_id}")
+            # Only delete the first match
+            m = matches[0]
+            mem_id = m["id"]
+            del_resp = await client.delete(f"http://{chromadb_host}:{chromadb_port}/memory/{mem_id}")
 
-                if del_resp.status_code != status.HTTP_204_NO_CONTENT:
-                    logger.error(f"Failed to delete memory id={mem_id}: {del_resp.status_code} {del_resp.text}")
-    
-                    raise HTTPException(
-                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail=f"Failed to delete memory id={mem_id}."
-                    )
+            if del_resp.status_code != status.HTTP_204_NO_CONTENT:
+                logger.error(f"Failed to delete memory id={mem_id}: {del_resp.status_code} {del_resp.text}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Failed to delete memory id={mem_id}."
+                )
+            return {"id": mem_id}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"An error occurred while deleting memory: {e}")
-
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error deleting memory: {e}"
         )
-    return None

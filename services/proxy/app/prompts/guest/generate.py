@@ -14,6 +14,7 @@ Dependencies:
 """
 
 from shared.models.proxy import ProxyRequest
+from app.util import create_memory_str
 import re
 
 
@@ -27,6 +28,7 @@ def build_prompt(request: ProxyRequest) -> str:
     Returns:
         str: A formatted prompt string with conversation context and incoming message.
     """
+    joined_memories = create_memory_str(request.memories or [])
     decoded_context = request.context.encode('utf-8').decode('unicode_escape')
     context = re.sub(r'^"|"$', '', decoded_context)
     prompt = f"""You are responding to a message over {request.message.platform} from a user that is not Randi.

@@ -1,20 +1,14 @@
 """
-This module provides utility functions for interacting with an Ollama language model 
-and processing user messages. It includes functions to send prompts to the LLM and
-determine if a model follows an instruct-style format.
+This module provides utility functions for interacting with a language model service 
+and processing memory entries. It includes functions to send prompts to the language 
+model, check if a model uses an instruct format, and create a string representation 
+of memory entries.
 Functions:
     - send_prompt_to_llm(prompt: str) -> dict:
-        Sends a prompt to the Ollama language model and retrieves its response.
+        Sends a prompt to the language model and retrieves its response.
     - is_instruct_model(model_name: str) -> bool:
-        Checks if a given model uses an instruct-style format by querying the 
-        /api/show endpoint.
-Constants:
-    - llm_model_name: The name of the default language model (retrieved from the 
-      environment variable 'LLM_MODEL_NAME', defaults to 'nemo').
-    - ollama_server_host: The host address of the Ollama server (retrieved from 
-      the environment variable 'OLLAMA_SERVER_HOST', defaults to 'localhost').
-    - ollama_server_port: The port number of the Ollama server (retrieved from 
-      the environment variable 'OLLAMA_SERVER_PORT', defaults to '11434').
+        Checks if a given model uses an instruct-style format by querying the service.
+    - create_memory_str(memories: List[MemoryEntryFull]) -> str:
 """
 
 import app.config
@@ -23,6 +17,8 @@ from shared.log_config import get_logger
 logger = get_logger(f"proxy.{__name__}")
 
 import httpx
+from typing import List
+from shared.models.chromadb import MemoryEntryFull
 
 async def send_prompt_to_llm(prompt: str) -> dict:
     """
@@ -99,3 +95,16 @@ async def is_instruct_model(model_name: str) -> bool:
         except Exception as exc:
             logger.warning(f"Failed to detect instruct format for model {model_name}: {exc}")
             return False
+
+
+def create_memory_str(memories: List[MemoryEntryFull]) -> str:
+    """
+    Converts a list of memory entries into a single string representation.
+    
+    Args:
+        memories (List[MemoryEntryFull]): A list of memory entries to be converted.
+    
+    Returns:
+        str: A single string with memory entries joined by newlines, in reverse order.
+    """
+    return "\n".join([f" - {m.memory}" for m in reversed(memories)])

@@ -83,7 +83,7 @@ class MemoryMetadata(BaseModel):
         component (str): The component that created the memory.
         mode (str): The mode of the memory, defaulting to 'default' with options like 'nsfw'.
     """
-    timestamp: str                      = Field(default_factory=lambda: datetime.utcnow().isoformat() + "Z", description="Timestamp when the memory was created")  
+    timestamp: str                      = Field(default_factory=lambda: datetime.now().isoformat() + "Z", description="Timestamp when the memory was created")  
     priority: float                     = Field(..., ge=0, le=1, description="0=lowest, 1=highest")
     component: str                      = Field(..., description="Component that created the memory")
     mode: str                           = Field("default", description="Mode of the memory (e.g., 'nsfw', 'default')")

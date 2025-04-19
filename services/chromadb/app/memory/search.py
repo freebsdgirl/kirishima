@@ -251,6 +251,7 @@ async def memory_list(
     # For priority, higher values are more important (descending)
     items.sort(key=lambda v: (v.metadata.timestamp, v.metadata.priority if v.metadata.priority is not None else 0), reverse=True)
     # 5) Apply limit if given
+
     if limit is not None:
         items = items[:limit]
 
@@ -346,6 +347,7 @@ async def memory_search(
     if limit is not None:
         items = items[:limit]
     
+    print(f"THE LIMIT DOES NOT EXIST: {limit}")
     # 6) if still empty, return 404
     if not items:
         logger.debug(f"No memory entries found matching '{text}'")
@@ -495,6 +497,7 @@ async def memory_semantic_search(
         return (v.distance if v.distance is not None else float('inf'), -prio, ts)
     items.sort(key=sort_key)
 
+    print(f"THE SEMANTIC LIMIT DOES NOT EXIST: {limit}")
     # 6) apply limit
     if limit is not None:
         items = items[:limit]

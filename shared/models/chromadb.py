@@ -166,9 +166,11 @@ class MemoryListQuery(BaseModel):
     Attributes:
         component (str): Required filter to select memories by their creating component.
         mode (Optional[str]): Optional filter to select memories by their mode (e.g., 'nsfw', 'default').
+        limit (Optional[int]): Optional maximum number of memory entries to return.
     """
     component: str                      = Field(..., description="Filter by component")
     mode: Optional[str]                 = Field(None, description="Filter by mode")
+    limit: Optional[int]                = Field(None, description="Max number of results")
 
 
 class SemanticSearchQuery(BaseModel):

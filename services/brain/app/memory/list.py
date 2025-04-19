@@ -37,6 +37,8 @@ async def list_memory(query: MemoryListQuery = Depends()):
 
         async with httpx.AsyncClient() as client:
             params = query.dict(exclude_none=True)
+            # Remove 'limit' from params sent to ChromaDB if present
+            limit = params.pop('limit', None)
             response = await client.get(
                 f"http://{chromadb_host}:{chromadb_port}/memory",
                 params=params
@@ -44,9 +46,16 @@ async def list_memory(query: MemoryListQuery = Depends()):
 
             response.raise_for_status()
             json_response = response.json()
-            print(json_response)  # or use logger.debug(json_response)
             # Only include entries with a non-empty embedding
-            return [MemoryEntryFull(**entry) for entry in json_response if entry.get("embedding") and len(entry["embedding"]) > 0]
+            entries = [MemoryEntryFull(**entry) for entry in json_response if entry.get("embedding") and len(entry["embedding"]) > 0]
+            # Apply limit if specified
+            if limit is not None:
+                try:
+                    limit = int(limit)
+                    entries = entries[:limit]
+                except Exception:
+                    pass
+            return entries
 
     except httpx.RequestError as req_err:
         logger.exception("Request error while listing memory: %s", req_err)

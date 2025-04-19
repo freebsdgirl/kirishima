@@ -4,7 +4,7 @@ graypy
 httpx
 requests
 python-dateutil
-transformers
+tiktoken
 opentelemetry-sdk
 opentelemetry-exporter-otlp
 opentelemetry-instrumentation-fastapi

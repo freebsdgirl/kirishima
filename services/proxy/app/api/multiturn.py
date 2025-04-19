@@ -145,7 +145,7 @@ async def from_api_multiturn(request: ProxyMultiTurnRequest) -> ProxyResponse:
         ),
         user_id="randi",
         context="\n".join(f"{m.role}: {m.content}" for m in request.messages),
-        memories=[]
+        memories=request.memories
     )
 
     # Check if the model supports instruct formatting.
@@ -173,7 +173,7 @@ async def from_api_multiturn(request: ProxyMultiTurnRequest) -> ProxyResponse:
         "raw": True
     }
 
-    logger.debug(f"Request from Ollama API:\n{json.dumps(payload, indent=4, ensure_ascii=False)}")
+    logger.debug(f"Request to Ollama API:\n{json.dumps(payload, indent=4, ensure_ascii=False)}")
 
     # Send the POST request using an async HTTP client
     async with httpx.AsyncClient(timeout=60) as client:

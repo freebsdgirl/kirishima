@@ -99,7 +99,7 @@ async def process_memory(message: ProxyMessage, component: str) -> ProxyMessage:
                     json_response = response.json()
                     mode = json_response.get("message", None)
 
-                entry = MemoryEntry(memory=clean_text, component=component, mode=mode)
+                entry = MemoryEntry(memory=clean_text, component=component, mode=mode, embedding=[])
                 async with httpx.AsyncClient(timeout=60) as client:
                     response = await client.request(
                         method="DELETE",

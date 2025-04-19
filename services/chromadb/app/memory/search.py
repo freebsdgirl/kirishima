@@ -455,6 +455,7 @@ async def memory_semantic_search(
     try:
         ids        = results["ids"]
         docs       = results["documents"]
+        embs       = results["embeddings"]  # <-- add this line
         metadatas  = results["metadatas"]
         distances  = results["distances"]
 
@@ -468,13 +469,14 @@ async def memory_semantic_search(
 
     items: List[MemoryView] = []
     # Flatten all found entries for each query result
-    for _id, doc, meta, dist in zip(ids, docs, metadatas, distances):
+    for _id, doc, emb, meta, dist in zip(ids, docs, embs, metadatas, distances):
         # Each of these is a list (possibly empty) of results for the query
         for i in range(len(_id)):
             try:
                 view = MemoryView(
                     id=_id[i],
                     memory=doc[i],
+                    embedding=emb[i],  # <-- include embedding here
                     metadata=meta[i],
                     distance=dist[i],
                 )
@@ -483,7 +485,17 @@ async def memory_semantic_search(
                 continue
             items.append(view)
 
-    # 5) apply limit
+    # 5) Sort by relevance (distance asc), then priority (desc), then timestamp (desc)
+    def sort_key(v):
+        # Lower distance is more relevant
+        # Higher priority is more important (default 0)
+        # Newer timestamp is more important (ISO8601, so lexicographic sort works)
+        prio = v.metadata.priority if hasattr(v.metadata, 'priority') and v.metadata.priority is not None else 0
+        ts = v.metadata.timestamp if hasattr(v.metadata, 'timestamp') and v.metadata.timestamp is not None else ''
+        return (v.distance if v.distance is not None else float('inf'), -prio, ts)
+    items.sort(key=sort_key)
+
+    # 6) apply limit
     if limit is not None:
         items = items[:limit]
 

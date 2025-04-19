@@ -1,27 +1,32 @@
 """
-This module provides FastAPI endpoints for managing and querying memory entries stored in a ChromaDB collection.
-It includes functionalities for retrieving individual memories, listing memories with optional filters, performing
-exact-match searches, and conducting semantic searches with metadata constraints.
+This module provides a FastAPI router for managing and querying memory entries stored in a ChromaDB collection. 
+It includes endpoints for retrieving, listing, searching, and performing semantic searches on memory entries.
 Endpoints:
-    - GET /memory/{memory_id}: Retrieve a single memory by its unique identifier.
-    - GET /memory: Fetch a list of memories with optional filtering and pagination.
-    - GET /memory/search: Perform an exact-match search on memory documents.
-    - GET /memory/semantic: Conduct a semantic search on memories with optional metadata filters.
+- `/memory/id/{memory_id}`: Fetch a single memory by its unique identifier.
+- `/memory`: Fetch a list of memories with optional filtering and pagination.
+- `/memory/search`: Perform an exact-match search on memory documents.
+- `/memory/semantic`: Perform a semantic search on memories with optional metadata filtering.
+Functions:
+- `get_collection()`: Asynchronously retrieves the ChromaDB collection instance.
+- `memory_get(memory_id, collection)`: Retrieve a single memory by its unique identifier.
+- `memory_list(q, limit, collection)`: Retrieve a list of memories with optional filtering and pagination.
+- `memory_search(text, limit, collection)`: Perform an exact-match search on memory documents.
+- `memory_semantic_search(text, component, mode, priority, limit, collection)`: Perform a semantic search on memories with optional metadata filtering.
 Dependencies:
-    - ChromaDB collection setup is handled by `app.memory.setup`.
-    - Embedding generation is provided by `app.embedding.get_embedding`.
-    - Logging is configured using `shared.log_config.get_logger`.
+- `get_collection`: Dependency to retrieve the ChromaDB collection instance.
+- `MemoryQuery`: Query parameters for filtering memories.
+- `EmbeddingRequest`: Request model for generating embeddings.
 Models:
-    - MemoryView: Represents a memory entry with its document, truncated embedding, and metadata.
-    - MemoryQuery: Defines query parameters for filtering memories.
-    - EmbeddingRequest: Used for generating embeddings for semantic search.
-Error Handling:
-    - Returns appropriate HTTP status codes and error messages for issues such as missing records,
-      validation errors, or unexpected payloads from ChromaDB.
+- `MemoryView`: Pydantic model representing a memory entry with its document, truncated embedding, and metadata.
+- `MemoryQuery`: Pydantic model for querying memories by component, mode, and priority.
 Utilities:
-    - Metadata filters (`where` clauses) are dynamically constructed based on query parameters.
-    - Embeddings are truncated to include only the first element for response optimization.
-    - Results are sorted by timestamp in descending order where applicable.
+- `get_embedding`: Utility function to generate embeddings for semantic search.
+- `get_logger`: Utility function to configure and retrieve a logger instance.
+Error Handling:
+- Raises `HTTPException` with appropriate status codes for errors such as:
+    - Memory not found (404).
+    - ChromaDB lookup failure (500).
+    - Response validation errors (500).
 """
 
 from app.embedding import get_embedding
@@ -32,6 +37,7 @@ logger = get_logger(f"chromadb.{__name__}")
 
 from shared.models.chromadb import MemoryView, MemoryQuery
 from fastapi import Query
+from shared.models.embedding import EmbeddingRequest
 
 from fastapi import HTTPException, status, APIRouter, Depends
 from typing import List, Optional
@@ -245,11 +251,12 @@ async def memory_list(
 
         items.append(view)
 
-    # 4) Sort by timestamp descending
-    # if timestamp is ISO8601 string, lexicographic sort works
-    items.sort(key=lambda v: v.metadata.timestamp, reverse=True)
-
+    # 4) Sort by timestamp descending, then by priority descending
+    # If timestamp is ISO8601 string, lexicographic sort works for timestamp
+    # For priority, higher values are more important (descending)
+    items.sort(key=lambda v: (v.metadata.timestamp, v.metadata.priority if v.metadata.priority is not None else 0), reverse=True)
     # 5) Apply limit if given
+
     if limit is not None:
         items = items[:limit]
 
@@ -419,11 +426,9 @@ async def memory_semantic_search(
 
     # 2) Embed the query text
     try:
-        query_emb = get_embedding(text)
-
+        query_emb = get_embedding(EmbeddingRequest(input=text))
     except Exception as e:
         logger.error(f"Error generating query embedding: {e}")
-
         raise HTTPException(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error generating query embedding: {e}"
@@ -439,7 +444,7 @@ async def memory_semantic_search(
         else:
             results = collection.query(
                 query_embeddings=[query_emb],
-                include=["documents", "embeddings", "metadatas" "distances"],
+                include=["documents", "embeddings", "metadatas", "distances"],
                 where=where
             )
 
@@ -456,6 +461,7 @@ async def memory_semantic_search(
     try:
         ids        = results["ids"]
         docs       = results["documents"]
+        embs       = results["embeddings"]  # <-- add this line
         metadatas  = results["metadatas"]
         distances  = results["distances"]
 
@@ -468,21 +474,34 @@ async def memory_semantic_search(
         )
 
     items: List[MemoryView] = []
-    for _id, doc, meta, dist in zip(ids, docs, metadatas, distances):
-        try:
-            view = MemoryView(
-                id=_id[0],
-                memory=doc[0],
-                metadata=meta[0],
-                distance=dist[0],
-            )
+    # Flatten all found entries for each query result
+    for _id, doc, emb, meta, dist in zip(ids, docs, embs, metadatas, distances):
+        # Each of these is a list (possibly empty) of results for the query
+        for i in range(len(_id)):
+            try:
+                view = MemoryView(
+                    id=_id[i],
+                    memory=doc[i],
+                    embedding=emb[i],  # <-- include embedding here
+                    metadata=meta[i],
+                    distance=dist[i],
+                )
+            except ValidationError:
+                logger.error(f"Invalid record skipped.")
+                continue
+            items.append(view)
 
-        except ValidationError:
-            logger.error(f"Invalid record skipped.")
-            continue
-        items.append(view)
+    # 5) Sort by relevance (distance asc), then priority (desc), then timestamp (desc)
+    def sort_key(v):
+        # Lower distance is more relevant
+        # Higher priority is more important (default 0)
+        # Newer timestamp is more important (ISO8601, so lexicographic sort works)
+        prio = v.metadata.priority if hasattr(v.metadata, 'priority') and v.metadata.priority is not None else 0
+        ts = v.metadata.timestamp if hasattr(v.metadata, 'timestamp') and v.metadata.timestamp is not None else ''
+        return (v.distance if v.distance is not None else float('inf'), -prio, ts)
+    items.sort(key=sort_key)
 
-    # 5) apply limit
+    # 6) apply limit
     if limit is not None:
         items = items[:limit]
 

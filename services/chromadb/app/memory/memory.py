@@ -75,7 +75,7 @@ async def memory_add(request_data: MemoryEntry, collection = Depends(get_collect
     emb = request_data.embedding
     if emb is None:
         try:
-            emb = get_embedding(request_data.memory)
+            emb = get_embedding(EmbeddingRequest(input=request_data.memory))
 
         except Exception as e:
             logger.error(f"ERROR getting embedding: {e}")

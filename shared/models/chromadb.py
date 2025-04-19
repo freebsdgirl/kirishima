@@ -37,6 +37,16 @@ Classes:
             - component (Optional[str]): Component that created the memory.
             - priority (Optional[float]): Priority level of the memory.
             - embedding (Optional[List[float]]): The vector embedding of the memory.
+    MemoryListQuery:
+        Represents a query for listing memory entries based on component and mode.
+            - component (str): Required filter to select memories by their creating component.
+            - mode (Optional[str]): Optional filter to select memories by their mode (e.g., 'nsfw', 'default').
+    SemanticSearchQuery:
+        Represents a query for performing semantic search in the ChromaDB collection.
+            - search (str): The query text to perform semantic search against the collection.
+            - component (Optional[str]): Optional filter to select memories by their creating component.
+            - mode (Optional[str]): Optional filter to select memories by their mode (e.g., 'nsfw', 'default').
+            - limit (Optional[int]): Optional maximum number of search results to return.
 """
 
 from pydantic import BaseModel, Field
@@ -110,7 +120,7 @@ class MemoryView(BaseModel):
     memory: str                         = Field(..., description="The content of the memory")
     embedding: List[float]              = Field([], min_items=1, description="The vector embedding of the memory")
     metadata: MemoryMetadata            = Field(..., description="Metadata associated with the memory")
-    distance: Optional[float]           = Field(..., description="Distance of the memory from the query vector")
+    distance: Optional[float]           = Field(0, description="Distance of the memory from the query vector")
 
 
 class MemoryQuery(BaseModel):
@@ -146,4 +156,34 @@ class MemoryPatch(BaseModel):
     mode:      Optional[str]            = Field(None, description="Mode of the memory (e.g., 'nsfw', 'default')")
     component: Optional[str]            = Field(None, description="Component that created the memory")
     priority:  Optional[float]          = Field(None, ge=0, le=1, description="0=lowest, 1=highest")
-    embedding: Optional[List[float]]    = Field(None, min_items=1, description="The vector embedding of the memory")  # Optional field for embedding
+    embedding: Optional[List[float]]    = Field(None, min_items=1, description="The vector embedding of the memory")
+
+
+class MemoryListQuery(BaseModel):
+    """
+    Represents a query model for filtering a list of memory entries in a ChromaDB collection.
+    
+    Attributes:
+        component (str): Required filter to select memories by their creating component.
+        mode (Optional[str]): Optional filter to select memories by their mode (e.g., 'nsfw', 'default').
+        limit (Optional[int]): Optional maximum number of memory entries to return.
+    """
+    component: str                      = Field(..., description="Filter by component")
+    mode: Optional[str]                 = Field(None, description="Filter by mode")
+    limit: Optional[int]                = Field(None, description="Max number of results")
+
+
+class SemanticSearchQuery(BaseModel):
+    """
+    Represents a query model for performing semantic search in a ChromaDB collection.
+    
+    Attributes:
+        search (str): The query text to perform semantic search against the collection.
+        component (Optional[str]): Optional filter to select memories by their creating component.
+        mode (Optional[str]): Optional filter to select memories by their mode (e.g., 'nsfw', 'default').
+        limit (Optional[int]): Optional maximum number of search results to return.
+    """
+    search: str                         = Field(..., description="Query text for semantic search")
+    component: Optional[str]            = Field(None, description="Filter by component")
+    mode: Optional[str]                 = Field(None, description="Filter by mode")
+    limit: Optional[int]                = Field(None, description="Max number of results")

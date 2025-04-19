@@ -306,7 +306,7 @@ services:
     ports:
       - "8500:8500"  # for accessing the Consul UI/API
     volumes:
-      - consul_data:/consul/data
+      - ./volumes/consul_data:/consul/data
     networks:
       - shared-net
 
@@ -319,8 +319,8 @@ services:
     networks:
       - graylog
     volumes:
-      - "mongodb_data:/data/db"
-      - "mongodb_config:/data/configdb"  
+      - ./volumes/mongodb/data:/data/db
+      - ./volumes/mongodb/config:/data/configdb
 
   datanode:
     image: "${DATANODE_IMAGE:-graylog/graylog-datanode:6.1}"
@@ -344,7 +344,7 @@ services:
     networks:
       - graylog
     volumes:
-      - "graylog-datanode:/var/lib/graylog-datanode"
+      - ./volumes/graylog-node:/var/lib/graylog-datanode
     restart: "on-failure"
 
   # Graylog: https://hub.docker.com/r/graylog/graylog-enterprise
@@ -380,7 +380,7 @@ services:
       - shared-net
       - graylog
     volumes:
-      - "graylog_data:/usr/share/graylog/data/data"
+      - ./volumes/graylog:/usr/share/graylog/data/data
     restart: "on-failure"
 
 
@@ -388,7 +388,7 @@ services:
 
   ollama:
     volumes:
-      - ./services/ollama:/root/.ollama
+      - ./volumes/ollama:/root/.ollama
     container_name: ollama
     pull_policy: always
     tty: true
@@ -414,7 +414,7 @@ services:
     image: ghcr.io/open-webui/open-webui:main
     container_name: ollama-webui
     volumes:
-      - ./services/ollama-webui:/app/backend/data
+      - ./volumes/ollama-webui:/app/backend/data
     depends_on:
       - ollama
     ports:
@@ -437,15 +437,8 @@ services:
 
 networks:
   shared-net:
-    external: true
+    external: false
   graylog:
     driver: bridge
   ollama-docker:
     external: false
-
-volumes:
-  mongodb_data:
-  mongodb_config:
-  graylog-datanode:
-  graylog_data:
-  consul_data:

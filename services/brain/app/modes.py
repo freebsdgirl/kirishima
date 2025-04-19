@@ -17,6 +17,7 @@ Error Handling:
 Logging:
 - Logs debug, info, warning, and exception messages for better traceability.
 """
+from pathlib import Path
 
 import app.config
 import sqlite3
@@ -28,6 +29,44 @@ from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import JSONResponse
 
 router = APIRouter()
+
+def verify_database():
+    """
+    Verify the existence of the status database. If it doesn't exist, create it along with its parent directory.
+
+    This function checks if the SQLite database specified by `app.config.STATUS_DB` exists.
+    If it does not exist, it creates the necessary parent directories and establishes a new connection to the SQLite
+    database. It then creates a table named 'status' with columns for 'key' and 'value', and inserts an initial record
+    with the key 'mode' and value 'default'.
+
+    The function returns immediately if the database already exists.
+
+    Returns:
+        None
+
+    Raises:
+        None
+    """
+    # Check the database path, return if it exists
+    db_path = Path(app.config.STATUS_DB)
+
+    if db_path.exists():
+        return
+
+    # Create the directory if it doesn't exist
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Connect to (or create) the SQLite database
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    # Create table
+    cursor.execute("CREATE TABLE IF NOT EXISTS status (key, value)")
+    cursor.execute("INSERT OR REPLACE INTO status (key, value) VALUES (?, ?)",("mode", "default"))
+
+    # Commit and close
+    conn.commit()
+    conn.close()
 
 
 @router.post("/mode/{mode}", response_model=dict)
@@ -47,6 +86,7 @@ def mode_set(mode: str) -> JSONResponse:
     logger.debug("🔄 Attempting to set mode to '%s'", mode)
     
     try:
+        verify_database()
         with sqlite3.connect(app.config.STATUS_DB) as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -93,6 +133,7 @@ def mode_get() -> JSONResponse:
     logger.debug("🤖 Attempting to retrieve the current mode.")
     
     try:
+        verify_database()
         with sqlite3.connect(app.config.STATUS_DB) as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT value FROM status WHERE key='mode'")

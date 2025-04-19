@@ -19,6 +19,7 @@ import logging
 from pygelf import GelfUdpHandler, GelfTcpHandler
 import shared.config
 import os
+import sys
 
 def get_logger(service_name: str) -> logging.Logger:
     """
@@ -42,6 +43,13 @@ def get_logger(service_name: str) -> logging.Logger:
     logger.setLevel(logging.DEBUG)
     udp_handler = GelfUdpHandler(host=shared.config.GREYLOG_HOST, port=shared.config.GREYLOG_PORT, _app_name=service_name_env, debug=True)
 
+    udp_handler.setLevel(logging.DEBUG)
     logger.addHandler(udp_handler)
+
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.DEBUG)
+    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
 
     return logger

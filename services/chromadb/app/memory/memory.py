@@ -140,20 +140,16 @@ async def memory_delete(
     collection = Depends(get_collection),
 ):
     """
-    Delete a specific memory entry by its unique identifier.
+    Delete a memory entry from the ChromaDB collection by its unique identifier.
 
     Args:
         memory_id (str): The unique identifier of the memory to be deleted.
 
-    Returns:
-        Response: A 204 No Content response if deletion is successful.
-
     Raises:
-        HTTPException: 404 if the memory is not found, or 500 if a database error occurs.
-    """
-    """
-    Deletes the memory with the given ID.
-    Returns 204 No Content on success, or 404 if not found.
+        HTTPException: 404 if the memory is not found, or 500 for internal server or database errors.
+
+    Returns:
+        Response: A 204 No Content response indicating successful deletion.
     """
     # 1) Check existence
     try:

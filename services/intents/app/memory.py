@@ -110,18 +110,22 @@ async def process_memory(message: ProxyMessage, component: str) -> ProxyMessage:
                         url=f"http://{brain_address}:{brain_port}/memory",
                         json=entry.model_dump()
                     )
-                    if response.status_code not in (200, 204):
+                    if response.status_code == 404:
+                        message._deleted_memory_id = None
+                    elif response.status_code in (200, 204):
+                        # Extract deleted memory id from response if available
+                        deleted_id = None
+                        try:
+                            deleted_id = response.json().get("id")
+                        except Exception:
+                            pass
+                        message._deleted_memory_id = deleted_id
+                    else:
                         logger.error(f"Failed to delete memory: {response.status_code} {response.text}")
-                        raise HTTPException(
-                            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail=f"Failed to delete memory: {response.text}"
-                        )
+                        message._deleted_memory_id = None
             except Exception as e:
                 logger.error(f"Error deleting memory in brain: {e}")
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Error deleting memory in brain: {e}"
-                )
+                message._deleted_memory_id = None
 
         # --- Replace memory function calls with HTML details/summary blocks in the cleaned content ---
         def create_memory_repl(match):
@@ -133,7 +137,11 @@ async def process_memory(message: ProxyMessage, component: str) -> ProxyMessage:
         def delete_memory_repl(match):
             text = match.group(3)
             clean_text = text.strip('"\'“”').strip()
-            return f"<details>\n<summary>Memory Deleted</summary>\n> {clean_text}\n</details>"
+            deleted_id = getattr(message, '_deleted_memory_id', None)
+            if deleted_id:
+                return f"<details>\n<summary>Memory Deleted</summary>\n> {deleted_id}\n</details>"
+            else:
+                return f"<details>\n<summary>Memory Deletion Failed.</summary>\n> Memory not found: {clean_text}\n</details>"
 
         combined_sub_pattern = re.compile(
             r'create_memory\(\s*["\'“”]?(.+?)["\'“”]?\s*,\s*([0-9]*\.?[0-9]+)\s*\)'

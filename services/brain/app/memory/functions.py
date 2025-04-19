@@ -3,7 +3,7 @@ import shared.consul
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
 
-from shared.models.chromadb import MemoryEntry
+from shared.models.chromadb import MemoryEntry, MemoryEntryFull
 from shared.models.proxy import ProxyMessage
 from shared.models.embedding import EmbeddingRequest
 
@@ -11,12 +11,11 @@ from app.modes import mode_get
 from app.embedding import embedding
 
 import httpx
-
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
 
 @router.post("/memory/create")
-async def create_memory(request: MemoryEntry) -> int:
+async def create_memory(request: MemoryEntry) -> MemoryEntryFull:
     """
     Creates a memory entry in the ChromaDB collection.
 
@@ -72,8 +71,6 @@ async def create_memory(request: MemoryEntry) -> int:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error creating embedding: {e}"
         )
-
-    print(f"payload: {payload}")
     
     async with httpx.AsyncClient(timeout=60) as client:
         try:
@@ -101,7 +98,5 @@ async def create_memory(request: MemoryEntry) -> int:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to create memory."
             )
-    
-    print(f"Memory created successfully: {response.json()}")
 
-    return status.HTTP_200_OK
+    return MemoryEntryFull(**response.json())

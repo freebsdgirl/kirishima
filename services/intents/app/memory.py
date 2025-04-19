@@ -106,7 +106,6 @@ async def process_memory(message: ProxyMessage, component: str) -> ProxyMessage:
                 brain_address, brain_port = get_service_address('brain')
                 entry = MemoryEntry(memory=clean_text, component=component, priority=float(priority), mode="default")
                 entry_dict = entry.model_dump(exclude_none=True)
-                print("Outgoing to /memory:", entry_dict)
                 async with httpx.AsyncClient(timeout=60) as client:
                     response = await client.post(f"http://{brain_address}:{brain_port}/memory", json=entry_dict)
                     response.raise_for_status()

@@ -59,41 +59,14 @@ async def process_memory(message: ProxyMessage, component: str) -> ProxyMessage:
             if re.search(r'(create_memory\(|delete_memory\()', inner):
                 return inner.strip()  # Remove code block, keep content
             return match.group(0)  # Leave other code blocks untouched
-        message.content = codeblock_pattern.sub(strip_codeblock, message.content)
+        original_content = codeblock_pattern.sub(strip_codeblock, message.content)
 
-        # --- Replace memory function calls with HTML details/summary blocks ---
-        def create_memory_repl(match):
-            text = match.group(1)
-            priority = match.group(2)
-            clean_text = text.strip('"\'“”').strip()
-            return f'<details>\n<summary>Memory Created</summary>\n> {clean_text}, {priority}\n</details>'
-
-        def delete_memory_repl(match):
-            text = match.group(3)
-            clean_text = text.strip('"\'“”').strip()
-            return f'<details>\n<summary>Memory Deleted</summary>\n> {clean_text}\n</details>'
-
-        combined_sub_pattern = re.compile(
-            r'create_memory\(\s*["\'“”]?(.+?)["\'“”]?\s*,\s*([0-9]*\.?[0-9]+)\s*\)'
-            r'|delete_memory\(\s*["\'“”]?(.+?)["\'“”]?\s*\)',
-            re.IGNORECASE
-        )
-        def memory_replacer(match):
-            if match.group(1) is not None and match.group(2) is not None:
-                return create_memory_repl(match)
-            elif match.group(3) is not None:
-                return delete_memory_repl(match)
-            return ''
-        message.content = combined_sub_pattern.sub(memory_replacer, message.content)
-
-        # Updated regex patterns to include curly quotes
+        # --- Run memory HTTP requests on the original content (before replacement) ---
         create_memory_pattern = re.compile(
             r'create_memory\(\s*["\'“”]?(.+?)["\'“”]?\s*,\s*([0-9]*\.?[0-9]+)\s*\)',
             re.IGNORECASE
         )
-
-        for text, priority in create_memory_pattern.findall(message.content):
-            # Strip any leading/trailing straight or curly quotes and whitespace
+        for text, priority in create_memory_pattern.findall(original_content):
             clean_text = text.strip('"\'“”').strip()
             logger.debug(f"🗃️ function: create_memory({clean_text}, {priority})")
             if not component:
@@ -106,6 +79,7 @@ async def process_memory(message: ProxyMessage, component: str) -> ProxyMessage:
                 brain_address, brain_port = get_service_address('brain')
                 entry = MemoryEntry(memory=clean_text, component=component, priority=float(priority), mode="default")
                 entry_dict = entry.model_dump(exclude_none=True)
+                print("Outgoing to /memory:", entry_dict)
                 async with httpx.AsyncClient(timeout=60) as client:
                     response = await client.post(f"http://{brain_address}:{brain_port}/memory", json=entry_dict)
                     response.raise_for_status()
@@ -120,21 +94,16 @@ async def process_memory(message: ProxyMessage, component: str) -> ProxyMessage:
             r'delete_memory\(\s*["\'“”]?(.+?)["\'“”]?\s*\)',
             re.IGNORECASE
         )
-
-        for text in delete_memory_pattern.findall(message.content):
-            # Strip any leading/trailing straight or curly quotes and whitespace
+        for text in delete_memory_pattern.findall(original_content):
             clean_text = text.strip('"\'“”').strip()
             logger.debug(f"🗃️ function: delete_memory({clean_text})")
             try:
                 brain_address, brain_port = get_service_address('brain')
-
                 async with httpx.AsyncClient(timeout=60) as client:
                     response = await client.get(f"http://{brain_address}:{brain_port}/mode")
                     response.raise_for_status()
-
                     json_response = response.json()
                     mode = json_response.get("message", None)
-
                 entry = MemoryEntry(memory=clean_text, component=component, mode=mode, embedding=[])
                 async with httpx.AsyncClient(timeout=60) as client:
                     response = await client.request(
@@ -154,6 +123,31 @@ async def process_memory(message: ProxyMessage, component: str) -> ProxyMessage:
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail=f"Error deleting memory in brain: {e}"
                 )
+
+        # --- Replace memory function calls with HTML details/summary blocks in the cleaned content ---
+        def create_memory_repl(match):
+            text = match.group(1)
+            priority = match.group(2)
+            clean_text = text.strip('"\'“”').strip()
+            return f"<details>\n<summary>Memory Created</summary>\n> {clean_text}, {priority}\n</details>"
+
+        def delete_memory_repl(match):
+            text = match.group(3)
+            clean_text = text.strip('"\'“”').strip()
+            return f"<details>\n<summary>Memory Deleted</summary>\n> {clean_text}\n</details>"
+
+        combined_sub_pattern = re.compile(
+            r'create_memory\(\s*["\'“”]?(.+?)["\'“”]?\s*,\s*([0-9]*\.?[0-9]+)\s*\)'
+            r'|delete_memory\(\s*["\'“”]?(.+?)["\'“”]?\s*\)',
+            re.IGNORECASE
+        )
+        def memory_replacer(match):
+            if match.group(1) is not None and match.group(2) is not None:
+                return create_memory_repl(match)
+            elif match.group(3) is not None:
+                return delete_memory_repl(match)
+            return ''
+        message.content = combined_sub_pattern.sub(memory_replacer, original_content)
 
     except Exception as e:
         logger.error(f"Unexpected error in memory processing: {e}")

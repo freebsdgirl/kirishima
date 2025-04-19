@@ -1,27 +1,32 @@
 """
-This module provides FastAPI endpoints for managing and querying memory entries stored in a ChromaDB collection.
-It includes functionalities for retrieving individual memories, listing memories with optional filters, performing
-exact-match searches, and conducting semantic searches with metadata constraints.
+This module provides a FastAPI router for managing and querying memory entries stored in a ChromaDB collection. 
+It includes endpoints for retrieving, listing, searching, and performing semantic searches on memory entries.
 Endpoints:
-    - GET /memory/{memory_id}: Retrieve a single memory by its unique identifier.
-    - GET /memory: Fetch a list of memories with optional filtering and pagination.
-    - GET /memory/search: Perform an exact-match search on memory documents.
-    - GET /memory/semantic: Conduct a semantic search on memories with optional metadata filters.
+- `/memory/id/{memory_id}`: Fetch a single memory by its unique identifier.
+- `/memory`: Fetch a list of memories with optional filtering and pagination.
+- `/memory/search`: Perform an exact-match search on memory documents.
+- `/memory/semantic`: Perform a semantic search on memories with optional metadata filtering.
+Functions:
+- `get_collection()`: Asynchronously retrieves the ChromaDB collection instance.
+- `memory_get(memory_id, collection)`: Retrieve a single memory by its unique identifier.
+- `memory_list(q, limit, collection)`: Retrieve a list of memories with optional filtering and pagination.
+- `memory_search(text, limit, collection)`: Perform an exact-match search on memory documents.
+- `memory_semantic_search(text, component, mode, priority, limit, collection)`: Perform a semantic search on memories with optional metadata filtering.
 Dependencies:
-    - ChromaDB collection setup is handled by `app.memory.setup`.
-    - Embedding generation is provided by `app.embedding.get_embedding`.
-    - Logging is configured using `shared.log_config.get_logger`.
+- `get_collection`: Dependency to retrieve the ChromaDB collection instance.
+- `MemoryQuery`: Query parameters for filtering memories.
+- `EmbeddingRequest`: Request model for generating embeddings.
 Models:
-    - MemoryView: Represents a memory entry with its document, truncated embedding, and metadata.
-    - MemoryQuery: Defines query parameters for filtering memories.
-    - EmbeddingRequest: Used for generating embeddings for semantic search.
-Error Handling:
-    - Returns appropriate HTTP status codes and error messages for issues such as missing records,
-      validation errors, or unexpected payloads from ChromaDB.
+- `MemoryView`: Pydantic model representing a memory entry with its document, truncated embedding, and metadata.
+- `MemoryQuery`: Pydantic model for querying memories by component, mode, and priority.
 Utilities:
-    - Metadata filters (`where` clauses) are dynamically constructed based on query parameters.
-    - Embeddings are truncated to include only the first element for response optimization.
-    - Results are sorted by timestamp in descending order where applicable.
+- `get_embedding`: Utility function to generate embeddings for semantic search.
+- `get_logger`: Utility function to configure and retrieve a logger instance.
+Error Handling:
+- Raises `HTTPException` with appropriate status codes for errors such as:
+    - Memory not found (404).
+    - ChromaDB lookup failure (500).
+    - Response validation errors (500).
 """
 
 from app.embedding import get_embedding
@@ -347,7 +352,6 @@ async def memory_search(
     if limit is not None:
         items = items[:limit]
     
-    print(f"THE LIMIT DOES NOT EXIST: {limit}")
     # 6) if still empty, return 404
     if not items:
         logger.debug(f"No memory entries found matching '{text}'")
@@ -497,7 +501,6 @@ async def memory_semantic_search(
         return (v.distance if v.distance is not None else float('inf'), -prio, ts)
     items.sort(key=sort_key)
 
-    print(f"THE SEMANTIC LIMIT DOES NOT EXIST: {limit}")
     # 6) apply limit
     if limit is not None:
         items = items[:limit]

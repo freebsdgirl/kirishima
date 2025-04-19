@@ -1,3 +1,17 @@
+"""
+This module provides FastAPI routes for interacting with memory entries in the ChromaDB service.
+Routes:
+    - GET /memory: List all memory entries for a specific component and/or mode.
+    - GET /memory/semantic: Perform a semantic search on memory entries.
+Dependencies:
+    - shared.consul: Used to retrieve the service address for ChromaDB.
+    - shared.log_config: Provides logging functionality.
+    - shared.models.chromadb: Contains models for memory entries and query parameters.
+Functions:
+    - list_memory: Handles requests to list memory entries based on query parameters.
+    - search_semantic: Handles requests to perform semantic searches on memory entries.
+    - HTTPException: Raised when there are issues with the ChromaDB service or unexpected errors occur.
+"""
 import shared.consul
 
 from shared.log_config import get_logger

@@ -29,6 +29,9 @@ Dependencies:
 
 from shared.models.proxy import ProxyMultiTurnRequest, ProxyResponse, ProxyMessage
 from shared.models.intents import IntentRequest
+from shared.models.chromadb import MemoryEntryFull
+from app.memory.list import list_memory
+from app.modes import mode_get
 
 import shared.consul
 
@@ -36,6 +39,7 @@ from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
 
 import httpx
+import re
 
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
@@ -101,6 +105,45 @@ async def outgoing_multiturn_message(message: ProxyMultiTurnRequest) -> ProxyRes
                 detail=f"Connection error to intents service: {req_err}"
             )
 
+    # get the current mode
+    mode_response = mode_get()
+    if hasattr(mode_response, 'body'):
+        import json
+        mode_json = json.loads(mode_response.body)
+        mode = mode_json.get('message')
+    else:
+        mode = None
+
+    # get a list of memories to pass to the proxy service.
+    # this will return List[MemoryEntryFull] which goes directly into the payload.
+    from shared.models.chromadb import MemoryListQuery
+    memory_query = MemoryListQuery(component="proxy", limit=100, mode=mode)
+    memories = await list_memory(memory_query)
+    payload["memories"] = [m.model_dump() for m in memories]
+
+
+
+    # strip any <details> tags from the messages'
+    # this is a workaround for the fact that models pick up on patterns way too easily, 
+    # and we don't want them to persist in using the details tag when we switch modes.
+    # example: <details>\n<summary>Understood the user's intent.</summary>\n> The user wants to test switching modes.</details>\nSure, sweetie! Which mode would you like to switch to?
+    # with this exampe, we should strip the <details> tags, any content inside them, and the \n after the closing tag.
+    proxy_messages = payload['messages']
+
+    for message in proxy_messages:
+        if isinstance(message, dict):
+            content = message.get('content', '')
+            # Remove <details> tags and their content
+            content = re.sub(r'<details>.*?</details>', '', content, flags=re.DOTALL)
+            # Remove any leading/trailing whitespace
+            content = content.strip()
+            message['content'] = content
+        else:
+            logger.error(f"Expected message to be a dict, but got {type(message)}")
+
+    payload["messages"] = proxy_messages
+
+
     async with httpx.AsyncClient(timeout=60) as client:
         try:
             proxy_address, proxy_port = shared.consul.get_service_address('proxy')
@@ -163,7 +206,6 @@ async def outgoing_multiturn_message(message: ProxyMultiTurnRequest) -> ProxyRes
                     status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                     detail="Intents service is unavailable."
                 )
-            print(intentreq.model_dump())  
             response = await client.post(f"http://{intents_address}:{intents_port}/intents", json=intentreq.model_dump())
             response.raise_for_status()
 

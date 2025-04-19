@@ -1,4 +1,5 @@
 CHROMADB_MODEL_NAME             = "intfloat/e5-small-v2"
+CHROMADB_URL                    = "http://chromadb"
 
 # if the model returns a bad response, this is how many times we'll ask for a new response
 CHAT_COMPLETIONS_MAX_ATTEMPTS   = 10

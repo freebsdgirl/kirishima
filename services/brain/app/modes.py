@@ -50,14 +50,10 @@ def verify_database():
     # Check the database path, return if it exists
     db_path = Path(app.config.STATUS_DB)
 
-    if db_path.exists():
-        return
-
-    # Create the directory if it doesn't exist
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Connect to (or create) the SQLite database
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(str(db_path))
     cursor = conn.cursor()
 
     # Create table

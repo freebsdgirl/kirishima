@@ -438,7 +438,7 @@ async def memory_semantic_search(
         else:
             results = collection.query(
                 query_embeddings=[query_emb],
-                include=["documents", "embeddings", "metadatas" "distances"],
+                include=["documents", "embeddings", "metadatas", "distances"],
                 where=where
             )
 
@@ -467,19 +467,21 @@ async def memory_semantic_search(
         )
 
     items: List[MemoryView] = []
+    # Flatten all found entries for each query result
     for _id, doc, meta, dist in zip(ids, docs, metadatas, distances):
-        try:
-            view = MemoryView(
-                id=_id[0],
-                memory=doc[0],
-                metadata=meta[0],
-                distance=dist[0],
-            )
-
-        except ValidationError:
-            logger.error(f"Invalid record skipped.")
-            continue
-        items.append(view)
+        # Each of these is a list (possibly empty) of results for the query
+        for i in range(len(_id)):
+            try:
+                view = MemoryView(
+                    id=_id[i],
+                    memory=doc[i],
+                    metadata=meta[i],
+                    distance=dist[i],
+                )
+            except ValidationError:
+                logger.error(f"Invalid record skipped.")
+                continue
+            items.append(view)
 
     # 5) apply limit
     if limit is not None:

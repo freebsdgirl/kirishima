@@ -49,6 +49,43 @@ async def process_memory(message: ProxyMessage, component: str) -> ProxyMessage:
         HTTPException: If an unexpected error occurs during memory processing.
     """
     try:
+        # --- Remove code block markers (triple backticks and optional language) around memory calls ---
+        codeblock_pattern = re.compile(
+            r'```(?:[a-zA-Z0-9_+-]*)?\n?((?:.|\n)*?)```',
+            re.MULTILINE
+        )
+        def strip_codeblock(match):
+            inner = match.group(1)
+            if re.search(r'(create_memory\(|delete_memory\()', inner):
+                return inner.strip()  # Remove code block, keep content
+            return match.group(0)  # Leave other code blocks untouched
+        message.content = codeblock_pattern.sub(strip_codeblock, message.content)
+
+        # --- Replace memory function calls with HTML details/summary blocks ---
+        def create_memory_repl(match):
+            text = match.group(1)
+            priority = match.group(2)
+            clean_text = text.strip('"\'“”').strip()
+            return f'<details>\n<summary>Memory Created</summary>\n> {clean_text}, {priority}\n</details>'
+
+        def delete_memory_repl(match):
+            text = match.group(3)
+            clean_text = text.strip('"\'“”').strip()
+            return f'<details>\n<summary>Memory Deleted</summary>\n> {clean_text}\n</details>'
+
+        combined_sub_pattern = re.compile(
+            r'create_memory\(\s*["\'“”]?(.+?)["\'“”]?\s*,\s*([0-9]*\.?[0-9]+)\s*\)'
+            r'|delete_memory\(\s*["\'“”]?(.+?)["\'“”]?\s*\)',
+            re.IGNORECASE
+        )
+        def memory_replacer(match):
+            if match.group(1) is not None and match.group(2) is not None:
+                return create_memory_repl(match)
+            elif match.group(3) is not None:
+                return delete_memory_repl(match)
+            return ''
+        message.content = combined_sub_pattern.sub(memory_replacer, message.content)
+
         # Updated regex patterns to include curly quotes
         create_memory_pattern = re.compile(
             r'create_memory\(\s*["\'“”]?(.+?)["\'“”]?\s*,\s*([0-9]*\.?[0-9]+)\s*\)',
@@ -118,20 +155,6 @@ async def process_memory(message: ProxyMessage, component: str) -> ProxyMessage:
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail=f"Error deleting memory in brain: {e}"
                 )
-
-        # Combine both patterns into a single regex
-        combined_pattern = re.compile(
-            f"{create_memory_pattern.pattern}|{delete_memory_pattern.pattern}",
-            re.IGNORECASE
-        )
-
-        # Check if the message content only contains the pattern
-        if combined_pattern.fullmatch(message.content.strip()):
-            return message  # Return the message as-is if it only contains the pattern
-
-        # Remove the pattern and any preceding newline if other text exists
-        modified_content = combined_pattern.sub('', message.content).lstrip('\n')
-        message.content = modified_content
 
     except Exception as e:
         logger.error(f"Unexpected error in memory processing: {e}")

@@ -5,7 +5,7 @@ within a `ProxyMessage`. It identifies and handles specific function calls
 debug information about these operations, and modifies the message content 
 by removing the identified function calls while preserving other text.
 Functions:
-    process_memory(message: ProxyMessage) -> ProxyMessage:
+    process_memory(message: ProxyMessage, component: str) -> ProxyMessage:
         Processes memory-related operations in a ProxyMessage, extracts 
         create_memory() and delete_memory() function calls, logs debug 
         information, and modifies the message content by removing these 
@@ -25,9 +25,12 @@ from shared.log_config import get_logger
 logger = get_logger(f"intents.{__name__}")
 
 import re
+import httpx
+from shared.models.chromadb import MemoryEntry
+from shared.consul import get_service_address
 
 
-async def process_memory(message: ProxyMessage) -> ProxyMessage:
+async def process_memory(message: ProxyMessage, component: str) -> ProxyMessage:
     """
     Process memory-related operations within a ProxyMessage.
     
@@ -37,6 +40,7 @@ async def process_memory(message: ProxyMessage) -> ProxyMessage:
     
     Args:
         message (ProxyMessage): The input message to process.
+        component (str): The component string from the intent request.
     
     Returns:
         ProxyMessage: The modified message with memory function calls removed.
@@ -45,25 +49,75 @@ async def process_memory(message: ProxyMessage) -> ProxyMessage:
         HTTPException: If an unexpected error occurs during memory processing.
     """
     try:
+        # Updated regex patterns to include curly quotes
         create_memory_pattern = re.compile(
-            r'create_memory\(\s*[\'"]?(.+?)[\'"]?\s*,\s*([0-9]*\.?[0-9]+)\s*\)',
+            r'create_memory\(\s*["\'“”]?(.+?)["\'“”]?\s*,\s*([0-9]*\.?[0-9]+)\s*\)',
             re.IGNORECASE
         )
 
         for text, priority in create_memory_pattern.findall(message.content):
-            logger.debug(f"🗃️ function: create_memory({text}, {priority})")
-            
-            # placeholder until brain endpoints are ready.
-    
+            # Strip any leading/trailing straight or curly quotes and whitespace
+            clean_text = text.strip('"\'“”').strip()
+            logger.debug(f"🗃️ function: create_memory({clean_text}, {priority})")
+            if not component:
+                logger.error("Component is required for memory creation but was None or empty.")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Component is required for memory creation."
+                )
+            try:
+                brain_address, brain_port = get_service_address('brain')
+                entry = MemoryEntry(memory=clean_text, component=component, priority=float(priority), mode="default")
+                entry_dict = entry.model_dump(exclude_none=True)
+                print("Outgoing to /memory:", entry_dict)
+                async with httpx.AsyncClient(timeout=60) as client:
+                    response = await client.post(f"http://{brain_address}:{brain_port}/memory", json=entry_dict)
+                    response.raise_for_status()
+            except Exception as e:
+                logger.error(f"Error creating memory in brain: {e}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Error creating memory in brain: {e}"
+                )
+
         delete_memory_pattern = re.compile(
-            r'delete_memory\(\s*[\'"]?(.+?)[\'"]?\s*\)',
+            r'delete_memory\(\s*["\'“”]?(.+?)["\'“”]?\s*\)',
             re.IGNORECASE
         )
 
         for text in delete_memory_pattern.findall(message.content):
-            logger.debug(f"🗃️ function: delete_memory({text})")
-            
-            # placeholder until brain endpoints are ready.
+            # Strip any leading/trailing straight or curly quotes and whitespace
+            clean_text = text.strip('"\'“”').strip()
+            logger.debug(f"🗃️ function: delete_memory({clean_text})")
+            try:
+                brain_address, brain_port = get_service_address('brain')
+
+                async with httpx.AsyncClient(timeout=60) as client:
+                    response = await client.get(f"http://{brain_address}:{brain_port}/mode")
+                    response.raise_for_status()
+
+                    json_response = response.json()
+                    mode = json_response.get("message", None)
+
+                entry = MemoryEntry(memory=clean_text, component=component, mode=mode)
+                async with httpx.AsyncClient(timeout=60) as client:
+                    response = await client.request(
+                        method="DELETE",
+                        url=f"http://{brain_address}:{brain_port}/memory",
+                        json=entry.model_dump()
+                    )
+                    if response.status_code not in (200, 204):
+                        logger.error(f"Failed to delete memory: {response.status_code} {response.text}")
+                        raise HTTPException(
+                            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail=f"Failed to delete memory: {response.text}"
+                        )
+            except Exception as e:
+                logger.error(f"Error deleting memory in brain: {e}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Error deleting memory in brain: {e}"
+                )
 
         # Combine both patterns into a single regex
         combined_pattern = re.compile(

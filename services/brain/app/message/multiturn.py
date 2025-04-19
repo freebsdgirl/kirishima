@@ -27,7 +27,7 @@ Dependencies:
     - fastapi.HTTPException: Used for raising HTTP exceptions.
 """
 
-from shared.models.proxy import ProxyMultiTurnRequest, ProxyResponse
+from shared.models.proxy import ProxyMultiTurnRequest, ProxyResponse, ProxyMessage
 from shared.models.intents import IntentRequest
 
 import shared.consul
@@ -65,6 +65,7 @@ async def outgoing_multiturn_message(message: ProxyMultiTurnRequest) -> ProxyRes
     intentreq = IntentRequest(
         mode=True,
         memory=True,
+        component="proxy",
         message=message.messages
     )
 
@@ -147,10 +148,9 @@ async def outgoing_multiturn_message(message: ProxyMultiTurnRequest) -> ProxyRes
     # because some intents are only relevant to the user's or model's output.]
     intentreq = IntentRequest(
         mode=True,
-        message=[{
-            "role": "assistant",
-            "content": proxy_response.response
-        }]
+        component="proxy",
+        memory=True,
+        message=[ProxyMessage(role="assistant", content=proxy_response.response)]
     )
 
     async with httpx.AsyncClient(timeout=60) as client:
@@ -163,9 +163,14 @@ async def outgoing_multiturn_message(message: ProxyMultiTurnRequest) -> ProxyRes
                     status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                     detail="Intents service is unavailable."
                 )
-            
+            print(intentreq.model_dump())  
             response = await client.post(f"http://{intents_address}:{intents_port}/intents", json=intentreq.model_dump())
             response.raise_for_status()
+
+            # Update proxy_response.response to the content of the returned ProxyMessage
+            returned_messages = response.json()
+            if isinstance(returned_messages, list) and returned_messages:
+                proxy_response.response = returned_messages[0].get('content', proxy_response.response)
 
         except httpx.HTTPStatusError as http_err:
             logger.error(f"HTTP error from intents service: {http_err.response.status_code} - {http_err.response.text}")

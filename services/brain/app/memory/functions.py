@@ -31,7 +31,7 @@ from fastapi import APIRouter, HTTPException, status, Body
 router = APIRouter()
 
 
-@router.post("/memory/create")
+@router.post("/memory", response_model=MemoryEntryFull)
 async def create_memory(request: MemoryEntry) -> MemoryEntryFull:
     """
     Create a new memory entry with mode and embedding.

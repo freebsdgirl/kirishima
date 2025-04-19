@@ -246,10 +246,10 @@ async def memory_list(
 
         items.append(view)
 
-    # 4) Sort by timestamp descending
-    # if timestamp is ISO8601 string, lexicographic sort works
-    items.sort(key=lambda v: v.metadata.timestamp, reverse=True)
-
+    # 4) Sort by timestamp descending, then by priority descending
+    # If timestamp is ISO8601 string, lexicographic sort works for timestamp
+    # For priority, higher values are more important (descending)
+    items.sort(key=lambda v: (v.metadata.timestamp, v.metadata.priority if v.metadata.priority is not None else 0), reverse=True)
     # 5) Apply limit if given
     if limit is not None:
         items = items[:limit]

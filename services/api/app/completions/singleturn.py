@@ -106,7 +106,7 @@ async def openai_v1_completions(request: OpenAICompletionRequest, request_data: 
     }
 
     # Sequentially call the proxy service n times
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=60) as client:
         for i in range(n):
             try:
                 brain_address, brain_port = get_service_address('brain')

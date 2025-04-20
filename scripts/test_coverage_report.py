@@ -7,6 +7,7 @@ services = {
     "chromadb": "http://localhost:4206/__list_routes__",
     "contacts": "http://localhost:4202/__list_routes__",
     "imessage": "http://localhost:4204/__list_routes__",
+    "intents": "http://localhost:4204/__list_routes__",
     "proxy": "http://localhost:4205/__list_routes__",
     "scheduler": "http://localhost:4201/__list_routes__",
     "summarize": "http://localhost:4203/__list_routes__",

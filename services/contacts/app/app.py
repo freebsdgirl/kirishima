@@ -61,7 +61,7 @@ def get_db_connection():
 
 
 @app.post("/contact", response_model=Contact)
-def add_contact(contact: ContactCreate) -> dict:
+def add_contact(contact: ContactCreate) -> Contact:
     """
     Create a new contact with the provided contact information.
 
@@ -72,7 +72,7 @@ def add_contact(contact: ContactCreate) -> dict:
         contact (ContactCreate): The contact details to be created, including notes, aliases, and fields.
 
     Returns:
-        dict: A dictionary containing the newly created contact's ID and creation status.
+        Contact: The newly created contact.
 
     Raises:
         HTTPException: If there is a database error during contact creation, with a 500 Internal Server Error status.
@@ -96,6 +96,24 @@ def add_contact(contact: ContactCreate) -> dict:
 
             conn.commit()
 
+            # Fetch the full contact object to return
+            cursor.execute("SELECT notes FROM contacts WHERE id = ?", (contact_id,))
+            notes_row = cursor.fetchone()
+            notes = notes_row[0] if notes_row else None
+
+            cursor.execute("SELECT alias FROM aliases WHERE contact_id = ?", (contact_id,))
+            aliases = [row[0] for row in cursor.fetchall()]
+
+            cursor.execute("SELECT key, value FROM fields WHERE contact_id = ?", (contact_id,))
+            fields = [{"key": row[0], "value": row[1]} for row in cursor.fetchall()]
+
+            result = Contact(
+                id=contact_id,
+                aliases=aliases,
+                fields=fields,
+                notes=notes
+            )
+
     except sqlite3.Error as e:
         logger.error(f"Error creating contact {contact_id}: {e}", exc_info=True)
 
@@ -106,10 +124,7 @@ def add_contact(contact: ContactCreate) -> dict:
 
     logger.debug(f"Contact {contact_id} created successfully.")
 
-    return {
-        "id": contact_id,
-        "status": "created"
-    }
+    return result
 
 
 @app.get("/contacts", response_model=list[Contact])

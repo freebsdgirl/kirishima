@@ -17,84 +17,138 @@ digraph Microservices {
     weight=2         /* boost spring strength */
   ];
 
-  /* API endpoints */   
-  "API: GET /models"
-  "API: GET /models/MODEL_ID"
-  "API: GET /v1/models/MODEL_ID"
-  "API: POST /chat/completions"
-  "API: POST /completions"
-  "API: POST /v1/chat/completions"
-  "API: POST /v1/completions"
+  /* API endpoints */
+  subgraph cluster_api {
+    label="API endpoints";
+    style=dashed;
+    color=lightgrey;
+    node [style=filled, fillcolor=lightyellow];
+    "API: GET /models"
+    "API: GET /models/MODEL_ID"
+    "API: GET /v1/models/MODEL_ID"
+    "API: POST /chat/completions"
+    "API: POST /completions"
+    "API: POST /v1/chat/completions"
+    "API: POST /v1/completions"
+  }
 
   /* Brain endpoints */
-  "Brain: DELETE /memory"
-  "Brain: DELETE /scheduler/job/JOB_ID"
-  "Brain: GET /memory"
-  "Brain: GET /memory/semantic"
-  "Brain: GET /model/MODEL_NAME"
-  "Brain: GET /models"
-  "Brain: GET /scheduler/job"
-  "Brain: POST /embedding"
-  "Brain: POST /memory"
-  "Brain: POST /message/incoming"
-  "Brain: POST /message/multiturn/incoming"
-  "Brain: POST /message/single/incoming"
-  "Brain: POST /scheduler/job"
+  subgraph cluster_brain {
+    label="Brain endpoints";
+    style=dashed;
+    color=lightgrey;
+    node [style=filled, fillcolor=lightgreen];
+    "Brain: DELETE /memory"
+    "Brain: DELETE /scheduler/job/JOB_ID"
+    "Brain: GET /memory"
+    "Brain: GET /memory/semantic"
+    "Brain: GET /model/MODEL_NAME"
+    "Brain: GET /models"
+    "Brain: GET /scheduler/job"
+    "Brain: POST /embedding"
+    "Brain: POST /memory"
+    "Brain: POST /message/incoming"
+    "Brain: POST /message/multiturn/incoming"
+    "Brain: POST /message/single/incoming"
+    "Brain: POST /scheduler/job"
+  }
 
   /* ChromaDB endpoints */
-  "ChromaDB: DELETE /memory/MEM_ID"
-  "ChromaDB: GET /memory"
-  "ChromaDB: GET /memory/id/MEM_ID"
-  "ChromaDB: GET /memory/search"
-  "ChromaDB: GET /memory/semantic"
-  "ChromaDB: PATCH /memory/MEM_ID"
-  "ChromaDB: POST /embedding"
-  "ChromaDB: POST /memory"
-  "ChromaDB: PUT /memory/MEM_ID"
+  subgraph cluster_chromadb {
+    label="ChromaDB endpoints";
+    style=dashed;
+    color=lightgrey;
+    node [style=filled, fillcolor=lightpink];
+    "ChromaDB: DELETE /memory/MEM_ID"
+    "ChromaDB: GET /memory"
+    "ChromaDB: GET /memory/id/MEM_ID"
+    "ChromaDB: GET /memory/search"
+    "ChromaDB: GET /memory/semantic"
+    "ChromaDB: PATCH /memory/MEM_ID"
+    "ChromaDB: POST /embedding"
+    "ChromaDB: POST /memory"
+    "ChromaDB: PUT /memory/MEM_ID"
+  }
 
   /* Contacts endpoints */
-  "Contacts: DELETE /contact/CONTACT_ID"
-  "Contacts: GET /contacts"
-  "Contacts: GET /search"
-  "Contacts: PATCH /contact/CONTACT_ID"
-  "Contacts: POST /contact"
-  "Contacts: PUT /contact/CONTACT_ID"
+  subgraph cluster_contacts {
+    label="Contacts endpoints";
+    style=dashed;
+    color=lightgrey;
+    node [style=filled, fillcolor=lightcoral];
+    "Contacts: DELETE /contact/CONTACT_ID"
+    "Contacts: GET /contacts"
+    "Contacts: GET /search"
+    "Contacts: PATCH /contact/CONTACT_ID"
+    "Contacts: POST /contact"
+    "Contacts: PUT /contact/CONTACT_ID"
+  }
 
   /* iMessage endpoints */
-  "iMessage: POST /imessage/recv"
-  "iMessage: POST /imessage/send"
+  subgraph cluster_imessage {
+    label="iMessage endpoints";
+    style=dashed;
+    color=lightgrey;
+    node [style=filled, fillcolor=lightcyan];
+    "iMessage: POST /imessage/recv"
+    "iMessage: POST /imessage/send"
+  }
 
   /* Intents endpoints */
-  "Intents: GET /intents"
-  "Intents: POST /intents"
+  subgraph cluster_intents {
+    label="Intents endpoints";
+    style=dashed;
+    color=lightgrey;
+    node [style=filled, fillcolor=lightgoldenrod];
+    "Intents: GET /intents"
+    "Intents: POST /intents"
+  }
 
   /* Proxy endpoints */
-  "Proxy: GET /api/models"
-  "Proxy: GET /api/models/MODEL_NAME"
-  "Proxy: POST /from/api/completions"
-  "Proxy: POST /from/api/multiturn"
-  "Proxy: POST /from/imessage"
+  subgraph cluster_proxy {
+    label="Proxy endpoints";
+    style=dashed;
+    color=lightgrey;
+    node [style=filled, fillcolor=lightsteelblue];
+    "Proxy: GET /api/models"
+    "Proxy: GET /api/models/MODEL_NAME"
+    "Proxy: POST /from/api/completions"
+    "Proxy: POST /from/api/multiturn"
+    "Proxy: POST /from/imessage"
+  }
 
   /* Scheduler endpoints */
-  "Scheduler: DELETE /jobs/JOB_ID"
-  "Scheduler: GET /jobs"
-  "Scheduler: POST /jobs"
-  "Scheduler: POST /jobs/JOB_ID/pause"
-  "Scheduler: POST /jobs/JOB_ID/resume"
+  subgraph cluster_scheduler {
+    label="Scheduler endpoints";
+    style=dashed;
+    color=lightgrey;
+    node [style=filled, fillcolor=lightseagreen];
+    "Scheduler: DELETE /jobs/JOB_ID"
+    "Scheduler: GET /jobs"
+    "Scheduler: POST /jobs"
+    "Scheduler: POST /jobs/JOB_ID/pause"
+    "Scheduler: POST /jobs/JOB_ID/resume"
+  }
 
   /* Summarize endpoints */
-  "Summarize: DELETE /buffer/USER_ID"
-  "Summarize: DELETE /summary/ID"
-  "Summarize: DELETE /summary/user/USER_ID"
-  "Summarize: GET /buffer"
-  "Summarize: GET /buffer/USER_ID"
-  "Summarize: GET /context/USER_ID"
-  "Summarize: GET /summary/ID"
-  "Summarize: GET /summary/search"
-  "Summarize: GET /summary/user/USER_ID"
-  "Summarize: POST /buffer"
-  "Summarize: POST /summarize_buffers"
-  "Summarize: POST /summary"
+  subgraph cluster_summarize {
+    label="Summarize endpoints";
+    style=dashed;
+    color=lightgrey;
+    node [style=filled, fillcolor=lightgray];
+    "Summarize: DELETE /buffer/USER_ID"
+    "Summarize: DELETE /summary/ID"
+    "Summarize: DELETE /summary/user/USER_ID"
+    "Summarize: GET /buffer"
+    "Summarize: GET /buffer/USER_ID"
+    "Summarize: GET /context/USER_ID"
+    "Summarize: GET /summary/ID"
+    "Summarize: GET /summary/search"
+    "Summarize: GET /summary/user/USER_ID"
+    "Summarize: POST /buffer"
+    "Summarize: POST /summarize_buffers"
+    "Summarize: POST /summary"
+  }
 
   /* No external dependencies for contacts endpoints (all DB local) */
 

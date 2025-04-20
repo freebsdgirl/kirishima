@@ -31,7 +31,7 @@ Notes:
       statistics in the response.
 """
 
-from shared.models.proxy import ProxyResponse
+from shared.models.proxy import ProxyResponse, ProxyOneShotRequest
 from shared.models.openai import OpenAICompletionRequest, OpenAICompletionResponse, OpenAICompletionChoice, OpenAIUsage
 
 from shared.consul import get_service_address
@@ -96,14 +96,15 @@ async def openai_v1_completions(request: OpenAICompletionRequest, request_data: 
     total_completion_tokens = 0
     created_unix: Optional[int] = None
 
-    # Prepare data to send to the proxy service. Include stream: False to avoid streaming responses.
-    proxy_request_data = {
-        "prompt": request.prompt,
-        "model": request.model,
-        "temperature": request.temperature,
-        "max_tokens": request.max_tokens,
-        "stream": False,
-    }
+    # Prepare data to send to the proxy service using ProxyOneShotRequest for validation.
+    proxy_request = ProxyOneShotRequest(
+        prompt=request.prompt,
+        model=request.model,
+        temperature=request.temperature,
+        max_tokens=request.max_tokens
+    )
+    proxy_request_data = proxy_request.model_dump()
+    proxy_request_data["stream"] = False
 
     # Sequentially call the proxy service n times
     async with httpx.AsyncClient(timeout=60) as client:

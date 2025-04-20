@@ -63,7 +63,8 @@ async def from_api_completions(message: ProxyOneShotRequest) -> ProxyResponse:
         "prompt": message.prompt,
         "temperature": message.temperature,
         "max_tokens": message.max_tokens,
-        "stream": False
+        "stream": False,
+        "raw": True
     }
 
     # Send the POST request using an async HTTP client

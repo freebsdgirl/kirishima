@@ -29,7 +29,7 @@ from app.docs import router as docs_router
 from shared.routes import router as routes_router
 
 from shared.log_config import get_logger
-logger = get_logger(__name__)
+logger = get_logger(f"contacts.{__name__}")
 
 from shared.models.contacts import ContactCreate, Contact
 
@@ -78,7 +78,7 @@ def add_contact(contact: ContactCreate) -> dict:
         HTTPException: If there is a database error during contact creation, with a 500 Internal Server Error status.
     """
     contact_id = str(uuid.uuid4())
-    logger.info(f"Creating contact {contact_id} with aliases {contact.aliases}")
+    logger.info(f"/contact Request:\n{contact.model_dump_json(indent=4)}")
 
     try:
         with get_db_connection() as conn:
@@ -98,10 +98,13 @@ def add_contact(contact: ContactCreate) -> dict:
 
     except sqlite3.Error as e:
         logger.error(f"Error creating contact {contact_id}: {e}", exc_info=True)
+
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create contact due to a database error"
+            detail=f"Failed to create contact due to a database error {e}"
         )
+
+    logger.debug(f"Contact {contact_id} created successfully.")
 
     return {
         "id": contact_id,
@@ -124,6 +127,9 @@ def list_contacts() -> list:
     Raises:
         HTTPException: If there is a database error during contact retrieval, with a 500 Internal Server Error status.
     """
+
+    logger.debug("Listing all contacts.")
+
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
@@ -150,7 +156,7 @@ def list_contacts() -> list:
 
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to list contacts due to a database error"
+            detail=f"Failed to list contacts due to a database error: {e}"
         )
 
     return result
@@ -175,11 +181,17 @@ def replace_contact(contact_id: str, contact: ContactCreate) -> dict:
     Raises:
         HTTPException: 404 if the contact is not found, 500 if a database error occurs.
     """
+
+    logger.debug(f"/contact/{contact_id} Request:\n{contact.model_dump_json(indent=4)}")
+
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT 1 FROM contacts WHERE id = ?", (contact_id,))
+
             if not cursor.fetchone():
+                logger.warning(f"Contact {contact_id} not found for replacement.")
+
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Contact not found"
@@ -208,6 +220,8 @@ def replace_contact(contact_id: str, contact: ContactCreate) -> dict:
             detail="Failed to replace contact due to a database error"
         )
 
+    logger.debug(f"Contact {contact_id} replaced successfully.")
+
     return {
         "id": contact_id,
         "status": "replaced"
@@ -232,6 +246,8 @@ def patch_contact(contact_id: str, contact: ContactCreate) -> dict:
     Raises:
         HTTPException: 404 if the contact is not found, 500 if a database error occurs.
     """
+    logger.debug(f"/contact/{contact_id} Request:\n{contact.model_dump_json(indent=4)}")
+
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
@@ -264,6 +280,8 @@ def patch_contact(contact_id: str, contact: ContactCreate) -> dict:
             detail="Failed to patch contact due to a database error"
         )
 
+    logger.debug(f"Contact {contact_id} patched successfully.")
+
     return {
         "id": contact_id,
         "status": "patched"
@@ -284,6 +302,8 @@ def delete_contact(contact_id: str) -> dict:
     Raises:
         HTTPException: 404 if the contact is not found, 500 if a database error occurs.
     """
+    logger.debug(f"/contact/{contact_id} Request: delete contact")
+
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
@@ -308,6 +328,8 @@ def delete_contact(contact_id: str) -> dict:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete contact due to a database error"
         )
+
+    logger.debug(f"Contact {contact_id} deleted successfully.")
 
     return {
         "id": contact_id,
@@ -334,6 +356,8 @@ def search_contacts(
     Raises:
         HTTPException: 404 if no matching contact is found, 400 if missing parameters, 500 on database errors.
     """
+    logger.debug(f"/search Request: q={q}, key={key}, value={value}")
+
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
@@ -356,6 +380,8 @@ def search_contacts(
                 contact_ids.update(row[0] for row in cursor.fetchall())
 
             else:
+                logger.warning("Search parameters are missing.")
+
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Missing search parameters."
@@ -368,7 +394,7 @@ def search_contacts(
                 notes = notes_row[0] if notes_row else ""
 
                 cursor.execute("SELECT alias FROM aliases WHERE contact_id = ?", (contact_id,))
-                aliases = [row[0] for row in cursor.fetchall()]
+                aliases = [row[0] for row in cursor.fetchall()] 
 
                 cursor.execute("SELECT key, value FROM fields WHERE contact_id = ?", (contact_id,))
                 fields = [{"key": row[0], "value": row[1]} for row in cursor.fetchall()]
@@ -380,9 +406,13 @@ def search_contacts(
                     "notes": notes
                 }
 
+                logger.debug(f"Search result: {result}")
+
                 return result
 
             else:
+                logger.warning("No matching contacts found.")
+
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="No matching contact found"
@@ -390,7 +420,8 @@ def search_contacts(
 
     except sqlite3.Error as e:
         logger.error(f"Error searching contacts: {e}", exc_info=True)
+
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to search contacts due to a database error"
+            detail=f"Failed to search contacts due to a database error: {e}"
         )

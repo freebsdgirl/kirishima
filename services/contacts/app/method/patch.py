@@ -1,15 +1,39 @@
+"""
+This module provides an endpoint for partially updating an existing contact by ID.
+
+The `patch_contact` function allows updating specific fields of a contact, such as notes, aliases, 
+and custom fields. It ensures that only the provided fields in the request are updated, leaving 
+other fields untouched. For custom fields, it supports adding, updating, or deleting fields based 
+on the provided data.
+
+Functions:
+- patch_contact: Handles PATCH requests to update a contact by ID.
+
+Dependencies:
+- FastAPI for API routing and HTTP exception handling.
+- SQLite3 for database operations.
+- Shared utilities for logging, database connection, and alias uniqueness checks.
+- Models for contact data validation and serialization.
+
+Logging:
+- Logs debug information for incoming requests and successful updates.
+- Logs errors for missing contacts or database issues.
+
+Raises:
+- HTTPException with status 404 if the contact is not found.
+- HTTPException with status 500 for database-related errors.
+"""
+
 from app.util import get_db_connection, check_admin_alias_uniqueness
 
-from shared.models.contacts import ContactCreate, Contact, ContactUpdate
+from shared.models.contacts import Contact, ContactUpdate
 
 from shared.log_config import get_logger
 logger = get_logger(f"contacts.{__name__}")
 
-import uuid
 import sqlite3
-from typing import Optional
 
-from fastapi import APIRouter, HTTPException, status, Query
+from fastapi import APIRouter, HTTPException, status
 
 router = APIRouter()
 

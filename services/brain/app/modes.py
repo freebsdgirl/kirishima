@@ -20,7 +20,6 @@ Logging:
 
 import app.config
 import sqlite3
-from pathlib import Path
 
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
@@ -29,40 +28,6 @@ from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import JSONResponse
 
 router = APIRouter()
-
-def verify_database():
-    """
-    Verify the existence of the status database. If it doesn't exist, create it along with its parent directory.
-
-    This function checks if the SQLite database specified by `app.config.STATUS_DB` exists.
-    If it does not exist, it creates the necessary parent directories and establishes a new connection to the SQLite
-    database. It then creates a table named 'status' with columns for 'key' and 'value', and inserts an initial record
-    with the key 'mode' and value 'default'.
-
-    The function returns immediately if the database already exists.
-
-    Returns:
-        None
-
-    Raises:
-        None
-    """
-    # Check the database path, return if it exists
-    db_path = Path(app.config.STATUS_DB)
-
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-
-    # Connect to (or create) the SQLite database
-    conn = sqlite3.connect(str(db_path))
-    cursor = conn.cursor()
-
-    # Create table
-    cursor.execute("CREATE TABLE IF NOT EXISTS status (key, value)")
-    cursor.execute("INSERT OR REPLACE INTO status (key, value) VALUES (?, ?)",("mode", "default"))
-
-    # Commit and close
-    conn.commit()
-    conn.close()
 
 
 @router.post("/mode/{mode}", response_model=dict)
@@ -80,9 +45,8 @@ def mode_set(mode: str) -> JSONResponse:
         HTTPException: If a database error or unexpected error occurs during mode setting.
     """
     logger.debug("🔄 Attempting to set mode to '%s'", mode)
-
+    
     try:
-        verify_database()
         with sqlite3.connect(app.config.STATUS_DB) as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -90,13 +54,13 @@ def mode_set(mode: str) -> JSONResponse:
                 ('mode', mode)
             )
             conn.commit()
-
+        
         logger.info("✅ Mode successfully set to '%s'.", mode)
         return JSONResponse(
             content={"message": "Mode changed successfully"},
             status_code=status.HTTP_200_OK
         )
-
+    
     except sqlite3.Error as db_err:
         # Log database-specific errors with the full stack trace.
         logger.exception("SQLite error occurred while setting mode: %s", db_err)
@@ -104,7 +68,7 @@ def mode_set(mode: str) -> JSONResponse:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database error occurred while setting mode."
         )
-
+    
     except Exception as err:
         # Log any unexpected error.
         logger.exception("Unexpected error while setting mode: %s", err)
@@ -127,14 +91,13 @@ def mode_get() -> JSONResponse:
         HTTPException: If a database error or unexpected error prevents mode retrieval.
     """
     logger.debug("🤖 Attempting to retrieve the current mode.")
-
+    
     try:
-        verify_database()
         with sqlite3.connect(app.config.STATUS_DB) as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT value FROM status WHERE key='mode'")
             row = cursor.fetchone()
-
+        
         if row is not None:
             mode_value = row[0]
             logger.info("✅ Mode retrieved successfully: %s", mode_value)
@@ -148,14 +111,14 @@ def mode_get() -> JSONResponse:
                 content={"message": "Mode not set."},
                 status_code=status.HTTP_404_NOT_FOUND
             )
-
+    
     except sqlite3.Error as db_err:
         logger.exception("SQLite error occurred while retrieving mode: %s", db_err)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database error occurred while retrieving mode."
         )
-
+    
     except Exception as err:
         logger.exception("Unexpected error while retrieving mode: %s", err)
         raise HTTPException(

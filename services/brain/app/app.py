@@ -35,12 +35,13 @@ from app.message.multiturn import router as message_multiturn_router
 from app.message.singleturn import router as message_singleturn_router
 from app.models import router as models_router
 from app.embedding import router as embedding_router
-from shared.routes import router as routes_router
+from shared.routes import router as routes_router, register_list_routes
 
 
 from fastapi import FastAPI
 app = FastAPI()
 app.include_router(routes_router, tags=["system"])
+register_list_routes(app)
 app.include_router(docs_router, tags=["docs"])
 app.include_router(buffer_router, tags=["buffer"])
 app.include_router(modes_router, tags=["modes"])

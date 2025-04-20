@@ -1,4 +1,3 @@
-
 """
 This module initializes and configures the FastAPI application for the intents service.
 
@@ -24,9 +23,9 @@ Conditional:
 
 
 from shared.docs_exporter import router as docs_router
-from shared.routes import router as routes_router
+from shared.routes import router as routes_router, register_list_routes
 from app.intents import router as intents_router
-
+ 
 
 from shared.log_config import get_logger
 logger = get_logger(__name__)
@@ -38,6 +37,7 @@ app.include_router(docs_router, tags=["docs"])
 app.include_router(routes_router, tags=["system"])
 app.include_router(intents_router, tags=["intents"])
 
+register_list_routes(app)
 
 import shared.config
 if shared.config.TRACING_ENABLED:

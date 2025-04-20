@@ -23,12 +23,13 @@ from app.api.models import router as models_router
 from app.api.singleturn import router as singleturn_router
 from app.api.multiturn import router as multiturn_router
 from app.imessage import router as imessage_router
-from shared.routes import router as routes_router
+from shared.routes import router as routes_router, register_list_routes
 
 
 from fastapi import FastAPI
 app = FastAPI()
 app.include_router(routes_router, tags=["system"])
+register_list_routes(app)
 app.include_router(docs_router, tags=["docs"])
 app.include_router(models_router, tags=["api", "models"])
 app.include_router(singleturn_router, tags=["api"])

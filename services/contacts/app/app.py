@@ -26,7 +26,7 @@ Key Features:
 import app.config as config
 
 from app.docs import router as docs_router
-from shared.routes import router as routes_router
+from shared.routes import router as routes_router, register_list_routes
 
 from shared.log_config import get_logger
 logger = get_logger(f"contacts.{__name__}")
@@ -41,6 +41,7 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException, Query, status
 app = FastAPI()
 app.include_router(routes_router, tags=["system"])
+register_list_routes(app)
 app.include_router(docs_router, tags=["docs"])
 
 

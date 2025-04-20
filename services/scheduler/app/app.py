@@ -38,7 +38,7 @@ Dependencies:
 import app.config as config
 
 from app.docs import router as docs_router
-from shared.routes import router as routes_router
+from shared.routes import router as routes_router, register_list_routes
 
 from shared.log_config import get_logger
 logger = get_logger(__name__)
@@ -61,6 +61,7 @@ from fastapi import FastAPI, HTTPException, status
 app = FastAPI()
 app.include_router(routes_router, tags=["system"])
 app.include_router(docs_router, tags=["docs"])
+register_list_routes(app)
 
 
 import shared.config

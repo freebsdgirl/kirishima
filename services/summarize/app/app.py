@@ -28,7 +28,7 @@ Error Handling:
 from app.buffer import router as buffer_router
 from app.summary import router as summary_router
 from app.docs import router as docs_router
-from shared.routes import router as routes_router
+from shared.routes import router as routes_router, register_list_routes
 
 from shared.log_config import get_logger
 logger = get_logger(__name__)
@@ -42,6 +42,7 @@ import requests
 from fastapi import FastAPI, HTTPException, status
 app = FastAPI()
 app.include_router(routes_router, tags=["system"])
+register_list_routes(app)
 app.include_router(docs_router, tags=["docs"])
 app.include_router(summary_router, prefix="/summary", tags=["summary"])
 app.include_router(buffer_router, prefix="/buffer", tags=["buffer"])

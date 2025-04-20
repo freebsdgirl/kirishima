@@ -132,6 +132,37 @@ services:
     networks:
       - shared-net
 
+  discord:
+    build:
+      context: ./services/discord
+      args:
+        SERVICE_PORT: ${DISCORD_PORT}
+    environment:
+      - SERVICE_PORT=${DISCORD_PORT}
+      - SERVICE_NAME=discord
+      - TZ=America/Los_Angeles
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+    depends_on:
+      - consul
+      - graylog
+    ports:
+      - "${DISCORD_PORT}:${DISCORD_PORT}"
+    volumes:
+      - ./services/discord/app:/app/app
+      - ./shared:/app/shared
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${DISCORD_PORT}/ping"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: gelf
+      options:
+        gelf-address: "tcp://localhost:12201"
+    networks:
+      - shared-net
+
   imessage:
     build:
       context: ./services/imessage

@@ -44,8 +44,8 @@ import datetime
 import json
 import httpx
 from dateutil import parser
-from transformers import AutoTokenizer
 from typing import Optional, List
+import tiktoken
 
 from fastapi import APIRouter, HTTPException, status, Request
 from fastapi.responses import RedirectResponse
@@ -165,16 +165,12 @@ async def openai_v1_completions(request: OpenAICompletionRequest, request_data: 
             completions.append(choice)
 
     try:
-        # we're hardcoding this because... there's no real good way to get around this.
-        # the model name doesn't always easily translate to a tokenizer name.
-        # but we're using this model for chromadb embedding, so it makes sense to use it here.
-        # this is a bit of a hack, but it works for now.
-        tokenizer = AutoTokenizer.from_pretrained("intfloat/e5-small-v2")
-        tokens = tokenizer.encode(request.prompt)
+        # Use tiktoken with gpt2 encoding to count prompt tokens
+        encoding = tiktoken.get_encoding("gpt2")
+        tokens = encoding.encode(request.prompt)
 
     except Exception as err:
         logger.warning(f"Error retrieving encoding for model '{request.model}': {err}.")
-
         raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error retrieving encoding for model '{request.model}': {err}"

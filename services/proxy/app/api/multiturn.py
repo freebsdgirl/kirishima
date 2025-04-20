@@ -42,6 +42,7 @@ import json
 from datetime import datetime
 from dateutil import tz
 
+import tiktoken
 
 local_tz = tz.tzlocal()
 ts_with_offset = datetime.now(local_tz).isoformat(timespec="seconds")
@@ -76,36 +77,59 @@ def build_multiturn_prompt(request: ProxyMultiTurnRequest, system_prompt: str) -
         - Any unexpected message roles are skipped, and a warning is logged.
     """
     # 1) System prompt header
-    prompt = f"[INST] <<SYS>>{system_prompt}<<SYS>> [/INST]\n\n"
+    prompt_header = f"[INST] <<SYS>>{system_prompt}<<SYS>> [/INST]\n\n"
+    max_history_tokens = 1024
+    enc = tiktoken.get_encoding("gpt2")
 
-    # 2) Only keep the last 30 (or fewer) messages
-    messages = request.messages[-15:]
-    num_messages = len(messages)
-    i = 0
-
-    # 3) Your original walk‑through logic
-    while i < num_messages:
+    # Only count tokens for conversation history, not the prompt_header
+    messages = request.messages
+    selected = []
+    total_tokens = 0  # Do NOT include prompt_header tokens here
+    i = len(messages) - 1
+    while i >= 0:
         msg = messages[i]
-
+        # Estimate tokens for this message (with scaffolding)
+        if msg.role == "system":
+            msg_text = f"[INST] <<SYS>>{msg.content}<<SYS>> [/INST]\n"
+        elif msg.role == "user":
+            # Look ahead for assistant reply
+            if (i + 1 < len(messages)) and (messages[i + 1].role == "assistant"):
+                msg_text = f"[INST] {msg.content} [/INST] {messages[i + 1].content}\n"
+            else:
+                msg_text = f"[INST] {msg.content} [/INST]\n"
+        else:
+            i -= 1
+            continue
+        msg_tokens = len(enc.encode(msg_text))
+        if total_tokens + msg_tokens > max_history_tokens:
+            break
+        selected.append(i)
+        if msg.role == "user" and (i + 1 < len(messages)) and (messages[i + 1].role == "assistant"):
+            selected.append(i + 1)
+            i -= 2
+        else:
+            i -= 1
+        total_tokens += msg_tokens
+    # selected now has indices of messages to include, in reverse order
+    selected = sorted(set(selected))
+    # 2) Build prompt from selected messages
+    prompt = prompt_header
+    i = 0
+    while i < len(selected):
+        idx = selected[i]
+        msg = messages[idx]
         if msg.role == "system":
             prompt += f"[INST] <<SYS>>{msg.content}<<SYS>> [/INST]\n"
             i += 1
-
         elif msg.role == "user":
-            prompt += f"[INST] {msg.content} [/INST]"
-            # look ahead for assistant reply
-            if (i + 1 < num_messages) and (messages[i + 1].role == "assistant"):
-                prompt += f" {messages[i + 1].content}\n"
+            if (i + 1 < len(selected)) and (messages[selected[i + 1]].role == "assistant") and (selected[i + 1] == idx + 1):
+                prompt += f"[INST] {msg.content} [/INST] {messages[selected[i + 1]].content}\n"
                 i += 2
             else:
-                prompt += "\n"
+                prompt += f"[INST] {msg.content} [/INST]\n"
                 i += 1
-
         else:
-            # skip any stray assistant/system messages
-            logger.warning(f"Unexpected message at {i}: {msg.role}")
             i += 1
-
     return prompt
 
 

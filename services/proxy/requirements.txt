@@ -10,3 +10,4 @@ opentelemetry-exporter-otlp-proto-http
 opentelemetry-instrumentation-fastapi
 pygelf
 python-dateutil
+tiktoken

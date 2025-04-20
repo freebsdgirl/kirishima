@@ -1,6 +1,6 @@
-graph Microservices {
+digraph Microservices {
   /* Force‑directed layout: neato or sfdp are your friends */
-  layout=neato;       /* or use sfdp for bigger graphs */
+  layout=sfdp;       /* or use sfdp for bigger graphs */
   overlap=false;      /* prevent nodes from colliding */
   splines=true;       /* smooth, curved edges */
 
@@ -9,7 +9,7 @@ graph Microservices {
     shape=box,
     style="filled,rounded",
     fillcolor=lightblue,
-    fontcolor=dimgray
+    fontcolor="#080537"
   ];
 
   /* Optional: give heavier “gravity” to high‑degree nodes */
@@ -17,27 +17,146 @@ graph Microservices {
     weight=2         /* boost spring strength */
   ];
 
-  /* Define nodes (your endpoints as labels) */
+  /* API endpoints */   
+  "API: GET /models"
+  "API: GET /models/MODEL_ID"
+  "API: GET /v1/models/MODEL_ID"
+  "API: POST /chat/completions"
+  "API: POST /completions"
   "API: POST /v1/chat/completions"
   "API: POST /v1/completions"
+
+  /* Brain endpoints */
+  "Brain: DELETE /memory"
+  "Brain: DELETE /scheduler/job/JOB_ID"
+  "Brain: GET /memory"
+  "Brain: GET /memory/semantic"
+  "Brain: GET /model/MODEL_NAME"
+  "Brain: GET /models"
+  "Brain: GET /scheduler/job"
+  "Brain: POST /embedding"
+  "Brain: POST /memory"
+  "Brain: POST /message/incoming"
   "Brain: POST /message/multiturn/incoming"
   "Brain: POST /message/single/incoming"
-  "API: GET /v1/models/MODEL_ID"
-  "Brain: GET /model/MODEL_ID"
-  "API: GET /v1/models"
-  "Brain: GET /v1/models"
-  "Proxy: POST /from/api/multiturn"
+  "Brain: POST /scheduler/job"
+
+  /* ChromaDB endpoints */
+  "ChromaDB: DELETE /memory/MEM_ID"
+  "ChromaDB: GET /memory"
+  "ChromaDB: GET /memory/id/MEM_ID"
+  "ChromaDB: GET /memory/search"
+  "ChromaDB: GET /memory/semantic"
+  "ChromaDB: PATCH /memory/MEM_ID"
+  "ChromaDB: POST /embedding"
+  "ChromaDB: POST /memory"
+  "ChromaDB: PUT /memory/MEM_ID"
+
+  /* Contacts endpoints */
+  "Contacts: DELETE /contact/CONTACT_ID"
+  "Contacts: GET /contacts"
+  "Contacts: GET /search"
+  "Contacts: PATCH /contact/CONTACT_ID"
+  "Contacts: POST /contact"
+  "Contacts: PUT /contact/CONTACT_ID"
+
+  /* iMessage endpoints */
+  "iMessage: POST /imessage/recv"
+  "iMessage: POST /imessage/send"
+
+  /* Intents endpoints */
+  "Intents: GET /intents"
+  "Intents: POST /intents"
+
+  /* Proxy endpoints */
+  "Proxy: GET /api/models"
+  "Proxy: GET /api/models/MODEL_NAME"
   "Proxy: POST /from/api/completions"
+  "Proxy: POST /from/api/multiturn"
+  "Proxy: POST /from/imessage"
+
+  /* Scheduler endpoints */
+  "Scheduler: DELETE /jobs/JOB_ID"
+  "Scheduler: GET /jobs"
+  "Scheduler: POST /jobs"
+  "Scheduler: POST /jobs/JOB_ID/pause"
+  "Scheduler: POST /jobs/JOB_ID/resume"
+
+  /* Summarize endpoints */
+  "Summarize: DELETE /buffer/USER_ID"
+  "Summarize: DELETE /summary/ID"
+  "Summarize: DELETE /summary/user/USER_ID"
+  "Summarize: GET /buffer"
+  "Summarize: GET /buffer/USER_ID"
+  "Summarize: GET /context/USER_ID"
+  "Summarize: GET /summary/ID"
+  "Summarize: GET /summary/search"
+  "Summarize: GET /summary/user/USER_ID"
+  "Summarize: POST /buffer"
+  "Summarize: POST /summarize_buffers"
+  "Summarize: POST /summary"
+
+  /* No external dependencies for contacts endpoints (all DB local) */
+
+  /* No external dependencies for intents endpoints (all logic local) */
 
   /* Describe connections */
-  "API: POST /v1/chat/completions"          -- "API: POST /v1/completions"
-  "API: POST /v1/chat/completions"          -- "Brain: POST /message/multiturn/incoming"
-  "API: POST /v1/completions"               -- "Brain: POST /message/single/incoming"
-  "API: GET /v1/models/MODEL_ID"            -- "Brain: GET /model/MODEL_ID"
-  "API: GET /v1/models"                     -- "Brain: GET /v1/models"
-  "Brain: POST /message/multiturn/incoming" -- "Proxy: POST /from/api/multiturn"
-  "Brain: POST /message/multiturn/incoming" -- "Proxy: POST /from/api/completions"
+  /* API endpoint dependencies */
+  "API: POST /v1/chat/completions" -> "Brain: POST /message/multiturn/incoming"
+  "API: POST /v1/completions" -> "Brain: POST /message/single/incoming"
+  "API: GET /v1/models/MODEL_ID" -> "Brain: GET /model/MODEL_NAME"
+  "API: POST /completions" -> "API: POST /v1/completions"
+  "API: POST /chat/completions" -> "API: POST /v1/chat/completions"
+  "API: GET /models" -> "API: GET /v1/models"
+  "API: GET /models/MODEL_ID" -> "API: GET /v1/models/MODEL_ID"
+  "API: POST /v1/chat/completions" -> "API: POST /v1/completions" [label="if '### Task'"]
 
+  /* Brain endpoint dependencies */
+  "Brain: POST /embedding" -> "ChromaDB: POST /embedding"
+  "Brain: GET /models" -> "Proxy: GET /api/models"
+  "Brain: GET /model/MODEL_NAME" -> "Proxy: GET /api/models/MODEL_NAME"
+  "Brain: POST /scheduler/job" -> "Scheduler: POST /jobs"
+  "Brain: GET /scheduler/job" -> "Scheduler: GET /jobs"
+  "Brain: DELETE /scheduler/job/JOB_ID" -> "Scheduler: DELETE /jobs/JOB_ID"
+  "Brain: POST /message/incoming" -> "Contacts: GET /search"
+  "Brain: POST /message/incoming" -> "Contacts: POST /contact" [label="if not found"]
+  "Brain: POST /message/incoming" -> "Summarize: POST /buffer"
+  "Brain: POST /message/single/incoming" -> "Proxy: POST /from/api/completions"
+  "Brain: POST /message/multiturn/incoming" -> "Intents: POST /intents" [label="intent detection"]
+  "Brain: POST /message/multiturn/incoming" -> "Proxy: POST /from/api/multiturn"
+  "Brain: POST /message/multiturn/incoming" -> "Intents: POST /intents" [label="response post-processing"]
+  "Brain: GET /memory" -> "ChromaDB: GET /memory"
+  "Brain: GET /memory/semantic" -> "ChromaDB: GET /memory/semantic"
+  "Brain: POST /memory" -> "Brain: GET /mode"
+  "Brain: POST /memory" -> "ChromaDB: POST /embedding"
+  "Brain: POST /memory" -> "ChromaDB: POST /memory"
+  "Brain: DELETE /memory" -> "ChromaDB: GET /memory"
+  "Brain: DELETE /memory" -> "ChromaDB: DELETE /memory/MEM_ID"
+
+  /* iMessage endpoint dependencies */
+  "iMessage: POST /imessage/send" -> "BlueBubbles: POST /api/v1/message/text"
+  "iMessage: POST /imessage/send" -> "BlueBubbles: POST /api/v1/chat/new" [label="if chat does not exist"]
+  "iMessage: POST /imessage/recv" -> "Brain: POST /message/incoming"
+  "iMessage: POST /imessage/recv" -> "BlueBubbles: POST /api/v1/message/text" [label="if Brain replies"]
+
+  /* Intents service dependencies (calls to Brain) */
+  "Intents: POST /intents" -> "Brain: GET /mode"
+  "Intents: POST /intents" -> "Brain: POST /mode/MODE"
+  "Intents: POST /intents" -> "Brain: POST /memory"
+  "Intents: POST /intents" -> "Brain: DELETE /memory"
+
+  /* Proxy endpoint dependencies */
+  "Proxy: POST /from/api/completions" -> "Ollama: POST /api/generate"
+  "Proxy: POST /from/api/multiturn" -> "Ollama: POST /api/generate"
+  "Proxy: POST /from/imessage" -> "Ollama: POST /api/generate"
+  "Proxy: GET /api/models" -> "Ollama: GET /api/tags"
+  "Proxy: GET /api/models/MODEL_NAME" -> "Ollama: GET /api/tags"
+
+  /* Scheduler endpoint dependencies */
+  "Scheduler: POST /jobs" -> "External: POST <external_url>" [label="when job runs"]
+
+  /* Summarize endpoint dependencies */
+  "Summarize: POST /summarize_buffers" -> "Ollama: POST /api/generate" [label="summarization"]
 }
 
 /* generate with twopi -Tsvg endpoint.dot -o endpoint.svg or neato -Tpng endpoint.dot -o endpoint.png */

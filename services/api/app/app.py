@@ -24,7 +24,7 @@ from app.completions.singleturn import router as singleturn_router
 from app.completions.multiturn import router as multiturn_router
 from app.models.getmodel import router as get_model_router
 from app.models.listmodels import router as list_models_router
-from app.docs import router as docs_router
+from shared.docs_exporter import router as docs_router
 from shared.routes import router as routes_router, register_list_routes
 
 from shared.models.middleware import CacheRequestBodyMiddleware
@@ -34,13 +34,13 @@ app = FastAPI()
 app.add_middleware(CacheRequestBodyMiddleware)
 
 app.include_router(routes_router, tags=["system"])
-register_list_routes(app)
 app.include_router(docs_router, tags=["docs"])
 app.include_router(singleturn_router, tags=["completions"])
 app.include_router(multiturn_router, tags=["completions"])
 app.include_router(get_model_router, tags=["models"])
 app.include_router(list_models_router, tags=["models"])
 
+register_list_routes(app)
 
 import shared.config
 if shared.config.TRACING_ENABLED:

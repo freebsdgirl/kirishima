@@ -17,26 +17,25 @@ Dependencies:
 - Shared configurations and tracing utilities are imported from the `shared` module.
 """
 
+from app.embedding import router as embedding_router
 from app.memory.memory import router as memory_router
 from app.memory.search import router as memory_search_router
-from app.summarize import router as summarize_router
-from app.buffer import router as buffer_router
-from app.docs import router as docs_router
+from shared.docs_exporter import router as docs_router
 from shared.routes import router as routes_router, register_list_routes
-from app.embedding import router as embedding_router
 
-
+from shared.models.middleware import CacheRequestBodyMiddleware
 from fastapi import FastAPI
+
 app = FastAPI()
+app.add_middleware(CacheRequestBodyMiddleware)
+
 app.include_router(routes_router, tags=["system"])
-register_list_routes(app)
-app.include_router(docs_router, prefix="/docs", tags=["docs"])
+app.include_router(docs_router, tags=["docs"])
 app.include_router(embedding_router, tags=["embedding"])
 app.include_router(memory_router, tags=["memory"])
 app.include_router(memory_search_router, tags=["memory"])
-app.include_router(summarize_router, prefix="/summary", tags=["summary"])
-app.include_router(buffer_router, prefix="/buffer", tags=["buffer"])
 
+register_list_routes(app)
 
 import shared.config
 if shared.config.TRACING_ENABLED:

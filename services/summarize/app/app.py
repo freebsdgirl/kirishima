@@ -25,9 +25,7 @@ Error Handling:
 - Logs errors and raises HTTP exceptions for failed operations.
 """
 
-from app.buffer import router as buffer_router
-from app.summary import router as summary_router
-from app.docs import router as docs_router
+from shared.docs_exporter import router as docs_router
 from shared.routes import router as routes_router, register_list_routes
 
 from shared.log_config import get_logger
@@ -39,14 +37,16 @@ from app.summary import add_summary, get_user_summary, SummarizeRequest
 from typing import Dict, Any, List
 import requests
 
+from shared.models.middleware import CacheRequestBodyMiddleware
 from fastapi import FastAPI, HTTPException, status
-app = FastAPI()
-app.include_router(routes_router, tags=["system"])
-register_list_routes(app)
-app.include_router(docs_router, tags=["docs"])
-app.include_router(summary_router, prefix="/summary", tags=["summary"])
-app.include_router(buffer_router, prefix="/buffer", tags=["buffer"])
 
+app = FastAPI()
+app.add_middleware(CacheRequestBodyMiddleware)
+
+app.include_router(routes_router, tags=["system"])
+app.include_router(docs_router, tags=["docs"])
+
+register_list_routes(app)
 
 import shared.config
 if shared.config.TRACING_ENABLED:

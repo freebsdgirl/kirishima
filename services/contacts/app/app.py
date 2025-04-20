@@ -25,25 +25,27 @@ Key Features:
 
 import app.config as config
 
-from app.docs import router as docs_router
+from shared.docs_exporter import router as docs_router
 from shared.routes import router as routes_router, register_list_routes
+from shared.models.contacts import ContactCreate, Contact
 
 from shared.log_config import get_logger
 logger = get_logger(f"contacts.{__name__}")
-
-from shared.models.contacts import ContactCreate, Contact
 
 import sqlite3
 import uuid
 from typing import Optional
 
-
+from shared.models.middleware import CacheRequestBodyMiddleware
 from fastapi import FastAPI, HTTPException, Query, status
+
 app = FastAPI()
+app.add_middleware(CacheRequestBodyMiddleware)
+
 app.include_router(routes_router, tags=["system"])
-register_list_routes(app)
 app.include_router(docs_router, tags=["docs"])
 
+register_list_routes(app)
 
 import shared.config
 if shared.config.TRACING_ENABLED:

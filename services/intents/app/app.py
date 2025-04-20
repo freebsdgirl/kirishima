@@ -21,20 +21,19 @@ Conditional:
 - If `TRACING_ENABLED` is set to True in the configuration, tracing is initialized for the service.
 """
 
+from app.intents import router as intents_router
 
 from shared.docs_exporter import router as docs_router
 from shared.routes import router as routes_router, register_list_routes
-from app.intents import router as intents_router
- 
 
-from shared.log_config import get_logger
-logger = get_logger(__name__)
-
-
+from shared.models.middleware import CacheRequestBodyMiddleware
 from fastapi import FastAPI
+
 app = FastAPI()
-app.include_router(docs_router, tags=["docs"])
+app.add_middleware(CacheRequestBodyMiddleware)
+
 app.include_router(routes_router, tags=["system"])
+app.include_router(docs_router, tags=["docs"])
 app.include_router(intents_router, tags=["intents"])
 
 register_list_routes(app)
@@ -43,4 +42,3 @@ import shared.config
 if shared.config.TRACING_ENABLED:
     from shared.tracing import setup_tracing
     setup_tracing(app, service_name="intents")
-

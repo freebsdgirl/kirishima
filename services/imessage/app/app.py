@@ -18,7 +18,7 @@ Environment Variables:
     BLUEBUBBLES_PASSWORD: Authentication password for the BlueBubbles server (default: 'bluebubbles').
 """
 
-from app.docs import router as docs_router
+from shared.docs_exporter import router as docs_router
 from shared.routes import router as routes_router, register_list_routes
 
 from shared.log_config import get_logger
@@ -36,13 +36,16 @@ bluebubbles_host = os.getenv('BLUEBUBBLES_HOST', 'localhost')
 bluebubbles_port = os.getenv('BLUEBUBBLES_PORT', '3000')
 bluebubbles_password = os.getenv('BLUEBUBBLES_PASSWORD', 'bluebubbles')
 
-
+from shared.models.middleware import CacheRequestBodyMiddleware
 from fastapi import FastAPI, HTTPException, Request, status
+
 app = FastAPI()
+app.add_middleware(CacheRequestBodyMiddleware)
+
 app.include_router(routes_router, tags=["system"])
 app.include_router(docs_router, tags=["docs"])
-register_list_routes(app)
 
+register_list_routes(app)
 
 import shared.config
 if shared.config.TRACING_ENABLED:

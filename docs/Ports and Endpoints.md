@@ -66,6 +66,7 @@
 * Endpoints
   * POST /contact
   * GET /contacts
+  * GET /contact/{id}
   * PUT /contact/{id}
   * PATCH /contact/{id}
   * DELETE /contact/{id}

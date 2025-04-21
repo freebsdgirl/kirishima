@@ -2,22 +2,25 @@
 This module provides FastAPI endpoints for managing and retrieving contact information.
 Endpoints:
     - GET /contacts: Retrieve a list of all contacts with their details.
-    - GET /search: Search for a specific contact based on query parameters.
-Functions:
-    - list_contacts: Fetches all contacts from the database, including their unique identifiers,
-      notes, aliases, and additional fields. Returns a comprehensive list of contact information
-      or raises an HTTP 500 error if a database error occurs.
-    - search_contacts: Searches for a specific contact using exact, case-insensitive matches
-      based on query parameters. Supports targeted searches by field key and value or a generic
-      search by alias or field value. Returns the first matching contact or raises appropriate
-      HTTP exceptions for errors or missing parameters.
+    - GET /contacts/{contact_id}: Retrieve a specific contact by its unique identifier.
+    - GET /search: Search for a contact by alias, field key-value pair, or general query.
+Each endpoint interacts with a SQLite database to fetch contact details, including:
+    - Contact ID
+    - Notes
+    - Aliases
+    - Custom fields (key-value pairs)
+Error Handling:
+    - Returns HTTP 404 if a contact is not found.
+    - Returns HTTP 400 for invalid search parameters.
+    - Returns HTTP 500 for database-related errors.
 Dependencies:
     - FastAPI for API routing and HTTP exception handling.
-    - SQLite for database operations.
+    - SQLite3 for database interactions.
     - Shared utilities for logging and database connection management.
-    - Pydantic models for response validation.
-    - HTTPException: For various error scenarios, including database errors, missing parameters,
-      or no matching contacts found.
+Logging:
+    - Logs debug information for each request and response.
+    - Logs warnings for missing or invalid data.
+    - Logs errors with stack traces for database issues.
 """
 
 from app.util import get_db_connection
@@ -82,6 +85,71 @@ def list_contacts() -> list:
         )
 
     return result
+
+
+@router.get("/contacts/{contact_id}", response_model=Contact)
+def get_contact(contact_id: str) -> dict:
+    """
+    Retrieve a specific contact by its unique identifier.
+
+    Fetches a single contact's details from the database, including its unique identifier,
+    notes, aliases, and additional fields. Returns the contact information or raises
+    an appropriate HTTP error if the contact is not found or a database error occurs.
+
+    Args:
+        contact_id (str): The unique identifier of the contact to retrieve.
+
+    Returns:
+        dict: A contact dictionary containing id, aliases, fields, and notes.
+
+    Raises:
+        HTTPException: 404 if the contact is not found, 500 if a database error occurs.
+    """
+
+    logger.debug(f"Fetching contact by id: {contact_id}")
+
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+
+            # Fetch notes (and implicitly check existence)
+            cursor.execute("SELECT notes FROM contacts WHERE id = ?", (contact_id,))
+            row = cursor.fetchone()
+            if not row:
+                logger.warning(f"Contact not found: {contact_id}")
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Contact not found"
+                )
+            notes = row[0] or ""
+
+            # Fetch aliases
+            cursor.execute(
+                "SELECT alias FROM aliases WHERE contact_id = ?", (contact_id,)
+            )
+            aliases = [r[0] for r in cursor.fetchall()]
+
+            # Fetch custom fields
+            cursor.execute(
+                "SELECT key, value FROM fields WHERE contact_id = ?", (contact_id,)
+            )
+            fields = [{"key": r[0], "value": r[1]} for r in cursor.fetchall()]
+
+            result = {
+                "id": contact_id,
+                "aliases": aliases,
+                "fields": fields,
+                "notes": notes
+            }
+            logger.debug(f"Contact retrieved: {result}")
+            return result
+
+    except sqlite3.Error as e:
+        logger.error(f"Database error fetching contact {contact_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve contact due to database error: {e}"
+        )
 
 
 @router.get("/search", response_model=Contact)

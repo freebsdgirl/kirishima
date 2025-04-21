@@ -22,6 +22,7 @@ The Contacts microservice provides centralized identity resolution and contact m
 
 - `POST /contact` – Create a new contact
 - `GET /contacts` – List all contacts
+- `GET /contacts/CONTACT_ID` – List a specific contact by ID 
 - `GET /search` – Search for a contact by alias or field value
 - `PUT /contact/{id}` – Replace a contact (full update)
 - `PATCH /contact/{id}` – Partially update a contact (aliases, fields, or notes)

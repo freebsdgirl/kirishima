@@ -79,6 +79,7 @@ digraph Microservices {
     "Contacts: DELETE /contact/CONTACT_ID"
     "Contacts: GET /contacts"
     "Contacts: GET /search"
+    "Contacts: GET /contact/CONTACT_ID"
     "Contacts: PATCH /contact/CONTACT_ID"
     "Contacts: POST /contact"
     "Contacts: PUT /contact/CONTACT_ID"

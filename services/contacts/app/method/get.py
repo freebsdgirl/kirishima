@@ -87,7 +87,7 @@ def list_contacts() -> list:
     return result
 
 
-@router.get("/contacts/{contact_id}", response_model=Contact)
+@router.get("/contact/{contact_id}", response_model=Contact)
 def get_contact(contact_id: str) -> dict:
     """
     Retrieve a specific contact by its unique identifier.

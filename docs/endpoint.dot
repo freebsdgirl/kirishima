@@ -188,6 +188,10 @@ digraph Microservices {
   "Brain: DELETE /memory" -> "ChromaDB: GET /memory"
   "Brain: DELETE /memory" -> "ChromaDB: DELETE /memory/MEM_ID"
 
+  /* discord endpoint dependencies */
+  "Discord: Main Loop" -> "Contacts: GET /search"
+  "Discord: Main Loop" -> "Contacts: GET /contact/CONTACT_ID"
+
   /* iMessage endpoint dependencies */
   "iMessage: POST /imessage/send" -> "BlueBubbles: POST /api/v1/message/text"
   "iMessage: POST /imessage/send" -> "BlueBubbles: POST /api/v1/chat/new" [label="if chat does not exist"]

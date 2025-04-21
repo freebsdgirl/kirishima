@@ -25,6 +25,8 @@ def list_contacts():
         fields = {f["key"]: f["value"] for f in contact.get("fields", [])}
         email = fields.get("email", "")
         imessage = fields.get("imessage", "")
+        discord = fields.get("discord", "")
+        discord_id = fields.get("discord_id", "")
         notes = contact.get("notes", "")
         # Print each alias on its own row, only show other fields on first row
         for i, alias in enumerate(aliases):
@@ -33,12 +35,14 @@ def list_contacts():
                 alias,
                 email if i == 0 else "",
                 imessage if i == 0 else "",
+                discord if i == 0 else "",
+                discord_id if i == 0 else "",
                 notes if i == 0 else ""
             ])
         if not aliases:
             # If no aliases, still print the contact
             table.append([user_id, "", email, imessage, notes])
-    headers = ["user id", "aliases", "email", "imessage", "notes"]
+    headers = ["user id", "aliases", "email", "imessage", "discord", "discord_id", "notes"]
     print("\n" + tabulate(table, headers, tablefmt="github") + "\n")
 
 def confirm_action(message):
@@ -55,6 +59,10 @@ def add_contact(args):
         fields.append({"key": "email", "value": args.email})
     if args.imessage:
         fields.append({"key": "imessage", "value": args.imessage})
+    if args.discord:
+        fields.append({"key": "email", "value": args.discord})
+    if args.discord_id:
+        fields.append({"key": "imessage", "value": args.discord_id})
     data = {
         "aliases": args.aliases or [],
         "fields": fields,
@@ -101,12 +109,16 @@ def patch_contact_cli(args):
         fields.append({"key": "email", "value": args.email})
     if args.imessage is not None:
         fields.append({"key": "imessage", "value": args.imessage})
+    if args.discord is not None:
+        fields.append({"key": "discord", "value": args.discord})
+    if args.discord_id is not None:
+        fields.append({"key": "discord_id", "value": args.discord_id})
     if fields:
         data["fields"] = fields
     if args.notes is not None:
         data["notes"] = args.notes
     if not data:
-        print("Error: At least one of --aliases, --email, --imessage, or --notes must be provided for patch.", file=sys.stderr)
+        print("Error: At least one of --aliases, --email, --imessage, --discord, --discord_id, or --notes must be provided for patch.", file=sys.stderr)
         sys.exit(1)
     resp = requests.patch(url, json=data)
     if resp.status_code != 200:

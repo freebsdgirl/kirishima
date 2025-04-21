@@ -1,8 +1,17 @@
+from app.config import DISCORD_TOKEN
+
+from app.registration import setup as registration_setup
+from app.message import setup as message_setup
+
 from shared.docs_exporter import router as docs_router
 from shared.routes import router as routes_router, register_list_routes
 
 from shared.models.middleware import CacheRequestBodyMiddleware
 from fastapi import FastAPI
+
+import discord
+from discord.ext import commands
+import asyncio
 
 app = FastAPI()
 app.add_middleware(CacheRequestBodyMiddleware)
@@ -16,3 +25,33 @@ import shared.config
 if shared.config.TRACING_ENABLED:
     from shared.tracing import setup_tracing
     setup_tracing(app, service_name="discord")
+
+
+intents = discord.Intents.default()
+intents.guilds = True
+intents.messages = True
+
+bot = commands.Bot(command_prefix="!", intents=intents)
+
+# keep track of user IDs we’re currently waiting on
+bot.awaiting_response = set()
+
+registration_setup(bot)
+message_setup(bot)
+
+@bot.event
+async def on_ready():
+    print(f"Bot logged in as {bot.user}")
+
+
+# --- Run Discord Bot in Background ---
+def start_bot():
+    loop = asyncio.get_event_loop()
+    loop.create_task(bot.start(DISCORD_TOKEN))
+
+try:
+    start_bot()
+except RuntimeError:
+    # If already running inside an event loop (e.g., with uvicorn), use create_task
+    asyncio.get_event_loop().create_task(bot.start(DISCORD_TOKEN))
+

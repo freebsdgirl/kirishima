@@ -7,3 +7,4 @@ opentelemetry-instrumentation-fastapi
 opentelemetry-exporter-otlp-proto-http
 opentelemetry-instrumentation-fastapi
 discord
+httpx

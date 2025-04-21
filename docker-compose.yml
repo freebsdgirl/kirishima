@@ -7,8 +7,6 @@ services:
     environment:
       - SERVICE_PORT=${API_PORT}
       - SERVICE_NAME=api
-      - BRAIN_HOST=brain
-      - BRAIN_PORT=${BRAIN_PORT}
       - TZ=America/Los_Angeles
     depends_on:
       - consul
@@ -41,14 +39,6 @@ services:
     environment:
       - SERVICE_PORT=${BRAIN_PORT}
       - SERVICE_NAME=brain
-      - CHROMADB_HOST=chromadb
-      - CHROMADB_PORT=${CHROMADB_PORT}
-      - CONTACTS_HOST=contacts
-      - CONTACTS_PORT=${CONTACTS_PORT}
-      - SUMMARIZE_HOST=summarize
-      - SUMMARIZE_PORT=${SUMMARIZE_PORT}
-      - SCHEDULER_HOST=scheduler
-      - SCHEDULER_PORT=${SCHEDULER_PORT}
       - TZ=America/Los_Angeles
     depends_on:
       - consul
@@ -229,6 +219,36 @@ services:
     networks:
       - shared-net
 
+  ledger:
+    build:
+      context: ./services/ledger
+      args:
+        SERVICE_PORT: ${LEDGER_PORT}
+    environment:
+      - SERVICE_PORT=${LEDGER_PORT}
+      - SERVICE_NAME=ledger
+      - TZ=America/Los_Angeles
+    depends_on:
+      - consul
+      - graylog
+    ports:
+      - "${LEDGER_PORT}:${LEDGER_PORT}"
+    volumes:
+      - ./services/ledger/app:/app/app
+      - ./shared:/app/shared
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${LEDGER_PORT}/ping"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: gelf
+      options:
+        gelf-address: "tcp://localhost:12201"
+    networks:
+      - shared-net
+
   proxy:
     build:
       context: ./services/proxy
@@ -284,39 +304,6 @@ services:
       - ./shared:/app/shared
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:${SCHEDULER_PORT}/ping"]
-      interval: 60s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-    logging:
-      driver: gelf
-      options:
-        gelf-address: "tcp://localhost:12201"
-    networks:
-      - shared-net
-
-  summarize:
-    build:
-      context: ./services/summarize
-      args:
-        SERVICE_PORT: ${SUMMARIZE_PORT}
-    environment:
-      - SERVICE_PORT=${SUMMARIZE_PORT}
-      - SERVICE_NAME=summarize
-      - CHROMADB_HOST=chromadb
-      - CHROMADB_PORT=${CHROMADB_PORT}
-      - TZ=America/Los_Angeles
-    depends_on:
-      - brain
-      - consul
-      - graylog
-    ports:
-      - "${SUMMARIZE_PORT}:${SUMMARIZE_PORT}"
-    volumes:
-      - ./services/summarize/app:/app/app
-      - ./shared:/app/shared
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:${SUMMARIZE_PORT}/ping"]
       interval: 60s
       timeout: 10s
       retries: 3

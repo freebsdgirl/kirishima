@@ -2,8 +2,8 @@
 set -e
 
 # If a Consul service template exists, substitute environment variables to generate the actual config file.
-if [ -f /consul/config/summarize-service.json.template ]; then
-    envsubst < /consul/config/summarize-service.json.template > /consul/config/summarize-service.json
+if [ -f /consul/config/ledger-service.json.template ]; then
+    envsubst < /consul/config/ledger-service.json.template > /consul/config/ledger-service.json
 fi
 
 # Start the Consul agent in the background.

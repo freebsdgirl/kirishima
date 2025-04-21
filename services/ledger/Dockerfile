@@ -27,7 +27,7 @@ RUN curl -OL https://releases.hashicorp.com/consul/${CONSUL_VERSION}/consul_${CO
     mv consul /usr/local/bin/consul && \
     rm consul_${CONSUL_VERSION}_linux_amd64.zip
 
-COPY summarize-service.json.template /consul/config/
+COPY ledger-service.json.template /consul/config/
 
 # Expose the service port (for uvicorn)
 EXPOSE ${SERVICE_PORT}

@@ -1,8 +1,6 @@
 uvicorn
 fastapi
-graypy
 requests
-transformers
 opentelemetry-sdk
 opentelemetry-exporter-otlp
 opentelemetry-instrumentation-fastapi

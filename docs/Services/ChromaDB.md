@@ -2,72 +2,54 @@
 
 ## Purpose
 
-Provides an HTTP API layer over a persistent ChromaDB instance for handling:
+ChromaDB provides an HTTP API for storing, retrieving, updating, and searching vector-encoded memory entries. It acts as the semantic memory backend for the Kirishima system, abstracting direct vector database operations for services like Brain.
 
-- Semantic memory
-- Short-form buffer entries
-- Summarized conversation data
+## How It Works
 
-This microservice abstracts away direct vector database operations for the rest of the Kirishima system, allowing services like Brain and Summarize to store and retrieve embeddings in a modular, standardized way.
+- Built with FastAPI, the service initializes the app, adds request body caching middleware, and registers routers for memory management and search.
+- All endpoints operate on a single logical collection of memory entries, each with document text, embedding, and metadata (component, mode, priority, timestamp).
+- Embeddings are generated as needed for new entries and semantic search queries.
+- The service supports exact-match and semantic search, as well as CRUD operations on memory entries.
+- There are no endpoints for buffer or summary management in the current codebase.
+- Tracing is supported if enabled in the configuration.
 
 ## Port
 
-4206
+- **4206** (default)
 
-## Endpoints
+## Main Endpoints
 
 ### Memory (`/memory`)
-
-- `POST /memory` – Add memory (document + embedding + metadata)
-- `GET /memory` – List recent memory entries by component
-- `GET /memory/{id}` – Retrieve specific memory
-- `POST /memory/search/id` – Search memory IDs by content
-- `PUT`, `PATCH`, `DELETE /memory/{id}` – Update or remove memory
-
-### Summary (`/summarize`)
-
-- `POST /summarize` – Store a summary entry
-- `GET /summarize/{id}` – Retrieve summary by ID
-- `GET /summarize/user/{user_id}` – Retrieve summaries for a user
-- `GET /summarize/search` – Semantic + metadata search
-- `DELETE /summarize/{id}` – Delete summary by ID
-
-### Buffer (`/buffer`)
-
-- `POST /buffer` – Add a short-form buffer entry
-- `GET /buffer` – Retrieve all buffer entries
-- `GET /buffer/{user_id}` – Get buffer by user
-- `DELETE /buffer/{user_id}` – Clear buffer by user
+- `POST /memory` – Add a memory entry (document + embedding + metadata)
+- `GET /memory` – List memory entries, with optional filters (component, mode, priority, limit)
+- `GET /memory/id/{id}` – Retrieve a specific memory by ID
+- `PUT /memory/{id}` – Replace a memory entry by ID
+- `PATCH /memory/{id}` – Partially update a memory entry by ID
+- `DELETE /memory/{id}` – Delete a memory entry by ID
+- `GET /memory/search` – Exact-match search on memory text
+- `GET /memory/semantic` – Semantic search on memory content and metadata
 
 ## Responsibilities
 
-- Store vector-encoded memories with metadata (timestamp, component, priority)
-- Store per-message short-form inputs to support scheduled summarization
-- Store generated summaries in a dedicated summary collection
-- Provide fast search for relevant context (recent + semantically similar)
+- Store and manage vector-encoded memory entries with metadata
+- Provide fast search for relevant context (recent and semantically similar)
 - Normalize and validate embedding inputs
-- Keep all data persistent across restarts via `PersistentClient`
-
-## Collections
-
-- `memory`: Long-term memory entries used by Brain
-- `buffer`: Short-form message buffer for user conversations
-- `summarize`: Abstracted semantic summaries per platform/user
+- Expose a simple, consistent API for use by Brain and other services
 
 ## Internal Details
 
-- Uses SentenceTransformer for embeddings (`intfloat/e5-small-v2`)
-- All endpoints generate or validate embeddings before storage
-- Implements semantic search with distance + recency scoring
-- Uses `chroma.config` to centralize collection names and model selection
+- Uses dependency injection for the ChromaDB collection
+- Embeddings are generated using a shared embedding utility
+- All endpoints validate input and handle errors with structured responses
+- Middleware is used for request body caching
+- Tracing is enabled if configured
 
 ## External Dependencies
 
-- `sentence-transformers`
 - FastAPI
-- ChromaDB (as a Python lib, not a separate service)
+- ChromaDB (as a Python library)
+- Sentence-transformers (for embedding generation)
 
 ## Consuming Services
 
-- **Brain**: Reads/writes memory, buffer, and summaries
-- **Summarize**: Reads/writes buffer and summaries
+- **Brain**: Reads/writes memory entries

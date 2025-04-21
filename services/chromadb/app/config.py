@@ -14,15 +14,6 @@ EMBEDDING_MODEL                         = "intfloat/e5-small-v2"
 MEMORY_COLLECTION                       = 'memory'
 
 
-
-
-
-# old?
-
-# list of collections for
-SUMMARIZE_COLLECTION                    = 'summarize'
-BUFFER_COLLECTION                       = 'buffer'
-
 # embedding model name
 CHROMADB_MODEL_NAME                     = "intfloat/e5-small-v2"
 

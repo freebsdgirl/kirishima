@@ -46,5 +46,6 @@ def get_user_messages(user_id: str = Path(...)) -> List[CanonicalUserMessage]:
         conn.execute("PRAGMA journal_mode=WAL;")
         cur = conn.cursor()
         cur.execute("SELECT * FROM user_messages WHERE user_id = ? ORDER BY id", (user_id,))
-        return [CanonicalUserMessage(*row) for row in cur.fetchall()]
+        columns = [col[0] for col in cur.description]
+        return [CanonicalUserMessage(**dict(zip(columns, row))) for row in cur.fetchall()]
 

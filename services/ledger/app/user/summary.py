@@ -329,8 +329,9 @@ async def list_summaries(
     with _open_conn() as conn:
         cur = conn.cursor()
         cur.execute(query, tuple(params))
+        columns = [col[0] for col in cur.description]
         rows = cur.fetchall()
-        return UserSummaryList(summaries=[UserSummary(*row) for row in rows])
+        return UserSummaryList(summaries=[UserSummary(**dict(zip(columns, row))) for row in rows])
 
 
 @router.delete("/summaries/user/{user_id}", response_model=DeleteSummary)

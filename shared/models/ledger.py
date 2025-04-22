@@ -1,12 +1,21 @@
 """
-This module defines Pydantic models for representing user and conversation messages exchanged between users and the system across various platforms.
-
-Classes:
-    RawUserMessage: Represents a raw user message exchanged between a user and the system, including sender information, platform, role, and content.
-    CanonicalUserMessage: Represents a canonical user message with unique ID, timestamps, and message metadata for storage and retrieval.
-    RawConversationMessage: Represents a raw message within a conversation, typically for storing or processing messages from different platforms.
-    CanonicalConversationMessage: Represents a canonical message within a conversation, including unique ID, timestamps, and message metadata for persistent storage.
+This module defines Pydantic models for representing and managing user and conversation messages,
+summaries, and deletion requests within a multi-platform communication system (e.g., API, Discord).
+Models included:
+- RawUserMessage: Raw user message exchanged between a user and the system.
+- CanonicalUserMessage: Canonical form of a user message with metadata.
+- RawConversationMessage: Raw message within a conversation, for storage or processing.
+- CanonicalConversationMessage: Canonical conversation message with metadata.
+- DeleteSummary: Summary of a delete operation, tracking number of rows deleted.
+- UserSummary: Summary of messages for a specific user.
+- UserSummaryList: List of user message summaries.
+- DeleteRequest: Request to delete records by their unique identifiers.
+- ConversationSummary: Summary of messages for a specific conversation.
+- ConversationSummaryList: List of conversation summaries.
+Each model leverages Pydantic's BaseModel for data validation and serialization, and includes
+detailed field descriptions for clarity and documentation purposes.
 """
+
 from pydantic import BaseModel, Field
 from typing import Optional, List
 
@@ -103,6 +112,18 @@ class DeleteSummary(BaseModel):
 
 
 class UserSummary(BaseModel):
+    """
+    Represents a summary of messages for a specific user, capturing key details about their communication.
+    
+    Attributes:
+        id (int): Unique identifier for the message summary.
+        user_id (str): Unique identifier of the message sender.
+        content (str): Condensed content of the summarized messages.
+        level (int): Aggregation or significance level of the summarized messages.
+        timestamp_begin (str): Start timestamp of the messages being summarized.
+        timestamp_end (str): End timestamp of the messages being summarized.
+        timestamp_summarized (str): Timestamp when the summary was created.
+    """
     id: int                                     = Field(..., description="Unique message ID")
     user_id: str                                = Field(..., description="Sender's unique ID")
     content: str                                = Field(..., description="Summarized message content")
@@ -111,13 +132,40 @@ class UserSummary(BaseModel):
     timestamp_end: str                          = Field(..., description="End timestamp of the summarized messages")
     timestamp_summarized: str                   = Field(..., description="Timestamp when the message was summarized")
 
+
 class UserSummaryList(BaseModel):
+    """
+    Represents a list of user message summaries, containing multiple UserSummary instances.
+    
+    Attributes:
+        summaries (List[UserSummary]): A collection of summarized user messages.
+    """
     summaries: List[UserSummary]                = Field(..., description="List of summarized messages")
 
+
 class DeleteRequest(BaseModel):
+    """
+    Represents a request to delete records by their unique identifiers.
+    
+    Attributes:
+        ids (List[int]): A list of integer IDs to be deleted. Must contain at least one ID.
+    """
     ids: List[int]                              = Field(..., min_items=1, description="IDs to delete")
 
+
 class ConversationSummary(BaseModel):
+    """
+    Represents a summary of messages for a specific conversation, capturing key details about the communication.
+    
+    Attributes:
+        id (int): Unique identifier for the message summary.
+        conversation_id (str): Discord channel or thread identifier.
+        content (str): Condensed content of the summarized messages.
+        period (str): Aggregation period (daily, weekly, or monthly).
+        timestamp_begin (str): Start timestamp of the messages being summarized.
+        timestamp_end (str): End timestamp of the messages being summarized.
+        timestamp_summarized (str): Timestamp when the summary was created.
+    """
     id: int                                     = Field(..., description="Unique message ID")
     conversation_id: str                        = Field(..., description="Discord channel / thread ID")
     content: str                                = Field(..., description="Summarized message content")
@@ -126,5 +174,12 @@ class ConversationSummary(BaseModel):
     timestamp_end: str                          = Field(..., description="End timestamp of the summarized messages")
     timestamp_summarized: str                   = Field(..., description="Timestamp when the message was summarized")
 
+
 class ConversationSummaryList(BaseModel):
+    """
+    Represents a list of conversation summaries, containing multiple ConversationSummary instances.
+        
+    Attributes:
+        summaries (List[ConversationSummary]): A collection of summarized conversation messages.
+    """
     summaries: List[ConversationSummary]        = Field(..., description="List of summarized messages")

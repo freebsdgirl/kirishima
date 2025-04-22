@@ -1,5 +1,3 @@
 import os
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-
-ADMIN_ID = 128660336550215682

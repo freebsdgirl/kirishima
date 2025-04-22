@@ -30,6 +30,8 @@ if shared.config.TRACING_ENABLED:
 intents = discord.Intents.default()
 intents.guilds = True
 intents.messages = True
+intents.message_content = True  # Add this
+intents.dm_messages = True      # Add this if available
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 

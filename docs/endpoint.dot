@@ -105,6 +105,30 @@ digraph Microservices {
     "Intents: POST /intents"
   }
 
+  /* Intents endpoints */
+  subgraph cluster_intents {
+    label="Ledger endpoints";
+    style=dashed;
+    color=lightgrey;
+    node [style=filled, fillcolor=lightgoldenrod];
+    "Ledger: POST /ledger/user/{user_id}/sync"
+    "Ledger: GET /ledger/user/{user_id}/messages"
+    "Ledger: DELETE /ledger/user/{user_id}/before/{message_id}"
+    "Ledger: DELETE /ledger/user/{user_id}"
+    "Ledger: POST /ledger/conversation/{conversation_id}/sync"
+    "Ledger: GET /ledger/conversation/{conversation_id}/messages"
+    "Ledger: DELETE /ledger/conversation/{conversation_id}/before/{message_id}"
+    "Ledger: DELETE /ledger/conversation/{conversation_id}"
+    "Ledger: GET /summaries/user/{user_id}?limit=&level="
+    "Ledger: DELETE /summaries/user/{user_id}"
+    "Ledger: POST /summaries/user/{user_id}/create"
+    "Ledger: GET /summaries/conversation/{conversation_id}"
+    "Ledger: POST /summaries/conversation/{conversation_id}/daily/create"
+    "Ledger: POST /summaries/conversation/{conversation_id}/weekly/create"
+    "Ledger: POST /summaries/conversation/{conversation_id}/monthly/create"
+  }
+
+  
   /* Proxy endpoints */
   subgraph cluster_proxy {
     label="Proxy endpoints";
@@ -203,6 +227,9 @@ digraph Microservices {
   "Intents: POST /intents" -> "Brain: POST /mode/MODE"
   "Intents: POST /intents" -> "Brain: POST /memory"
   "Intents: POST /intents" -> "Brain: DELETE /memory"
+
+  /* Ledger endpoint dependencies */
+  /* TODO: Update */
 
   /* Proxy endpoint dependencies */
   "Proxy: POST /from/api/completions" -> "Ollama: POST /api/generate"

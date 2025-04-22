@@ -25,6 +25,7 @@ from shared.models.chromadb import MemoryListQuery
 
 from app.memory.list import list_memory
 from app.modes import mode_get
+from app.util import get_admin_user_id
 
 import shared.consul
 
@@ -161,6 +162,39 @@ async def outgoing_multiturn_message(message: ProxyMultiTurnRequest) -> ProxyRes
     # Sanitize proxy messages
     payload["messages"] = sanitize_messages(payload['messages'])
 
+    # --- Send last 4 messages to ledger as RawUserMessage ---
+    try:
+        user_id = await get_admin_user_id()
+        platform = 'api'
+        platform_msg_id = None
+        last_msgs = payload["messages"][-4:]
+        sync_snapshot = [
+            {
+                "user_id": user_id,
+                "platform": platform,
+                "platform_msg_id": platform_msg_id,
+                "role": m.get("role"),
+                "content": m.get("content")
+            }
+            for m in last_msgs
+        ]
+        ledger_response = await post_to_service(
+            'ledger',
+            f'/ledger/user/{user_id}/sync',
+            {"snapshot": sync_snapshot},
+            error_prefix="Error forwarding to ledger service"
+        )
+        # Convert ledger buffer to ProxyMessage list and replace payload['messages']
+        ledger_buffer = ledger_response.json()
+        payload["messages"] = [ProxyMessage(role=msg["role"], content=msg["content"]).model_dump() for msg in ledger_buffer]
+    except Exception as e:
+        logger.error(f"Error sending messages to ledger sync endpoint: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to sync messages with ledger service."
+        )
+
+    
     response = await post_to_service(
         'proxy', '/from/api/multiturn', payload,
         error_prefix="Error forwarding to proxy service"
@@ -208,6 +242,31 @@ async def outgoing_multiturn_message(message: ProxyMultiTurnRequest) -> ProxyRes
         )
     if isinstance(returned_messages, list) and returned_messages:
         proxy_response.response = returned_messages[0].get('content', proxy_response.response)
+
+    try:
+        # Send proxy_response to ledger as a single RawUserMessage
+        user_id = await get_admin_user_id()
+        platform = 'api'
+        platform_msg_id = None
+        sync_snapshot = [{
+            "user_id": user_id,
+            "platform": platform,
+            "platform_msg_id": platform_msg_id,
+            "role": "assistant",
+            "content": proxy_response.response
+        }]
+        await post_to_service(
+            'ledger',
+            f'/ledger/user/{user_id}/sync',
+            {"snapshot": sync_snapshot},
+            error_prefix="Error forwarding to ledger service (proxy_response)"
+        )
+    except Exception as e:
+        logger.error(f"Error sending proxy_response to ledger sync endpoint: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to sync proxy_response with ledger service."
+        )
 
     logger.debug(f"/message/multiturn/incoming Returns:\n{proxy_response.model_dump_json(indent=4)}")
 

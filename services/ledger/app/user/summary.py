@@ -91,6 +91,9 @@ async def _fetch_user_buffer(user_id: str) -> List[dict]:
     Raises:
         HTTPException: If the request to the ledger service fails.
     """
+
+    logger.debug(f"Fetching messages for user {user_id}")
+
     async with httpx.AsyncClient(timeout=60) as client:
         try:
             ledger_address, ledger_port = shared.consul.get_service_address('ledger')
@@ -131,6 +134,9 @@ async def _delete_user_buffer_to(user_id: str, message_id: int) -> None:
     Raises:
         HTTPException: If the request to the ledger service fails.
     """
+
+    logger.debug(f"Deleting messages for user {user_id} up to message ID {message_id}")
+
     async with httpx.AsyncClient(timeout=60) as client:
         try:
             ledger_address, ledger_port = shared.consul.get_service_address('ledger')
@@ -173,6 +179,9 @@ async def _proxy_summary(messages: List[dict], max_tokens: int) -> str:
     Raises:
         HTTPException: If the proxy summarization service fails to generate a summary.
     """
+
+    logger.debug(f"Summarizing {len(messages)} messages")
+
     payload = {"messages": messages, "max_tokens": max_tokens}
 
     async with httpx.AsyncClient(timeout=60) as client:
@@ -224,6 +233,8 @@ async def _proxy_summary_of_summaries(summaries: List[str], max_tokens: int) -> 
     Raises:
         HTTPException: If the proxy summarization service fails to generate a summary.
     """
+    logger.debug(f"Summarizing {len(summaries)} summaries")
+
     payload = {"summaries": summaries, "max_tokens": max_tokens}
 
     async with httpx.AsyncClient(timeout=60) as client:
@@ -274,6 +285,8 @@ def _insert_summary(conn: sqlite3.Connection, user_id: str, content: str, level:
         ts_begin (str): The beginning timestamp of the summary.
         ts_end (str): The ending timestamp of the summary.
     """
+    logger.debug(f"Inserting summary for user {user_id} at level {level}")
+
     cur = conn.cursor()
     cur.execute(
         f"INSERT INTO {TABLE} (user_id, content, level, timestamp_begin, timestamp_end) "
@@ -301,6 +314,8 @@ async def list_summaries(
 
     Endpoint: GET /summaries/user/{user_id}
     """
+    logger.debug(f"Fetching summaries for user {user_id} with limit {limit} and level {level}")
+
     query = f"SELECT * FROM {TABLE} WHERE user_id = ?"
     params: List = [user_id]
     if level is not None:
@@ -336,6 +351,8 @@ async def delete_summaries(
     Returns:
         DeleteSummary: An object indicating the number of summaries successfully deleted.
     """
+    logger.debug(f"Deleting summaries for user {user_id} with IDs {body.ids}")
+
     with _open_conn() as conn:
         cur = conn.cursor()
         q_marks = ",".join(["?"] * len(body.ids))
@@ -368,6 +385,8 @@ async def create_summaries(user_id: str = Path(...)):
     Returns:
         dict: A status message indicating the result of the operation.
     """
+    logger.debug(f"Creating summaries for user {user_id}")
+
     # ------------ 1. Fetch buffer ------------
     buffer = await _fetch_user_buffer(user_id)
     if not buffer:

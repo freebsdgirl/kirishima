@@ -70,6 +70,8 @@ def sync_user_buffer(
     Note:
         The function uses a database connection to persist and retrieve messages, and applies different synchronization rules based on the state of the incoming snapshot and the existing buffer.
     """
+    logger.debug(f"Syncing user buffer for {user_id}: {snapshot}")
+
     if not snapshot:
         return []
 

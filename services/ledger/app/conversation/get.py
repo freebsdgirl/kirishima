@@ -51,6 +51,9 @@ def get_conversation_messages(
     Returns:
         List[CanonicalConversationMessage]: Ordered list of messages for the specified conversation.
     """
+
+    logger.debug(f"Fetching messages for conversation {conversation_id}")
+
     with _open_conn() as conn:
         cur = conn.cursor()
         cur.execute(f"SELECT * FROM {TABLE} WHERE conversation_id = ? ORDER BY id", (conversation_id,))

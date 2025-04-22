@@ -51,6 +51,8 @@ def sync_conversation_buffer(
     Returns:
         A list of canonical conversation messages for the specified conversation, ordered by ID
     """
+    logger.debug(f"Syncing conversation buffer for {conversation_id}: {snapshot}")
+
     if not snapshot:
         return []
 

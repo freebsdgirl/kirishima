@@ -56,6 +56,9 @@ def prune_conversation_messages(
     Returns:
         DeleteSummary: A summary containing the number of messages deleted from the conversation.
     """
+
+    logger.debug(f"Deleting messages for conversation {conversation_id} up to message ID {message_id}")
+
     with _open_conn() as conn:
         cur = conn.cursor()
         cur.execute(
@@ -83,6 +86,9 @@ def delete_conversation_buffer(
     Returns:
         DeleteSummary: A summary containing the number of messages deleted from the conversation.
     """
+
+    logger.debug(f"Deleting all messages for conversation {conversation_id}")
+
     with _open_conn() as conn:
         cur = conn.cursor()
         cur.execute(f"DELETE FROM {TABLE} WHERE conversation_id = ?", (conversation_id,))

@@ -28,6 +28,7 @@ def _open_conn() -> sqlite3.Connection:
     conn.execute("PRAGMA journal_mode=WAL;")
     return conn
 
+
 @router.delete("/ledger/user/{user_id}/before/{message_id}", response_model=DeleteSummary)
 def prune_user_messages(
     user_id: str = Path(...),
@@ -46,6 +47,8 @@ def prune_user_messages(
     Returns:
         DeleteSummary: An object containing the count of deleted messages.
     """
+
+    logger.debug(f"Deleting messages for user {user_id} up to message ID {message_id}")
 
     with _open_conn() as conn:
         cur = conn.cursor()
@@ -74,6 +77,9 @@ def delete_user_buffer(user_id: str = Path(...)) -> DeleteSummary:
     """
 
     """Delete ALL messages for the user (hard reset)."""
+
+    logger.debug(f"Deleting all messages for user {user_id}")
+
     with _open_conn() as conn:
         cur = conn.cursor()
         cur.execute(f"DELETE FROM {TABLE} WHERE user_id = ?", (user_id,))

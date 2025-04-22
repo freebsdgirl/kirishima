@@ -76,6 +76,9 @@ async def _fetch_conversation_buffer(conv_id: str) -> List[dict]:
     Raises:
         HTTPException: If the request to the ledger service fails.
     """
+
+    logger.debug(f"Fetching messages for conversation {conv_id}")
+
     async with httpx.AsyncClient(timeout=60) as client:
         try:
             ledger_address, ledger_port = shared.consul.get_service_address('ledger')
@@ -121,6 +124,8 @@ async def _delete_conversation_buffer_before(conv_id: str, timestamp_cut: str) -
         This is an internal method that sequentially deletes messages from the conversation buffer
         via the ledger service endpoint.
     """
+    logger.debug(f"Deleting messages for conversation {conv_id} older than {timestamp_cut}")
+
     messages = await _fetch_conversation_buffer(conv_id)
     if len(messages) <= conversation_buffer_keep:
         return  # nothing to prune
@@ -175,6 +180,8 @@ async def _proxy_conv_summary(period: str, messages_or_summaries: List[str]) -> 
     Raises:
         HTTPException: If the proxy summarization request fails.
     """
+    logger.debug(f"Proxying {period} summary for {len(messages_or_summaries)} messages")
+
     endpoint = {
         "daily": "conversation/daily",
         "weekly": "conversation/weekly",
@@ -237,6 +244,8 @@ def _insert_conv_summary(
         ts_begin (str): Start timestamp of the summary period.
         ts_end (str): End timestamp of the summary period.
     """
+    logger.debug(f"Inserting {period} summary for conversation {conv_id}")
+
     cur = conn.cursor()
     cur.execute(
         f"INSERT INTO {TABLE} (conversation_id, content, period, timestamp_begin, timestamp_end) "
@@ -264,6 +273,8 @@ async def list_conv_summaries(
     Returns:
         ConversationSummaryList: A list of conversation summaries matching the query parameters.
     """
+
+    logger.debug(f"Fetching summaries for conversation {conversation_id}")
 
     query = f"SELECT * FROM {TABLE} WHERE conversation_id = ?"
     params: List = [conversation_id]
@@ -297,6 +308,8 @@ async def create_daily_summary(conversation_id: str = Path(...)):
     Returns:
         dict: Status of summary creation, with either "created" or "ok" status.
     """
+
+    logger.debug(f"Creating daily summary for conversation {conversation_id}")
 
     now = datetime.now()
     end_window = now - timedelta(hours=24)
@@ -347,6 +360,8 @@ def _combine_and_store(conv_id: str, period_from: str, period_to: str, days: int
     Returns:
         bool: True if summaries were combined and stored successfully, False if no summaries found.
     """
+    logger.debug(f"Combining {period_from} summaries into {period_to} for conversation {conv_id}")
+
     now = datetime.now()
     end_window = now - timedelta(days=days)
     start_window = end_window - timedelta(days=days)
@@ -374,6 +389,7 @@ def _combine_and_store(conv_id: str, period_from: str, period_to: str, days: int
         conn.commit()
         return True
 
+
 @router.post("/summaries/conversation/{conversation_id}/weekly/create", status_code=201)
 async def create_weekly_summary(conversation_id: str = Path(...)):
     """
@@ -388,6 +404,7 @@ async def create_weekly_summary(conversation_id: str = Path(...)):
     Returns:
         dict: A status response with 'created' or 'ok' status and a detail message.
     """
+    logger.debug(f"Creating weekly summary for conversation {conversation_id}")
 
     ok = _combine_and_store(conversation_id, "daily", "weekly", 7)
     return {"status": "created" if ok else "ok", "detail": "weekly summariser"}
@@ -395,5 +412,7 @@ async def create_weekly_summary(conversation_id: str = Path(...)):
 
 @router.post("/summaries/conversation/{conversation_id}/monthly/create", status_code=201)
 async def create_monthly_summary(conversation_id: str = Path(...)):
+    logger.debug(f"Creating monthly summary for conversation {conversation_id}")
+
     ok = _combine_and_store(conversation_id, "weekly", "monthly", 30)
     return {"status": "created" if ok else "ok", "detail": "monthly summariser"}

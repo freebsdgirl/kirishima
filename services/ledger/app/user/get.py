@@ -39,6 +39,9 @@ def get_user_messages(user_id: str = Path(...)) -> List[CanonicalUserMessage]:
         List[CanonicalUserMessage]: A list of canonical user messages associated with the specified user.
     """
     """Return the entire message list for a user (ordered by id)."""
+
+    logger.debug(f"Fetching messages for user {user_id}")
+
     with sqlite3.connect(BUFFER_DB, timeout=5.0) as conn:
         conn.execute("PRAGMA journal_mode=WAL;")
         cur = conn.cursor()

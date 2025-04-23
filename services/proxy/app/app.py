@@ -22,6 +22,8 @@ from app.api.models import router as models_router
 from app.api.singleturn import router as singleturn_router
 from app.api.multiturn import router as multiturn_router
 from app.imessage import router as imessage_router
+from app.summary import router as summary_router
+
 from shared.docs_exporter import router as docs_router
 from shared.routes import router as routes_router, register_list_routes
 
@@ -36,6 +38,7 @@ app.include_router(docs_router, tags=["docs"])
 app.include_router(models_router, tags=["api", "models"])
 app.include_router(singleturn_router, tags=["api"])
 app.include_router(multiturn_router, tags=["api"])
+app.include_router(summary_router, tags=["summary"])
 app.include_router(imessage_router, tags=["imessage"])
 
 register_list_routes(app)

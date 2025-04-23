@@ -29,7 +29,8 @@ logger = get_logger(f"ledger.{__name__}")
 import sqlite3
 from typing import List
 
-from fastapi import APIRouter, Path, Body
+from fastapi import APIRouter, Path, Body, BackgroundTasks
+from app.user.summary import create_summaries
 
 router = APIRouter()
 
@@ -45,7 +46,8 @@ def _open_conn() -> sqlite3.Connection:
 @router.post("/ledger/user/{user_id}/sync", response_model=List[CanonicalUserMessage])
 def sync_user_buffer(
     user_id: str = Path(..., description="Unique user identifier"),
-    snapshot: List[RawUserMessage] = Body(..., embed=True)
+    snapshot: List[RawUserMessage] = Body(..., embed=True),
+    background_tasks: BackgroundTasks = None
 ) -> List[CanonicalUserMessage]:
     """
     Synchronizes the user's message buffer with the server-side ledger.
@@ -78,6 +80,7 @@ def sync_user_buffer(
 
     if not snapshot:
         print("[SYNC] Empty snapshot, returning []")
+        background_tasks.add_task(create_summaries, user_id)
         return []
 
     last_msg = snapshot[-1]
@@ -99,6 +102,7 @@ def sync_user_buffer(
             cur.execute(f"SELECT * FROM {TABLE} WHERE user_id = ? ORDER BY id", (user_id,))
             result = [CanonicalUserMessage(**dict(zip([col[0] for col in cur.description], row))) for row in cur.fetchall()]
             print(f"[SYNC] DB after deleting consecutive user: {[ (m.role, m.content) for m in result ]}")
+            background_tasks.add_task(create_summaries, user_id)
             return result
 
     # ----------------- Non‑API fast path -----------------
@@ -114,6 +118,7 @@ def sync_user_buffer(
             cur.execute(f"SELECT * FROM {TABLE} WHERE user_id = ? ORDER BY id", (user_id,))
             result = [CanonicalUserMessage(**dict(zip([col[0] for col in cur.description], row))) for row in cur.fetchall()]
             print(f"[SYNC] DB after insert (non-api): {[ (m.role, m.content) for m in result ]}")
+            background_tasks.add_task(create_summaries, user_id)
             return result
 
     # ----------------- API logic -----------------
@@ -149,6 +154,7 @@ def sync_user_buffer(
             cur.execute(f"SELECT * FROM {TABLE} WHERE user_id = ? ORDER BY id", (user_id,))
             result = [CanonicalUserMessage(**dict(zip([col[0] for col in cur.description], row))) for row in cur.fetchall()]
             print(f"[SYNC] DB after seed: {[ (m.role, m.content) for m in result ]}")
+            background_tasks.add_task(create_summaries, user_id)
             return result
 
         last_db_user = user_rows[-1][1] if user_rows else None
@@ -173,6 +179,7 @@ def sync_user_buffer(
                 cur.execute(f"SELECT * FROM {TABLE} WHERE user_id = ? ORDER BY id", (user_id,))
                 result = [CanonicalUserMessage(**dict(zip([col[0] for col in cur.description], row))) for row in cur.fetchall()]
                 print(f"[SYNC] DB after user deduplication/assistant delete: {[ (m.role, m.content) for m in result ]}")
+                background_tasks.add_task(create_summaries, user_id)
                 return result
             # --- Check for assistant edit before appending user ---
             if (
@@ -199,6 +206,7 @@ def sync_user_buffer(
             cur.execute(f"SELECT * FROM {TABLE} WHERE user_id = ? ORDER BY id", (user_id,))
             result = [CanonicalUserMessage(**dict(zip([col[0] for col in cur.description], row))) for row in cur.fetchall()]
             print(f"[SYNC] DB after appending user: {[ (m.role, m.content) for m in result ]}")
+            background_tasks.add_task(create_summaries, user_id)
             return result
 
         # Rule 2 – edit assistant
@@ -226,6 +234,7 @@ def sync_user_buffer(
             cur.execute(f"SELECT * FROM {TABLE} WHERE user_id = ? ORDER BY id", (user_id,))
             result = [CanonicalUserMessage(**dict(zip([col[0] for col in cur.description], row))) for row in cur.fetchall()]
             print(f"[SYNC] DB after assistant edit: {[ (m.role, m.content) for m in result ]}")
+            background_tasks.add_task(create_summaries, user_id)
             return result
 
         # Rule 3 – fallback append
@@ -238,4 +247,5 @@ def sync_user_buffer(
         cur.execute(f"SELECT * FROM {TABLE} WHERE user_id = ? ORDER BY id", (user_id,))
         result = [CanonicalUserMessage(**dict(zip([col[0] for col in cur.description], row))) for row in cur.fetchall()]
         print(f"[SYNC] DB after fallback append: {[ (m.role, m.content) for m in result ]}")
+        background_tasks.add_task(create_summaries, user_id)
         return result

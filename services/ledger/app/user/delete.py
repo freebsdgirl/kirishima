@@ -33,6 +33,7 @@ def _open_conn() -> sqlite3.Connection:
 def prune_user_messages(
     user_id: str = Path(...),
     message_id: int = Path(..., description="Prune EVERYTHING ≤ this id for the user"),
+    noop: bool = False,  # If True, log what would be deleted but do not delete
 ) -> DeleteSummary:
     """
     Delete messages for a specific user up to a given message ID.
@@ -43,22 +44,32 @@ def prune_user_messages(
     Args:
         user_id (str): The unique identifier of the user whose messages will be pruned.
         message_id (int): The maximum message ID to delete (inclusive).
+        noop (bool): If True, only log what would be deleted, do not delete.
 
     Returns:
         DeleteSummary: An object containing the count of deleted messages.
     """
 
-    logger.debug(f"Deleting messages for user {user_id} up to message ID {message_id}")
+    logger.debug(f"Deleting messages for user {user_id} up to message ID {message_id} (noop={noop})")
 
     with _open_conn() as conn:
         cur = conn.cursor()
-        cur.execute(
-            f"DELETE FROM {TABLE} WHERE user_id = ? AND id <= ?",
-            (user_id, message_id),
-        )
-        deleted = cur.rowcount
-        conn.commit()
-        return DeleteSummary(deleted=deleted)
+        if noop:
+            cur.execute(
+                f"SELECT id FROM {TABLE} WHERE user_id = ? AND id <= ?",
+                (user_id, message_id),
+            )
+            ids = [row[0] for row in cur.fetchall()]
+            logger.debug(f"NOOP: Would delete {len(ids)} messages: {ids}")
+            return DeleteSummary(deleted=len(ids))
+        else:
+            cur.execute(
+                f"DELETE FROM {TABLE} WHERE user_id = ? AND id <= ?",
+                (user_id, message_id),
+            )
+            deleted = cur.rowcount
+            conn.commit()
+            return DeleteSummary(deleted=deleted)
 
 
 @router.delete("/ledger/user/{user_id}", response_model=DeleteSummary)

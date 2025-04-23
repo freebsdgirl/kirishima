@@ -15,8 +15,8 @@ CREATE TABLE IF NOT EXISTS user_messages (
     platform_msg_id TEXT,
     role            TEXT    NOT NULL CHECK (role IN ('user','assistant','system')),
     content         TEXT    NOT NULL,
-    created_at      DATETIME NOT NULL DEFAULT (STRFTIME('%Y-%m-%d %H:%M:%f','now')),
-    updated_at      DATETIME NOT NULL DEFAULT (STRFTIME('%Y-%m-%d %H:%M:%f','now'))
+    created_at      DATETIME NOT NULL DEFAULT (STRFTIME('%Y-%m-%d %H:%M:%f','now','localtime')),
+    updated_at      DATETIME NOT NULL DEFAULT (STRFTIME('%Y-%m-%d %H:%M:%f','now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS idx_user_msgs_order
     ON user_messages(user_id, id);
@@ -30,8 +30,8 @@ CREATE TABLE IF NOT EXISTS conversation_messages (
     platform        TEXT    NOT NULL,
     role            TEXT    NOT NULL CHECK (role IN ('user','assistant','system')),
     content         TEXT    NOT NULL,
-    created_at      DATETIME NOT NULL DEFAULT (STRFTIME('%Y-%m-%d %H:%M:%f','now')),
-    updated_at      DATETIME NOT NULL DEFAULT (STRFTIME('%Y-%m-%d %H:%M:%f','now'))
+    created_at      DATETIME NOT NULL DEFAULT (STRFTIME('%Y-%m-%d %H:%M:%f','now','localtime')),
+    updated_at      DATETIME NOT NULL DEFAULT (STRFTIME('%Y-%m-%d %H:%M:%f','now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS idx_convo_msgs_order
     ON conversation_messages(conversation_id, id);
@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS user_summaries (
     level               INTEGER NOT NULL,   -- 1, 2, 3, …
     timestamp_begin     TEXT    NOT NULL,
     timestamp_end       TEXT    NOT NULL,
-    timestamp_summarized TEXT   NOT NULL DEFAULT (STRFTIME('%Y-%m-%d %H:%M:%f','now'))
+    timestamp_summarized TEXT   NOT NULL DEFAULT (STRFTIME('%Y-%m-%d %H:%M:%f','now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS idx_user_summaries_level
     ON user_summaries(user_id, level, id);
@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS conversation_summaries (
     period              TEXT    NOT NULL CHECK (period IN ('daily','weekly','monthly')),
     timestamp_begin     TEXT    NOT NULL,
     timestamp_end       TEXT    NOT NULL,
-    timestamp_summarized TEXT   NOT NULL DEFAULT (STRFTIME('%Y-%m-%d %H:%M:%f','now'))
+    timestamp_summarized TEXT   NOT NULL DEFAULT (STRFTIME('%Y-%m-%d %H:%M:%f','now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS idx_conv_summaries_period
     ON conversation_summaries(conversation_id, period, id);

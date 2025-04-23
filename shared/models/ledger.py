@@ -198,3 +198,16 @@ class SummaryRequest(BaseModel):
     messages: List[CanonicalUserMessage]        = Field(..., description="List of user messages to summarize")
     user_alias: Optional[str]                   = Field(None, description="Alias for the user in the conversation")
     max_tokens: int                             = Field(..., description="Maximum number of tokens for the summary")
+
+class CombinedSummaryRequest(BaseModel):
+    """
+    Represents a request to generate a combined summary of user summaries.
+    
+    Attributes:
+        summaries (List[UserSummary]): A list of user message summaries to be combined.
+        user_alias (Optional[str]): An optional alias for the user in the conversation.
+        max_tokens (int): The maximum number of tokens allowed for the generated summary.
+    """
+    summaries: List[UserSummary]                = Field(..., description="List of summarized messages")
+    user_alias: Optional[str]                   = Field(None, description="Alias for the user in the conversation")
+    max_tokens: int                             = Field(..., description="Maximum number of tokens for the summary")

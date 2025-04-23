@@ -30,7 +30,7 @@ from app.config import (
 )
 
 import shared.consul
-from shared.models.ledger import UserSummary, UserSummaryList, DeleteSummary, DeleteRequest
+from shared.models.ledger import UserSummary, UserSummaryList, DeleteSummary, DeleteRequest, CombinedSummaryRequest
 
 import json
 
@@ -78,10 +78,11 @@ async def list_summaries(
     if level is not None:
         query += " AND level = ?"
         params.append(level)
-    query += " ORDER BY timestamp_begin"
     if limit:
-        query += " LIMIT ?"
+        query = f"SELECT * FROM (" + query + f" ORDER BY timestamp_begin DESC LIMIT ?) sub ORDER BY timestamp_begin ASC"
         params.append(limit)
+    else:
+        query += " ORDER BY timestamp_begin"
 
     with sqlite3.connect(BUFFER_DB, timeout=5.0, isolation_level=None) as conn:
         conn.execute("PRAGMA journal_mode=WAL;")
@@ -272,7 +273,7 @@ async def create_summaries(user_id: str = Path(...)):
             response.raise_for_status()
 
         except Exception as e:
-            logger.exception("Error retrieving service address for ledger:", e)
+            logger.exception(f"Error retrieving service address for ledger: {e}")
 
         except httpx.HTTPStatusError as http_err:
             logger.error(f"HTTP error forwarding from ledger: {http_err.response.status_code} - {http_err.response.text}")
@@ -296,49 +297,78 @@ async def create_summaries(user_id: str = Path(...)):
         cur = conn.cursor()
         level = 1
         while level < MAX_LEVEL:
+            # Count summaries at this level
+            cur.execute(
+                f"SELECT COUNT(*) FROM {TABLE} WHERE user_id = ? AND level = ?",
+                (user_id, level)
+            )
+            summary_count = cur.fetchone()[0]
+            if summary_count < user_summary_chunk_at:
+                break
+
+            # Select the 3 oldest summaries
             cur.execute(
                 f"SELECT id, content, timestamp_begin, timestamp_end FROM {TABLE} "
                 "WHERE user_id = ? AND level = ? ORDER BY id LIMIT ?",
                 (user_id, level, user_summary_chunk_size),
             )
             rows = cur.fetchall()
-            if len(rows) < user_summary_chunk_at:
-                break
 
             ids, contents, begins, ends = zip(*[(r[0], r[1], r[2], r[3]) for r in rows])
 
             logger.debug(f"Summarizing {len(list(contents))} summaries")
 
-            payload = {"summaries": list(contents), "max_tokens": user_summary_tokens}
+            from shared.models.ledger import UserSummary
+
+            # Fetch the full UserSummary objects for the selected IDs
+            cur.execute(
+                f"SELECT * FROM {TABLE} WHERE id IN ({','.join(['?']*len(ids))})",
+                ids,
+            )
+            columns = [col[0] for col in cur.description]
+            user_summaries = [UserSummary(**dict(zip(columns, row))) for row in cur.fetchall()]
+
+            payload = {
+                "summaries": [s.model_dump() for s in user_summaries],
+                "max_tokens": user_summary_tokens,
+                # "user_alias": user_alias,  # add this if you have it available
+            }
 
             async with httpx.AsyncClient(timeout=60) as client:
                 try:
-                    proxy_address, proxy_port = shared.consul.get_service_address('proxy')
+                    brain_address, brain_port = shared.consul.get_service_address('brain')
                 
                     response = await client.post(
-                        f"http://{proxy_address}:{proxy_port}/summary/user/summary", json=payload)
+                        f"http://{brain_address}:{brain_port}/summary/user/combined", json=payload)
+                    print(f"Response: {response}")
                     response.raise_for_status()
                     if response.status_code != status.HTTP_201_CREATED:
-                        logger.error("Proxy summary failed %s: %s", response.status_code, response.text)
+                        logger.error(f"Brain summary failed {response.status_code}: {response.text}")
                         raise HTTPException(
                             status_code=status.HTTP_502_BAD_GATEWAY,
-                            detail="Proxy summariser error"
+                            detail="Brain summarizer error"
                         )
-                    combined_summary =  response.json()["summary"]
+                    if "summary" not in response.json():
+                        logger.error(f"Brain summary failed {response.status_code}: {response.text}")
+                        raise HTTPException(
+                            status_code=status.HTTP_502_BAD_GATEWAY,
+                            detail="Brain summarizer error"
+                        )
+                    combined_summary = response.json()["summary"]
 
                 except Exception as e:
-                    logger.exception("Error retrieving service address for ledger:", e)
+                    logger.exception(f"Error retrieving service address for brain: {e}")
 
                 except httpx.HTTPStatusError as http_err:
-                    logger.error(f"HTTP error forwarding from ledger: {http_err.response.status_code} - {http_err.response.text}")
+                    logger.error(f"HTTP error forwarding from brain: {http_err.response.status_code} - {http_err.response.text}")
 
                     raise HTTPException(
                         status_code=http_err.response.status_code,
-                        detail=f"Error from ledger: {http_err.response.text}"
+                        detail=f"Error from brain: {http_err.response.text}"
                     )
 
                 except httpx.RequestError as req_err:
-                    logger.error(f"Request error when contacting ledger: {req_err}")
+                    logger.error(f"Request error when contacting brain: {req_err}")
 
                     raise HTTPException(
                         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

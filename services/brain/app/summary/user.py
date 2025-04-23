@@ -1,4 +1,4 @@
-from shared.models.ledger import SummaryRequest
+from shared.models.ledger import SummaryRequest, CombinedSummaryRequest
 
 import shared.consul
 
@@ -11,7 +11,7 @@ import httpx
 
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
-
+ 
 # problem:
 # currently, summaries are created by a backgroundtask spawned by the ledger
 # service when the sync endpoint is called. summaries will not live on the
@@ -72,4 +72,44 @@ async def create_summary_user(request: SummaryRequest):
         raise HTTPException(
             status_code=e.response.status_code,
             detail="Error creating summary"
+        )
+
+@router.post("/summary/user/combined", status_code=status.HTTP_201_CREATED)
+async def create_summary_user_combined(request: CombinedSummaryRequest):
+    """
+    Create a combined summary for a user based on the provided request data.
+    """
+    if not request.summaries or not request.summaries[0].user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User ID is required"
+        )
+    user_id = request.summaries[0].user_id
+    logger.debug(f"Creating combined summary for user {user_id} with summaries: {request.summaries}")
+
+    # Get the first alias of the user from contacts service
+    user_alias = await get_user_alias(user_id)
+    if not user_alias:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User alias not found"
+        )
+
+    # Prepare the payload for the proxy
+    payload = request.model_dump()
+    payload["user_alias"] = user_alias
+
+    # Send the request to the proxy service
+    try:
+        proxy_address, proxy_port = shared.consul.get_service_address('proxy')
+        async with httpx.AsyncClient(timeout=60) as client:
+            response = await client.post(f"http://{proxy_address}:{proxy_port}/summary/user/combined", json=payload)
+            response.raise_for_status()
+            return response.json()
+
+    except httpx.HTTPStatusError as e:
+        logger.error(f"HTTP error occurred: {e.response.status_code} - {e.response.text}")
+        raise HTTPException(
+            status_code=e.response.status_code,
+            detail="Error creating combined summary"
         )

@@ -30,6 +30,7 @@ from app.memory.functions import router as memory_functions_router
 from app.memory.list import router as memory_list_router
 from app.message.multiturn import router as message_multiturn_router
 from app.message.singleturn import router as message_singleturn_router
+from app.summary.user import router as user_summary_router
 from app.models import router as models_router
 from app.embedding import router as embedding_router
 from app.discord.dm import router as discord_dm_router
@@ -54,6 +55,7 @@ app.include_router(message_singleturn_router, tags=["message"])
 app.include_router(models_router, tags=["models"])
 app.include_router(embedding_router, tags=["embedding"])
 app.include_router(discord_dm_router, tags=["discord"])
+app.include_router(user_summary_router, tags=["summary"])
 
 register_list_routes(app)
 

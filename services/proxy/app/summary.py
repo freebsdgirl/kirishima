@@ -1,10 +1,7 @@
 import httpx
 
-from pydantic import BaseModel
-from shared.models.ledger import CanonicalUserMessage
+from shared.models.ledger import SummaryRequest
 from shared.models.proxy import ProxyOneShotRequest
-
-from typing import List
 
 import shared.consul
 
@@ -15,14 +12,6 @@ from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
 
 
-class SummaryRequest(BaseModel):
-    """
-    Request model for summarizing user messages.
-    """
-    messages: List[CanonicalUserMessage]
-    max_tokens: int
-
-
 @router.post("/summary/user", status_code=status.HTTP_201_CREATED)
 async def summary_user(request: SummaryRequest):
     """
@@ -30,10 +19,9 @@ async def summary_user(request: SummaryRequest):
     """
     logger.debug(f"Received summary request: {request}")
 
-    # Convert messages to a single string in the format:
-    # "Randi: thing the user said\nKirishima: thing the assistant said\n..."
-    user_label = "Randi"
+    user_label = request.user_alias or "Randi"
     assistant_label = "Kirishima"
+
     lines = []
     for msg in request.messages:
         if msg.role == "user":

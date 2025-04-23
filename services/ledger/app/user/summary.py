@@ -201,43 +201,46 @@ async def create_summaries(user_id: str = Path(...)):
     # ------------ 3. Summarize chunk ------------
     logger.debug(f"Summarizing {len(chunk)} messages")
 
-    payload = {"messages": chunk, "max_tokens": user_summary_tokens}
+    payload = {
+        "messages": chunk,
+        "max_tokens": user_summary_tokens
+    }
 
     async with httpx.AsyncClient(timeout=60) as client:
         try:
-            proxy_address, proxy_port = shared.consul.get_service_address('proxy')
+            brain_address, brain_port = shared.consul.get_service_address('brain')
         
             response = await client.post(
-                f"http://{proxy_address}:{proxy_port}/summary/user", json=payload)
+                f"http://{brain_address}:{brain_port}/summary/user", json=payload)
             print(f"Response: {response}")
             response.raise_for_status()
             if response.status_code != status.HTTP_201_CREATED:
-                logger.error("Proxy summary failed %s: %s", response.status_code, response.text)
+                logger.error(f"Brain summary failed {response.status_code}: {response.text}")
                 raise HTTPException(
                     status_code=status.HTTP_502_BAD_GATEWAY,
-                    detail="Proxy summariser error"
+                    detail="Brain summarizer error"
                 )
             if "summary" not in response.json():
-                logger.error("Proxy summary failed %s: %s", response.status_code, response.text)
+                logger.error(f"Brain summary failed {response.status_code}: {response.text}")
                 raise HTTPException(
                     status_code=status.HTTP_502_BAD_GATEWAY,
-                    detail="Proxy summariser error"
+                    detail="Brain summarizer error"
                 )
             summary_text = response.json()["summary"]
 
         except Exception as e:
-            logger.exception("Error retrieving service address for ledger:", e)
+            logger.exception(f"Error retrieving service address for brain: {e}")
 
         except httpx.HTTPStatusError as http_err:
-            logger.error(f"HTTP error forwarding from ledger: {http_err.response.status_code} - {http_err.response.text}")
+            logger.error(f"HTTP error forwarding from brain: {http_err.response.status_code} - {http_err.response.text}")
 
             raise HTTPException(
                 status_code=http_err.response.status_code,
-                detail=f"Error from ledger: {http_err.response.text}"
+                detail=f"Error from brain: {http_err.response.text}"
             )
 
         except httpx.RequestError as req_err:
-            logger.error(f"Request error when contacting ledger: {req_err}")
+            logger.error(f"Request error when contacting brain: {req_err}")
 
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

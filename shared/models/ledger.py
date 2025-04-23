@@ -12,6 +12,7 @@ Models included:
 - DeleteRequest: Request to delete records by their unique identifiers.
 - ConversationSummary: Summary of messages for a specific conversation.
 - ConversationSummaryList: List of conversation summaries.
+- SummaryRequest: Request to generate a summary of user messages.
 Each model leverages Pydantic's BaseModel for data validation and serialization, and includes
 detailed field descriptions for clarity and documentation purposes.
 """
@@ -183,3 +184,17 @@ class ConversationSummaryList(BaseModel):
         summaries (List[ConversationSummary]): A collection of summarized conversation messages.
     """
     summaries: List[ConversationSummary]        = Field(..., description="List of summarized messages")
+
+
+class SummaryRequest(BaseModel):
+    """
+    Represents a request to generate a summary of user messages.
+    
+    Attributes:
+        messages (List[CanonicalUserMessage]): A list of user messages to be summarized.
+        user_alias (Optional[str]): An optional alias for the user in the conversation.
+        max_tokens (int): The maximum number of tokens allowed for the generated summary.
+    """
+    messages: List[CanonicalUserMessage]        = Field(..., description="List of user messages to summarize")
+    user_alias: Optional[str]                   = Field(None, description="Alias for the user in the conversation")
+    max_tokens: int                             = Field(..., description="Maximum number of tokens for the summary")

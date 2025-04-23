@@ -17,6 +17,7 @@ Usage:
 from typing import List, Optional, Dict, Any, Literal
 from pydantic import BaseModel, Field
 from shared.models.chromadb import MemoryEntryFull
+from shared.models.ledger import UserSummary
 
 class IncomingMessage(BaseModel):
     """
@@ -63,12 +64,14 @@ class ProxyRequest(BaseModel):
         context (str): The context of the proxy request.
         mode (Optional[str], optional): An optional mode specification for the request. Defaults to None.
         memories (Optional[List[MemoryEntryFull]], optional): A list of memory entries associated with the request. Defaults to None.
+        summaries (Optional[str], optional): A list of user summaries associated with the request. Defaults to None.
     """
     message: IncomingMessage                        = Field(..., description="The incoming message associated with the proxy request.")
     user_id: str                                    = Field(..., description="The unique identifier of the user making the request.")
     context: str                                    = Field(..., description="The context of the proxy request.")
     mode: Optional[str]                             = Field(None, description="An optional mode specification for the request.")
     memories: Optional[List[MemoryEntryFull]]       = Field(None, description="An optional list of memory references.")
+    summaries: Optional[str]                        = Field(None, description="An optional list of user summaries.")
 
 
 # reworked models go down here
@@ -122,12 +125,14 @@ class ProxyMultiTurnRequest(BaseModel):
         temperature (float): Controls the randomness of the model's output. Defaults to 0.7.
         max_tokens (int): The maximum number of tokens to generate in the response. Defaults to 256.
         memories (Optional[List[MemoryEntryFull]]): A list of memory entries associated with the conversation.
+        summaries (Optional[str]): A list of user summaries associated with the conversation.
     """
     model: Optional[str]                        = Field('nemo', description="The model to be used for generating the response.")
     messages: List[ProxyMessage]                = Field(..., description="List of messages for multi-turn conversation.")
     temperature: Optional[float]                = Field(0.7, description="The temperature setting for randomness in the model's output.")
     max_tokens: Optional[int]                   = Field(256, description="The maximum number of tokens to generate in the response.")
     memories: Optional[List[MemoryEntryFull]]   = Field(None, description="List of memory entries associated with the conversation.")
+    summaries: Optional[str]                    = Field(None, description="List of user summaries associated with the conversation.")
 
     class Config:
         json_schema_extra = {
@@ -152,7 +157,8 @@ class ProxyMultiTurnRequest(BaseModel):
                         "priority": 1.0,
                         "mode": "default"
                     }
-                ]
+                ],
+                "summaries": "User summary of the conversation."
             }
         }
 

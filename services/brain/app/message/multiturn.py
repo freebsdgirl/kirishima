@@ -22,6 +22,7 @@ import json
 from shared.models.proxy import ProxyMultiTurnRequest, ProxyResponse, ProxyMessage
 from shared.models.intents import IntentRequest
 from shared.models.chromadb import MemoryListQuery
+from shared.models.ledger import UserSummary
 
 from app.memory.list import list_memory
 from app.modes import mode_get
@@ -194,6 +195,35 @@ async def outgoing_multiturn_message(message: ProxyMultiTurnRequest) -> ProxyRes
             detail="Failed to sync messages with ledger service."
         )
 
+    # get a list of summaries - this returns a List[UserSummary]
+    async with httpx.AsyncClient(timeout=30) as client:
+        address, port = shared.consul.get_service_address('ledger')
+        if not address or not port:
+            logger.error(f"ledger service address or port is not available.")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"ledger service is unavailable."
+            )
+        try:
+            summary_response = await client.get(f"http://{address}:{port}/summaries/user/{user_id}?limit=4")
+            summary_response.raise_for_status()
+            summaries = summary_response.json().get("summaries", [])
+            combined_content = "\n".join(s["content"] for s in summaries)
+        
+            payload["summaries"] = combined_content
+
+        except httpx.HTTPStatusError as http_err:
+            logger.error(f"HTTP error from ledger service: {http_err.response.status_code} - {http_err.response.text}")
+            raise HTTPException(
+                status_code=http_err.response.status_code,
+                detail=f"ledger: {http_err.response.text}"
+            )
+        except httpx.RequestError as req_err:
+            logger.error(f"Request error forwarding to ledger service: {req_err}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Connection error to ledger service: {req_err}"
+            )
     
     response = await post_to_service(
         'proxy', '/from/api/multiturn', payload,

@@ -76,6 +76,7 @@ def build_multiturn_prompt(request: ProxyMultiTurnRequest, system_prompt: str) -
               they are concatenated in the same line.
         - Any unexpected message roles are skipped, and a warning is logged.
     """
+    print (f"SUMMARY: request.summaries: {request.summaries}")
     # 1) System prompt header
     prompt_header = f"[INST] <<SYS>>{system_prompt}<<SYS>> [/INST]\n\n"
     max_history_tokens = 1024
@@ -169,7 +170,8 @@ async def from_api_multiturn(request: ProxyMultiTurnRequest) -> ProxyResponse:
         ),
         user_id="randi",
         context="\n".join(f"{m.role}: {m.content}" for m in request.messages),
-        memories=request.memories
+        memories=request.memories,
+        summaries=request.summaries
     )
 
     # Check if the model supports instruct formatting.

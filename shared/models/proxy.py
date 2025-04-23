@@ -17,8 +17,8 @@ Usage:
 from typing import List, Optional, Dict, Any, Literal
 from pydantic import BaseModel, Field
 from shared.models.chromadb import MemoryEntryFull
-from shared.models.ledger import UserSummary
-
+from shared.models.contacts import Contact
+from shared.models.discord import DiscordDirectMessage
 class IncomingMessage(BaseModel):
     """
     Represents a structured incoming message with platform-specific details.
@@ -185,3 +185,71 @@ class ProxyResponse(BaseModel):
             }
         }
 
+class ProxyDiscordDMRequest(BaseModel):
+    """
+    Represents a proxy request for a Discord direct message interaction.
+    
+    This model encapsulates the details of a Discord direct message request,
+    including the original message, conversation history, user contact information,
+    and optional metadata such as admin status, conversation mode, memories, and summaries.
+    
+    Attributes:
+        message (DiscordDirectMessage): The incoming Discord direct message.
+        messages (List[ProxyMessage]): Conversation history for multi-turn interactions.
+        contact (Contact): User contact information.
+        is_admin (bool): Indicates whether the user has administrative privileges.
+        mode (Optional[str]): Specifies the interaction mode (defaults to 'guest').
+        memories (Optional[List[MemoryEntryFull]]): Optional contextual memory references.
+        summaries (Optional[str]): Optional summary of the conversation.
+    """
+    message: DiscordDirectMessage               = Field(..., description="The incoming message associated with the proxy request.")
+    messages: List[ProxyMessage]                = Field(..., description="List of messages for multi-turn conversation.")
+    contact: Contact                            = Field(..., description="The contact information associated with the user.")
+    is_admin: bool                              = Field(..., description="Indicates if the user is an admin.")
+    mode: Optional[str]                         = Field("guest", description="An optional mode specification for the request.")
+    memories: Optional[List[MemoryEntryFull]]   = Field(None, description="An optional list of memory references.")
+    summaries: Optional[str]                    = Field(None, description="An optional list of user summaries.")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "message": {
+                    "message_id": "1234567890",
+                    "author_id": "1234567890",
+                    "display_name": "KJ",
+                    "content": "Don't forget your meds",
+                    "timestamp": "2025-04-09T04:00:00Z"
+                },
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "Don't forget your meds"
+                    },
+                    {
+                        "role": "assistant",
+                        "content": "Sure, I will remind you!"
+                    }
+                ],
+                "contact": {
+                    "id": "1234567890",
+                    "aliases": ["KJ", "@ADMIN"]
+                },
+                "is_admin": True,
+                "mode": "work",
+                "memories": [
+                    {
+                        "id": "memory_uuid_string_here",
+                        "memory": "Reminder to take meds",
+                        "embedding": [0.1, 0.2, 0.3],
+                        "metadata": {
+                            "timestamp": "2025-04-09T04:00:00",
+                            "component": "health",
+                            "priority": 1.0,
+                            "mode": "work"
+                        }
+                    }
+                ],
+                "summaries": "User summary of the conversation."
+            }
+        }
+    

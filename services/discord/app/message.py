@@ -1,6 +1,7 @@
 import shared.consul
 
 from shared.models.discord import DiscordDirectMessage
+from shared.models.proxy import ProxyResponse
 
 from shared.log_config import get_logger
 logger = get_logger(f"discord.{__name__}")
@@ -50,8 +51,9 @@ def setup(bot):
                         response = await client.post(
                             f"http://{brain_address}:{brain_port}/discord/message/incoming", json=discord_message.model_dump())
                         response.raise_for_status()
-                        return response.json()
-
+                        proxy_response = response.json()
+                        print(f"RESPONSE {proxy_response}")
+                        await ctx.send(proxy_response['response'])
                     except Exception as e:
                         logger.exception("Error retrieving service address for ledger:", e)
 
@@ -70,7 +72,7 @@ def setup(bot):
                             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                             detail=f"Connection error: {req_err}"
                         )
-
+                
             await bot.process_commands(message)  # Ensure commands still work
         except Exception as e:
             logger.exception("Exception in on_message handler")

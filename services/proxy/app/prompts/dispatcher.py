@@ -50,6 +50,9 @@ async def get_prompt_builder():
         elif mode == "work":
             from app.prompts.work.generate import build_prompt
 
+        elif mode == "guest":
+            from app.prompts.guest.generate import build_prompt
+
         else:
             from app.prompts.default.generate import build_prompt
 

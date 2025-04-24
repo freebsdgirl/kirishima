@@ -25,7 +25,7 @@ Tracing:
 """
 
 from app.modes import router as modes_router
-from app.scheduler import router as scheduler_router
+from app.scheduler.scheduler import router as scheduler_router
 from app.memory.functions import router as memory_functions_router
 from app.memory.list import router as memory_list_router
 from app.message.multiturn import router as message_multiturn_router

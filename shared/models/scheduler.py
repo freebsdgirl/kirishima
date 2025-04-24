@@ -3,6 +3,7 @@ This module defines Pydantic models for scheduling jobs and representing schedul
 Classes:
     SchedulerJobRequest: Represents a request to schedule a job with configurable execution parameters, including external URL, trigger type, run date, interval, and metadata.
     JobResponse: Represents the response details of a scheduled job, including job ID, next run time, trigger type, and associated metadata.
+    SchedulerCallbackRequest: Represents a request payload for a scheduler callback with metadata and execution timestamp.
 """
 from typing import Optional, Dict, Any
 from pydantic import BaseModel, Field
@@ -43,3 +44,15 @@ class JobResponse(BaseModel):
     next_run_time: Optional[datetime]       = Field(None, description="Timestamp of the next scheduled")
     trigger: str                            = Field(..., description="Type of job trigger ('date' or 'interval').")
     metadata: Dict[str, Any]                = Field(..., description="Additional metadata associated with the job.")
+
+
+class SchedulerCallbackRequest(BaseModel):
+    """
+    Represents a request payload for a scheduler callback with metadata and execution timestamp.
+    
+    Attributes:
+        metadata (Dict[str, Any]): A dictionary containing arbitrary metadata associated with the scheduled job.
+        executed_at (str): An ISO 8601 formatted timestamp indicating when the job was executed.
+    """
+    metadata: Dict[str, Any]                = Field(..., description="A dictionary containing arbitrary metadata associated with the scheduled job.")
+    executed_at: str                        = Field(..., description="An ISO 8601 formatted timestamp indicating when the job was executed.")

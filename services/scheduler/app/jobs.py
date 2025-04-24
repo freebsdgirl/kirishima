@@ -72,7 +72,7 @@ def add_job(job_request: SchedulerJobRequest) -> JobResponse:
             "external_url": job_request.external_url,
             "metadata": job_request.metadata
         }
-        
+
         if job_request.trigger == "date":
             if not job_request.run_date:
                 logger.error("run_date must be provided for 'date' trigger")

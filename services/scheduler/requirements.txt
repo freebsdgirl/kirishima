@@ -1,10 +1,8 @@
 uvicorn
 fastapi
-graypy
 apscheduler
 requests
 SQLAlchemy
-transformers
 opentelemetry-sdk
 opentelemetry-exporter-otlp
 opentelemetry-instrumentation-fastapi

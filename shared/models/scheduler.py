@@ -1,5 +1,13 @@
+"""
+This module defines Pydantic models for scheduling jobs and representing scheduled job responses.
+Classes:
+    SchedulerJobRequest: Represents a request to schedule a job with configurable execution parameters, including external URL, trigger type, run date, interval, and metadata.
+    JobResponse: Represents the response details of a scheduled job, including job ID, next run time, trigger type, and associated metadata.
+"""
 from typing import Optional, Dict, Any
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from datetime import datetime
+import uuid
 
 
 class SchedulerJobRequest(BaseModel):
@@ -13,9 +21,25 @@ class SchedulerJobRequest(BaseModel):
         interval_minutes (Optional[int]): Number of minutes between job executions for interval-based triggers.
         metadata (Optional[Dict[str, Any]]): Additional key-value metadata associated with the job.
     """
-    id: str
-    external_url: str
-    trigger: str  # 'date' or 'interval'
-    run_date: Optional[str] = None  # ISO datetime string
-    interval_minutes: Optional[int] = None
-    metadata: Optional[Dict[str, Any]] = {}
+    id: str                                 = Field(default_factory=lambda: str(uuid.uuid4()))
+    external_url: str                       = Field(..., description="The URL of the external service or endpoint to be triggered.")
+    trigger: str                            = Field(..., description="The type of job scheduling trigger, either 'date' or 'interval'.")
+    run_date: Optional[str]                 = Field(None, description="An ISO datetime string specifying the exact time to run the job.")
+    interval_minutes: Optional[int]         = Field(None, description="Number of minutes between job executions for interval-based triggers.")
+    metadata: Optional[Dict[str, Any]]      = Field(None, description="Additional key-value metadata associated with the job.")
+
+
+class JobResponse(BaseModel):
+    """
+    Response model representing the details of a scheduled job.
+    
+    Attributes:
+        job_id (str): Unique identifier for the scheduled job.
+        next_run_time (Optional[datetime]): Timestamp of the next scheduled job execution.
+        trigger (str): Type of job trigger ('date' or 'interval').
+        metadata (Dict[str, Any]): Additional metadata associated with the job.
+    """
+    job_id: str                             = Field(..., description="Unique identifier for the scheduled job.")
+    next_run_time: Optional[datetime]       = Field(None, description="Timestamp of the next scheduled")
+    trigger: str                            = Field(..., description="Type of job trigger ('date' or 'interval').")
+    metadata: Dict[str, Any]                = Field(..., description="Additional metadata associated with the job.")

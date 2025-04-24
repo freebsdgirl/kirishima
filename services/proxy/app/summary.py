@@ -105,21 +105,13 @@ async def summary_user_combined(request: CombinedSummaryRequest):
 
     prompt = f"""[INST]<<SYS>>### Task: Summarize the following paraphrased conversation between two people in a clear and concise manner.
 
-
-
 ### Conversation
-
 {conversation_str}
 
-
-
 ### Instructions
-
-- The summary should capture the main points and tone of the conversation.
-- The summary should be no more than 128 tokens in length.
-- The summary should be a single paragraph.
-
-<</SYS>>[/INST]"""
+- Focus on the key facts, decisions, or shifts in topic and tone that occurred.
+- If the conversation involved high emotion (e.g., distress, anger), and the topic moved on, reflect that shift with neutral phrasing.
+- The summary should be a single paragraph of no more than 128 tokens.<</SYS>>[/INST] """
 
     payload = ProxyOneShotRequest(
             model="nemo:latest",

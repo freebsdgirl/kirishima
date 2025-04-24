@@ -32,18 +32,17 @@ from app.config import (
 import shared.consul
 from shared.models.ledger import UserSummary, UserSummaryList, DeleteSummary, DeleteRequest, CombinedSummaryRequest
 
-import json
-
 from shared.log_config import get_logger
 logger = get_logger(f"ledger{__name__}")
 
 from typing import List, Optional
-
 import httpx
 import tiktoken
 import sqlite3
+import json
 
-from fastapi import APIRouter, Path, Query, Body, HTTPException, status
+from fastapi import APIRouter, Path, Query, Body, HTTPException, status, BackgroundTasks
+from datetime import datetime, timedelta
 router = APIRouter()
 
 TABLE = "user_summaries"
@@ -127,13 +126,13 @@ async def delete_summaries(
 
 
 @router.post("/summaries/user/{user_id}/create", status_code=status.HTTP_201_CREATED)
-async def create_summaries(user_id: str = Path(...)):
+async def create_summaries(user_id: str = Path(...), confirm: bool = False):
     """
     Creates a summary for a user's message buffer if it exceeds a specified token threshold, and performs cascade compression of summaries.
 
     Workflow:
     1. Fetches the user's message buffer.
-    2. If the buffer is empty or below the token threshold, returns early.
+    2. If the buffer is empty or below the token threshold, returns early (unless confirm=True).
     3. Determines the oldest chunk of messages that exceeds the chunk size.
     4. Summarizes the chunk using a proxy summarization function.
     5. Writes the summary to the database under a write lock.
@@ -142,6 +141,7 @@ async def create_summaries(user_id: str = Path(...)):
 
     Args:
         user_id (str): The ID of the user whose buffer is to be summarized.
+        confirm (bool): If True, bypasses the token threshold check and always summarizes.
 
     Returns:
         dict: A status message indicating the result of the operation.
@@ -178,7 +178,7 @@ async def create_summaries(user_id: str = Path(...)):
             )
 
     total_tokens = sum(len(tokenizer.encode(m["content"])) for m in buffer)
-    if total_tokens < user_chunk_at:
+    if total_tokens < user_chunk_at and not confirm:
         logger.info("Buffer < chunk_at (%s tokens), nothing to do", total_tokens)
         from fastapi import Response
         return Response(
@@ -390,3 +390,24 @@ async def create_summaries(user_id: str = Path(...)):
             level += 1
 
     return {"status": "created"}
+
+
+@router.post("/summaries/inactive")
+async def trigger_summaries_for_inactive_users(background_tasks: BackgroundTasks):
+    threshold_time = (datetime.now() - timedelta(minutes=15)).strftime('%Y-%m-%d %H:%M:%S')
+    with sqlite3.connect(BUFFER_DB, timeout=5.0, isolation_level=None) as conn:
+        conn.execute("PRAGMA journal_mode=WAL;")
+        cur = conn.cursor()
+        cur.execute(
+            f"""
+            SELECT user_id, MAX(updated_at) as last_active
+            FROM user_messages
+            GROUP BY user_id
+            HAVING last_active < ?
+            """,
+            (threshold_time,)
+        )
+        inactive_user_ids = [row[0] for row in cur.fetchall()]
+    for user_id in inactive_user_ids:
+        background_tasks.add_task(create_summaries, user_id, confirm=True)
+    return {"triggered_user_ids": inactive_user_ids}

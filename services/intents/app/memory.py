@@ -19,7 +19,7 @@ Dependencies:
 """
 
 from fastapi import HTTPException, status
-from shared.models.proxy import ProxyMessage
+from shared.models.proxy import ChatMessage
 
 from shared.log_config import get_logger
 logger = get_logger(f"intents.{__name__}")
@@ -30,7 +30,7 @@ from shared.models.chromadb import MemoryEntry
 from shared.consul import get_service_address
 
 
-async def process_memory(message: ProxyMessage, component: str) -> ProxyMessage:
+async def process_memory(message: ChatMessage, component: str) -> ChatMessage:
     """
     Process memory-related operations within a ProxyMessage.
     

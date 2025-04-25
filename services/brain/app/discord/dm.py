@@ -7,7 +7,7 @@ import json
 
 from shared.models.contacts import Contact
 from shared.models.discord import DiscordDirectMessage
-from shared.models.proxy import ProxyDiscordDMRequest, ProxyMessage, ProxyResponse
+from shared.models.proxy import ProxyDiscordDMRequest, ChatMessage, ProxyResponse
 from shared.models.intents import IntentRequest
 from shared.models.chromadb import MemoryListQuery
 
@@ -71,7 +71,7 @@ async def discord_message_incoming(message: DiscordDirectMessage):
     # check if the user is an admin
     is_admin = (await get_admin_user_id()) == contact_data.json().get("id")
 
-    messages=[ProxyMessage(role="user", content=message.content)]
+    messages=[ChatMessage(role="user", content=message.content)]
     # if user is an admin:
     if is_admin:
 
@@ -117,7 +117,7 @@ async def discord_message_incoming(message: DiscordDirectMessage):
         user_id = contact_data.json().get("id")
         platform = 'discord'
         platform_msg_id = message.message_id
-        messages = [m if isinstance(m, ProxyMessage) else ProxyMessage(**m) for m in messages]
+        messages = [m if isinstance(m, ChatMessage) else ChatMessage(**m) for m in messages]
         sync_snapshot = [
             {
                 "user_id": user_id,
@@ -138,7 +138,7 @@ async def discord_message_incoming(message: DiscordDirectMessage):
 
         # Convert ledger buffer to ProxyMessage list
         ledger_buffer = ledger_response.json()
-        messages = [ProxyMessage(role=msg["role"], content=msg["content"]).model_dump() for msg in ledger_buffer]
+        messages = [ChatMessage(role=msg["role"], content=msg["content"]).model_dump() for msg in ledger_buffer]
     except Exception as e:
         logger.error(f"Error sending messages to ledger sync endpoint: {e}")
         raise HTTPException(
@@ -182,7 +182,7 @@ async def discord_message_incoming(message: DiscordDirectMessage):
     # Start constructing our ProxyDiscordDMRequest
     proxy_request = ProxyDiscordDMRequest(
         message=message,
-        messages=messages or [ProxyMessage(role="user", content=message.content)],
+        messages=messages or [ChatMessage(role="user", content=message.content)],
         contact=Contact(**contact_data.json()),
         is_admin=is_admin,
         mode=mode or 'guest',
@@ -220,7 +220,7 @@ async def discord_message_incoming(message: DiscordDirectMessage):
             mode=True,
             component="proxy",
             memory=True,
-            message=[ProxyMessage(role="assistant", content=response_content)]
+            message=[ChatMessage(role="assistant", content=response_content)]
         )
         response = await post_to_service(
             'intents', '/intents', intentreq.model_dump(),

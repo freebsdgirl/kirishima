@@ -16,7 +16,7 @@ Dependencies:
 """
 
 from fastapi import HTTPException, status
-from shared.models.proxy import ProxyMessage
+from shared.models.proxy import ChatMessage
 import re
 import httpx
 
@@ -26,7 +26,7 @@ from shared.log_config import get_logger
 logger = get_logger(f"intents.{__name__}")
 
 
-async def process_mode(message: ProxyMessage) -> ProxyMessage:
+async def process_mode(message: ChatMessage) -> ChatMessage:
     """
     Processes mode-related commands extracted from a ProxyMessage.
     

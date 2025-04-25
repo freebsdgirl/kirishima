@@ -19,7 +19,7 @@ Routes:
 """
 import json
 
-from shared.models.proxy import ProxyMultiTurnRequest, ProxyResponse, ProxyMessage
+from shared.models.proxy import ProxyMultiTurnRequest, ProxyResponse, ChatMessage
 from shared.models.intents import IntentRequest
 from shared.models.chromadb import MemoryListQuery
 
@@ -120,7 +120,7 @@ async def outgoing_multiturn_message(message: ProxyMultiTurnRequest) -> ProxyRes
         )
         # Convert ledger buffer to ProxyMessage list and replace payload['messages']
         ledger_buffer = ledger_response.json()
-        payload["messages"] = [ProxyMessage(role=msg["role"], content=msg["content"]).model_dump() for msg in ledger_buffer]
+        payload["messages"] = [ChatMessage(role=msg["role"], content=msg["content"]).model_dump() for msg in ledger_buffer]
     except Exception as e:
         logger.error(f"Error sending messages to ledger sync endpoint: {e}")
         raise HTTPException(
@@ -189,7 +189,7 @@ async def outgoing_multiturn_message(message: ProxyMultiTurnRequest) -> ProxyRes
         mode=True,
         component="proxy",
         memory=True,
-        message=[ProxyMessage(role="assistant", content=response_content)]
+        message=[ChatMessage(role="assistant", content=response_content)]
     )
     response = await post_to_service(
         'intents', '/intents', intentreq.model_dump(),

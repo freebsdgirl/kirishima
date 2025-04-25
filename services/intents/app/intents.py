@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, status
 from shared.models.intents import IntentRequest
-from shared.models.proxy import ProxyMessage
+from shared.models.proxy import ChatMessage
 
 from app.mode import process_mode
 from app.memory import process_memory
@@ -13,8 +13,8 @@ logger = get_logger(f"intents.{__name__}")
 router = APIRouter()
 
 
-@router.post("/intents", response_model=List[ProxyMessage])
-async def process_intents(payload: IntentRequest) -> List[ProxyMessage]:
+@router.post("/intents", response_model=List[ChatMessage])
+async def process_intents(payload: IntentRequest) -> List[ChatMessage]:
     """
     Process intents by handling mode and memory operations for the last message in a payload.
 
@@ -43,7 +43,7 @@ async def process_intents(payload: IntentRequest) -> List[ProxyMessage]:
         )
 
     if payload.message:
-        last_message: ProxyMessage = payload.message[-1]
+        last_message: ChatMessage = payload.message[-1]
     else:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

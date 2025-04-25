@@ -28,7 +28,7 @@ Environment Variables:
 
 """
 
-from shared.models.proxy import ProxyMultiTurnRequest, ProxyResponse, ProxyMessage
+from shared.models.proxy import ProxyMultiTurnRequest, ProxyResponse, ChatMessage
 from shared.models.openai import ChatMessage, ChatCompletionRequest, OpenAICompletionRequest, ChatCompletionResponse, ChatCompletionChoice, ChatUsage
 
 import shared.consul
@@ -175,7 +175,7 @@ async def chat_completions(data: ChatCompletionRequest):
 
     # Filter messages to only include 'user' and 'assistant' roles.
     filtered_messages = [
-        ProxyMessage(role=msg.role, content=msg.content)
+        ChatMessage(role=msg.role, content=msg.content)
         for msg in data.messages if msg.role in ["user", "assistant", "system"]
     ]
 

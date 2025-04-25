@@ -19,6 +19,8 @@ from pydantic import BaseModel, Field
 from shared.models.chromadb import MemoryEntryFull
 from shared.models.contacts import Contact
 from shared.models.discord import DiscordDirectMessage
+
+
 class IncomingMessage(BaseModel):
     """
     Represents a structured incoming message with platform-specific details.
@@ -34,11 +36,11 @@ class IncomingMessage(BaseModel):
         timestamp: Precise time the message was sent in ISO 8601 format.
         metadata: Additional platform-specific information.
     """
-    platform: str = Field(..., description="The platform from which the message originates (e.g., 'imessage').")
-    sender_id: str = Field(..., description="The sender's identifier, such as a phone number or unique ID.")
-    text: str = Field(..., description="The raw text content of the incoming message.")
-    timestamp: str = Field(..., description="ISO 8601 formatted timestamp of when the message was sent.")
-    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional platform-specific metadata, e.g., chat IDs.")
+    platform: str               = Field(..., description="The platform from which the message originates (e.g., 'imessage').")
+    sender_id: str              = Field(..., description="The sender's identifier, such as a phone number or unique ID.")
+    text: str                   = Field(..., description="The raw text content of the incoming message.")
+    timestamp: str              = Field(..., description="ISO 8601 formatted timestamp of when the message was sent.")
+    metadata: Dict[str, Any]    = Field(default_factory=dict, description="Additional platform-specific metadata, e.g., chat IDs.")
 
     class Config:
         json_schema_extra = {
@@ -103,7 +105,7 @@ class ProxyOneShotRequest(BaseModel):
         }
 
 
-class ProxyMessage(BaseModel):
+class ChatMessage(BaseModel):
     """
     Represents a message in a proxy conversation with a defined role and content.
     
@@ -111,8 +113,8 @@ class ProxyMessage(BaseModel):
         role (str): The role of the message sender, such as 'user' or 'assistant'.
         content (str): The textual content of the message.
     """
-    role: Literal["user", "assistant", "system"]  = Field(..., description="The role of the message sender (e.g., 'user', 'assistant').")
-    content: str                        = Field(..., description="The content of the message.")
+    role: Literal["user", "assistant", "system"]    = Field(..., description="The role of the message sender (e.g., 'user', 'assistant').")
+    content: str                                    = Field(..., description="The content of the message.")
 
 
 class ProxyMultiTurnRequest(BaseModel):
@@ -121,14 +123,14 @@ class ProxyMultiTurnRequest(BaseModel):
     
     Attributes:
         model (str): The name of the model to be used for generating the response. Defaults to 'nemo'.
-        messages (List[ProxyMessage]): A list of messages representing the conversation history.
+        messages (List[ChatMessage]): A list of messages representing the conversation history.
         temperature (float): Controls the randomness of the model's output. Defaults to 0.7.
         max_tokens (int): The maximum number of tokens to generate in the response. Defaults to 256.
         memories (Optional[List[MemoryEntryFull]]): A list of memory entries associated with the conversation.
         summaries (Optional[str]): A list of user summaries associated with the conversation.
     """
     model: Optional[str]                        = Field('nemo', description="The model to be used for generating the response.")
-    messages: List[ProxyMessage]                = Field(..., description="List of messages for multi-turn conversation.")
+    messages: List[ChatMessage]                = Field(..., description="List of messages for multi-turn conversation.")
     temperature: Optional[float]                = Field(0.7, description="The temperature setting for randomness in the model's output.")
     max_tokens: Optional[int]                   = Field(256, description="The maximum number of tokens to generate in the response.")
     memories: Optional[List[MemoryEntryFull]]   = Field(None, description="List of memory entries associated with the conversation.")
@@ -195,7 +197,7 @@ class ProxyDiscordDMRequest(BaseModel):
     
     Attributes:
         message (DiscordDirectMessage): The incoming Discord direct message.
-        messages (List[ProxyMessage]): Conversation history for multi-turn interactions.
+        messages (List[ChatMessage]): Conversation history for multi-turn interactions.
         contact (Contact): User contact information.
         is_admin (bool): Indicates whether the user has administrative privileges.
         mode (Optional[str]): Specifies the interaction mode (defaults to 'guest').
@@ -203,7 +205,7 @@ class ProxyDiscordDMRequest(BaseModel):
         summaries (Optional[str]): Optional summary of the conversation.
     """
     message: DiscordDirectMessage               = Field(..., description="The incoming message associated with the proxy request.")
-    messages: List[ProxyMessage]                = Field(..., description="List of messages for multi-turn conversation.")
+    messages: List[ChatMessage]                = Field(..., description="List of messages for multi-turn conversation.")
     contact: Contact                            = Field(..., description="The contact information associated with the user.")
     is_admin: bool                              = Field(..., description="Indicates if the user is an admin.")
     mode: Optional[str]                         = Field("guest", description="An optional mode specification for the request.")
@@ -252,4 +254,49 @@ class ProxyDiscordDMRequest(BaseModel):
                 "summaries": "User summary of the conversation."
             }
         }
+
+
+class OllamaResponse(BaseModel):
+    """
+    Represents the response from the Ollama API.
     
+    Attributes:
+        model (str): The name of the model used for generating the response.
+        created_at (str): The timestamp when the response was created.
+        response (str): The generated text response from the model.
+        done (bool): Indicates whether the response generation is complete.
+        done_reason (str): The reason for completion of the response generation.
+        total_duration (int): Total duration of the request in nanoseconds.
+        load_duration (int): Duration of loading the model in nanoseconds.
+        prompt_eval_count (int): Number of times the prompt was evaluated.
+        prompt_eval_duration (int): Duration of prompt evaluation in nanoseconds.
+        eval_count (int): Number of evaluations performed by the model.
+        eval_duration (int): Duration of evaluations in nanoseconds.
+    """
+    model: str                  = Field(..., description="The name of the model used for generating the response.")
+    created_at: str             = Field(..., description="The timestamp when the response was created.")
+    response: str               = Field(..., description="The generated text response from the model.")
+    done: bool                  = Field(..., description="Indicates whether the response generation is complete.")
+    done_reason: str            = Field(..., description="The reason for completion of the response generation.")
+    total_duration: int         = Field(..., description="Total duration of the request in nanoseconds.")
+    load_duration: int          = Field(..., description="Duration of loading the model in nanoseconds.")
+    prompt_eval_count: int      = Field(..., description="Number of times the prompt was evaluated.")
+    prompt_eval_duration: int   = Field(..., description="Duration of prompt evaluation in nanoseconds.")
+    eval_count: int             = Field(..., description="Number of evaluations performed by the model.")
+    eval_duration: int          = Field(..., description="Duration of evaluations in nanoseconds.")
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "model": "nemo:latest",
+                "created_at": "2025-04-25T11:25:15.76717875Z",
+                "response": "Would you like to discuss any specific aspects of the prompt or make adjustments?",
+                "done": True,
+                "done_reason": "stop",
+                "total_duration": 6385338186,
+                "load_duration": 13581276,
+                "prompt_eval_count": 1343,
+                "prompt_eval_duration": 105649929,
+                "eval_count": 16,
+                "eval_duration": 6265828180
+            }
+        }

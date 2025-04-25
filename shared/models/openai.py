@@ -1,6 +1,21 @@
-from typing import List, Optional, Literal
-from pydantic import BaseModel, Field, Extra
+"""
+This module defines Pydantic models for OpenAI-compatible completion and chat APIs.
+Classes:
+    OpenAICompletionRequest: Represents a request for OpenAI-style text completions.
+    OpenAICompletionChoice: Represents an individual completion choice in the response.
+    OpenAIUsage: Contains token usage statistics for completions.
+    OpenAICompletionResponse: Represents the response for an OpenAI-style completion request.
+    ChatCompletionRequest: Represents a request for OpenAI-compatible chat completions.
+    ChatCompletionChoice: Represents an individual choice in the chat completion response.
+    ChatUsage: Contains token usage statistics for chat completions.
+    ChatCompletionResponse: Represents the response for an OpenAI-compatible chat completion request.
+Each class is designed to closely match the structure of OpenAI's API, enabling compatibility with clients expecting OpenAI-style request and response formats.
+"""
 
+from typing import List, Optional
+from pydantic import BaseModel, Field
+from shared.models.proxy import ChatMessage
+from shared.config import LLM_DEFAULTS
 class OpenAICompletionRequest(BaseModel):
     """
     OpenAI-style completions request.
@@ -12,11 +27,11 @@ class OpenAICompletionRequest(BaseModel):
         max_tokens (Optional[int]): Maximum tokens to generate (default: 256).
         n (Optional[int]): Number of completions to generate (default: 1).
     """
-    prompt: str
-    model: Optional[str] = Field(default="nemo")
-    temperature: Optional[float] = Field(default=0.7)
-    max_tokens: Optional[int] = Field(default=256)
-    n: Optional[int] = Field(default=1)
+    prompt: str                         = Field(..., description="The prompt to generate completions for.")
+    model: Optional[str]                = Field(LLM_DEFAULTS['model'], description="The model to be used.")
+    temperature: Optional[float]        = Field(LLM_DEFAULTS['temperature'], description="Sampling temperature.")
+    max_tokens: Optional[int]           = Field(LLM_DEFAULTS['max_tokens'], description="Maximum tokens to generate.")
+    n: Optional[int]                    = Field(default=1, description="Number of completions to generate.")
 
 
 class OpenAICompletionChoice(BaseModel):
@@ -29,10 +44,11 @@ class OpenAICompletionChoice(BaseModel):
         logprobs (Optional[dict]): Log probabilities (if available).
         finish_reason (Optional[str]): The reason the completion finished.
     """
-    text: str
-    index: int
-    logprobs: Optional[dict] = None
-    finish_reason: Optional[str] = "stop"
+    text: str                           = Field(..., description="Generated response text.")
+    index: int                          = Field(..., description="Index of the completion choice.")
+    logprobs: Optional[dict]            = Field(None, description="Log probabilities (if available).")
+    # Note: logprobs is not used in the current implementation, but included for completeness.
+    finish_reason: Optional[str]        = Field("stop", description="Reason for finishing the completion.")
 
 
 class OpenAIUsage(BaseModel):
@@ -44,9 +60,9 @@ class OpenAIUsage(BaseModel):
         completion_tokens (int): Number of tokens generated as completion.
         total_tokens (int): Total tokens counted (prompt + completion).
     """
-    prompt_tokens: int
-    completion_tokens: int
-    total_tokens: int
+    prompt_tokens: int                  = Field(..., description="Tokens in the prompt.")
+    completion_tokens: int              = Field(..., description="Tokens in the completion.")
+    total_tokens: int                   = Field(..., description="Total tokens used.")
 
 
 class OpenAICompletionResponse(BaseModel):
@@ -62,25 +78,13 @@ class OpenAICompletionResponse(BaseModel):
         usage (OpenAIUsage): Token usage statistics.
         system_fingerprint (str): A string fingerprint of the system.
     """
-    id: str
-    object: str = "text_completion"
-    created: int
-    model: str
-    choices: List[OpenAICompletionChoice]
-    usage: OpenAIUsage
-    system_fingerprint: str
-
-
-class ChatMessage(BaseModel):
-    """
-    Represents a message in an OpenAI chat conversation.
-    
-    Attributes:
-        role (str): The role of the message sender; one of "user" or "assistant".
-        content (str): The message content.
-    """
-    role: Literal["user", "assistant", "system"] = Field(..., description="The role of the message sender.")
-    content: str = Field(..., description="The textual content of the message.")
+    id: str                                 = Field(..., description="Unique response ID.")
+    object: str                             = Field("text_completion", description="Response type.")
+    created: int                            = Field(..., description="Creation timestamp (UNIX epoch).")
+    model: str                              = Field(..., description="The model used.")
+    choices: List[OpenAICompletionChoice]   = Field(..., description="List of completion choices.")
+    usage: OpenAIUsage                      = Field(..., description="Token usage details.")
+    system_fingerprint: str                 = Field(..., description="System fingerprint for tracking.")
 
 
 class ChatCompletionRequest(BaseModel):
@@ -93,13 +97,13 @@ class ChatCompletionRequest(BaseModel):
         temperature (Optional[float]): Sampling temperature (default: 0.7).
         max_tokens (Optional[int]): Maximum tokens for the completion (default: 256).
     """
-    model: str = Field(..., description="The model to be used, e.g. 'nemo'.")
-    messages: List[ChatMessage] = Field(..., description="A list of messages representing the conversation history.")
-    temperature: Optional[float] = Field(0.7, description="Sampling temperature.")
-    max_tokens: Optional[int] = Field(256, description="Maximum tokens for completion.")
+    model: str                          = Field(LLM_DEFAULTS['model'], description="The model to be used, e.g. 'nemo'.")
+    messages: List[ChatMessage]         = Field(..., description="A list of messages representing the conversation history.")
+    temperature: Optional[float]        = Field(LLM_DEFAULTS['temperature'], description="Sampling temperature.")
+    max_tokens: Optional[int]           = Field(LLM_DEFAULTS['max_tokens'], description="Maximum tokens for completion.")
 
-    class Config:
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "model": "nemo",
                 "messages": [
@@ -109,8 +113,9 @@ class ChatCompletionRequest(BaseModel):
                 "temperature": 0.7,
                 "max_tokens": 256
             }
-        }
-        extra = Extra.allow
+        },
+        "extra": "allow"
+    }
 
 
 class ChatCompletionChoice(BaseModel):
@@ -122,9 +127,9 @@ class ChatCompletionChoice(BaseModel):
         message (ChatMessage): The generated message.
         finish_reason (Optional[str]): The reason for finishing the completion.
     """
-    index: int = Field(..., description="Index of the completion choice.")
-    message: ChatMessage = Field(..., description="Generated message.")
-    finish_reason: Optional[str] = Field("stop", description="Reason for finishing the completion.")
+    index: int                          = Field(..., description="Index of the completion choice.")
+    message: ChatMessage                = Field(..., description="Generated message.")
+    finish_reason: Optional[str]        = Field("stop", description="Reason for finishing the completion.")
 
 
 class ChatUsage(BaseModel):
@@ -136,9 +141,9 @@ class ChatUsage(BaseModel):
         completion_tokens (int): Number of tokens generated.
         total_tokens (int): Total tokens used.
     """
-    prompt_tokens: int = Field(..., description="Tokens in the prompt.")
-    completion_tokens: int = Field(..., description="Tokens in the completion.")
-    total_tokens: int = Field(..., description="Total tokens used.")
+    prompt_tokens: int                  = Field(..., description="Tokens in the prompt.")
+    completion_tokens: int              = Field(..., description="Tokens in the completion.")
+    total_tokens: int                   = Field(..., description="Total tokens used.")
 
 
 class ChatCompletionResponse(BaseModel):
@@ -153,9 +158,9 @@ class ChatCompletionResponse(BaseModel):
         choices (List[ChatCompletionChoice]): A list of response choices.
         usage (ChatUsage): Token usage statistics.
     """
-    id: str = Field(..., description="Unique response ID.")
-    object: str = Field("chat.completion", description="Response type.")
-    created: int = Field(..., description="Creation timestamp (UNIX epoch).")
-    model: str = Field(..., description="The model used.")
+    id: str                             = Field(..., description="Unique response ID.")
+    object: str                         = Field("chat.completion", description="Response type.")
+    created: int                        = Field(..., description="Creation timestamp (UNIX epoch).")
+    model: str                          = Field(..., description="The model used.")
     choices: List[ChatCompletionChoice] = Field(..., description="List of completion choices.")
-    usage: ChatUsage = Field(..., description="Token usage details.")
+    usage: ChatUsage                    = Field(..., description="Token usage details.")

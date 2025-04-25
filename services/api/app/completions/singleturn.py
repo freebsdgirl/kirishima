@@ -1,35 +1,19 @@
 """
-This module provides FastAPI endpoints for handling OpenAI-style text completion requests. 
-It includes functionality to redirect requests to a versioned endpoint and to process 
-completion requests by proxying them to an internal service.
+This module defines FastAPI endpoints for handling OpenAI-style single-turn completion requests.
 Endpoints:
-    - POST /completions: Redirects to /v1/completions.
-    - POST /v1/completions: Processes OpenAI-style completion requests and returns responses 
-      in the OpenAI format.
-Functions:
-    openai_completions(request: OpenAICompletionRequest) -> RedirectResponse:
-    openai_v1_completions(request: OpenAICompletionRequest) -> OpenAICompletionResponse:
-        Handles OpenAI-style completion requests by proxying them to an internal service. 
-        Supports sequential execution of multiple requests based on the `n` parameter and 
-        aggregates responses into the OpenAI format.
-Dependencies:
-    - FastAPI for API routing and HTTP exception handling.
-    - httpx for making asynchronous HTTP requests to the proxy service.
-    - tiktoken for tokenizing prompts and calculating token usage.
-    - Pydantic models for request validation and response formatting.
-    - dateutil for parsing ISO 8601 timestamps.
-    - Logging for tracking request and response data.
-Environment Variables:
-    - BRAIN_HOST: Hostname of the internal proxy service (default: "brain").
-    - BRAIN_PORT: Port of the internal proxy service (default: "4207").
-    - BRAIN_URL: Full URL of the internal proxy service (default: "http://{BRAIN_HOST}:{BRAIN_PORT}").
-Notes:
-    - The '/v1/completions' endpoint logs all incoming requests and responses for debugging purposes.
-    - The proxy service is expected to return responses in a specific format, which are validated 
-      using the ProxyResponse model.
-    - The system calculates token usage for both prompts and completions to provide detailed usage 
-      statistics in the response.
+    - POST /completions: Redirects to the versioned endpoint /v1/completions for backward compatibility.
+    - POST /v1/completions: Accepts OpenAICompletionRequest objects, proxies the request to an internal brain service,
+      aggregates responses if multiple completions are requested, and returns an OpenAICompletionResponse in the
+      expected OpenAI API format.
+Key Features:
+    - Logs all incoming request data for auditing and debugging.
+    - Supports multiple completions per request by sequentially calling the proxy service.
+    - Aggregates token usage statistics and formats the response to match OpenAI's API.
+    - Handles errors from the proxy service and service discovery gracefully, returning appropriate HTTP errors.
+    - Uses tiktoken for accurate prompt token counting.
 """
+
+from shared.config import TIMEOUT
 
 from shared.models.proxy import ProxyResponse, ProxyOneShotRequest
 from shared.models.openai import OpenAICompletionRequest, OpenAICompletionResponse, OpenAICompletionChoice, OpenAIUsage
@@ -89,7 +73,7 @@ async def openai_v1_completions(request: OpenAICompletionRequest, request_data: 
         OpenAICompletionResponse: A simulated OpenAI completions response.
     """
     raw_body = await request_data.json()
-    logger.info(f"/completions Request:\n{json.dumps(raw_body, indent=4, ensure_ascii=False)}")
+    logger.info(f"/v1/completions Request:\n{json.dumps(raw_body, indent=4, ensure_ascii=False)}")
 
     n = request.n if request.n and request.n > 0 else 1
     completions: List[OpenAICompletionChoice] = []
@@ -107,7 +91,7 @@ async def openai_v1_completions(request: OpenAICompletionRequest, request_data: 
     proxy_request_data["stream"] = False
 
     # Sequentially call the proxy service n times
-    async with httpx.AsyncClient(timeout=60) as client:
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         for i in range(n):
             try:
                 brain_address, brain_port = get_service_address('brain')
@@ -118,41 +102,37 @@ async def openai_v1_completions(request: OpenAICompletionRequest, request_data: 
                 response.raise_for_status()
 
             except httpx.HTTPStatusError as http_err:
-                logger.error(f"HTTP error from proxy service: {http_err.response.status_code} - {http_err.response.text}")
+                logger.error(f"HTTP error from brain service: {http_err.response.status_code} - {http_err.response.text}")
                 raise HTTPException(
                     status_code=http_err.response.status_code,
-                    detail=f"Error from proxy service: {http_err.response.text}"
+                    detail=f"Error from brain service: {http_err.response.text}"
                 )
 
             except httpx.RequestError as req_err:
-                logger.error(f"Request error connecting to proxy service: {req_err}")
+                logger.error(f"Request error connecting to brain service: {req_err}")
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail=f"Connection error: {req_err}"
                 )
 
-            json_response = response.json()
+            except Exception as e:
+                logger.exception(f"Error retrieving service address for brain: {e}")
 
-            try:
-                # Use model_validate per Pydantic v2 practices (replacing deprecated parse_obj)
-                proxy_response = ProxyResponse.model_validate(json_response)
-
-            except Exception as err:
-                logger.error(f"Error parsing response from proxy service: {err}")
                 raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Invalid response format from proxy service."
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail=f"Error retrieving service address for brain: {e}"
                 )
 
-            # For the first call, derive the created timestamp (convert ISO 8601 to UNIX time)
-            if created_unix is None:
-                try:
-                    dt = parser.isoparse(proxy_response.timestamp)
-                    created_unix = int(dt.timestamp())
+            proxy_response = ProxyResponse(**response.json())
 
-                except Exception as err:
-                    logger.error(f"Error converting timestamp: {err}")
-                    created_unix = int(datetime.datetime.now().timestamp())
+            # For the first call, derive the created timestamp (convert ISO 8601 to UNIX time)
+            try:
+                dt = parser.isoparse(proxy_response.timestamp)
+                created_unix = int(dt.timestamp())
+
+            except Exception as err:
+                logger.error(f"Error converting timestamp: {err}")
+                created_unix = int(datetime.datetime.now().timestamp())
 
             total_completion_tokens += proxy_response.generated_tokens
 
@@ -195,6 +175,6 @@ async def openai_v1_completions(request: OpenAICompletionRequest, request_data: 
         system_fingerprint="kirishima"
     )
 
-    logger.debug(f"/completions Returns:\n{openai_response.model_dump_json(indent=4)}")
+    logger.debug(f"/v1/completions Returns:\n{openai_response.model_dump_json(indent=4)}")
 
     return openai_response

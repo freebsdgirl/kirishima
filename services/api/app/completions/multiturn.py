@@ -1,32 +1,31 @@
 """
 This module provides FastAPI endpoints for handling OpenAI-compatible chat completion requests,
-including support for multi-turn conversations and special task routing.
+including multi-turn conversation support and special task routing.
 Endpoints:
-    - POST /chat/completions: Redirects requests to the versioned '/v1/chat/completions' endpoint.
+    - POST /chat/completions: Redirects to the versioned chat completions endpoint for compatibility.
     - POST /v1/chat/completions: Processes chat completion requests, supporting both standard multi-turn
-      conversations and special task routing for prompts starting with '### Task'.
-Features:
-    - Redirects legacy requests to the appropriate versioned endpoint.
-    - Detects and routes special task requests to a single-turn completions endpoint.
-    - Forwards standard multi-turn chat requests to an internal brain service via HTTP.
-    - Filters and formats messages to ensure compatibility with internal and OpenAI APIs.
-    - Calculates token usage for prompt and completion.
-    - Handles and logs errors, returning appropriate HTTP responses.
+      conversations and special task routing for prompts prefixed with '### Task'.
+Key Features:
+    - Redirects legacy '/chat/completions' requests to '/v1/chat/completions'.
+    - Detects and routes special '### Task' prompts to a single-turn completions handler.
+    - Forwards multi-turn chat requests to an internal 'brain' service for processing.
+    - Calculates token usage using the tiktoken library for accurate usage reporting.
+    - Returns responses formatted to match OpenAI's ChatCompletion API schema.
+    - Handles and logs errors, returning appropriate HTTP status codes for various failure scenarios.
 Dependencies:
     - FastAPI for API routing and response handling.
-    - httpx for asynchronous HTTP requests.
+    - httpx for asynchronous HTTP requests to internal services.
     - tiktoken for token counting.
-    - Shared models and configuration for request/response schemas and service discovery.
+    - Shared models and configuration for request/response validation and service discovery.
 """
 
-from shared.config import TIMEOUT
-
 from shared.models.proxy import ProxyMultiTurnRequest, ProxyResponse, ChatMessage
-from shared.models.openai import ChatMessage, ChatCompletionRequest, OpenAICompletionRequest, ChatCompletionResponse, ChatCompletionChoice, ChatUsage
-
-from app.completions.singleturn import openai_v1_completions
+from shared.models.openai import ChatCompletionRequest, OpenAICompletionRequest, ChatCompletionResponse, ChatCompletionChoice, ChatUsage
 
 import shared.consul
+from shared.config import TIMEOUT
+
+from app.completions.singleturn import openai_v1_completions
 
 from shared.log_config import get_logger
 logger = get_logger(f"api.{__name__}")
@@ -99,35 +98,32 @@ async def chat_completions(data: ChatCompletionRequest):
             model=data.model,
             temperature=data.temperature,
             max_tokens=data.max_tokens,
-            n=1
+            n=1  # Modify if you want multiple completions.
         )
 
-        # Forward the request to the OpenAI completions endpoint.
         response = await openai_v1_completions(openai_request, None)
-
-        # Retrieve the completions response JSON.
-        completions = response.model_dump()
+        completion = response.model_dump()
 
         # Convert the completions response into a ChatCompletionResponse.
         # This includes remapping each 'choice' to use a ChatMessage with the 'text' content.
         try:
             chat_response = ChatCompletionResponse(
-                id=completions["id"],
+                id=completion["id"],
                 object="chat.completion",
-                created=completions["created"],
-                model=completions["model"],
+                created=completion["created"],
+                model=completion["model"],
                 choices=[
                     ChatCompletionChoice(
                         index=choice["index"],
                         message=ChatMessage(role="assistant", content=choice["text"]),
                         finish_reason=choice.get("finish_reason", "stop")
                     )
-                    for choice in completions.get("choices", [])
+                    for choice in completion.get("choices", [])
                 ],
                 usage=ChatUsage(
-                    prompt_tokens=completions["usage"]["prompt_tokens"],
-                    completion_tokens=completions["usage"]["completion_tokens"],
-                    total_tokens=completions["usage"]["total_tokens"]
+                    prompt_tokens=completion["usage"]["prompt_tokens"],
+                    completion_tokens=completion["usage"]["completion_tokens"],
+                    total_tokens=completion["usage"]["total_tokens"]
                 )
             )
 
@@ -141,14 +137,12 @@ async def chat_completions(data: ChatCompletionRequest):
 
         return chat_response
 
-    # Filter messages to only include 'user', 'assistant', and system roles.
+    # Filter messages to only include 'user' and 'assistant' roles.
     filtered_messages = [
         ChatMessage(role=msg.role, content=msg.content)
         for msg in data.messages if msg.role in ["user", "assistant", "system"]
     ]
 
-    # The proxy request will be sent to the brain service for processing.
-    # Note: The 'memories' and 'summaries' fields are not included in the request.
     proxy_request = ProxyMultiTurnRequest(
         model=data.model,
         messages=filtered_messages,
@@ -167,7 +161,7 @@ async def chat_completions(data: ChatCompletionRequest):
             response.raise_for_status()
 
         except httpx.HTTPStatusError as http_err:
-            logger.error(f"HTTP error forwarding to multi-turn endpoint: {http_err.response.status_code} - {http_err.response.text}")
+            logger.error(f"HTTP error forwarding to brain: {http_err.response.status_code} - {http_err.response.text}")
 
             raise HTTPException(
                 status_code=http_err.response.status_code,
@@ -175,7 +169,7 @@ async def chat_completions(data: ChatCompletionRequest):
             )
 
         except httpx.RequestError as req_err:
-            logger.error(f"Request error when forwarding to multi-turn endpoint: {req_err}")
+            logger.error(f"Request error when forwarding to brain: {req_err}")
 
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
@@ -190,7 +184,16 @@ async def chat_completions(data: ChatCompletionRequest):
                 detail=f"Error retrieving service address for brain: {e}"
             )
 
-    proxy_response = ProxyResponse(**response.json())
+    try:
+        proxy_response = ProxyResponse.model_validate(response.json())
+
+    except Exception as e:
+        logger.error(f"Error parsing ProxyResponse: {e}")
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Invalid response format from multi-turn brain endpoint: {e}"
+        )
 
     try:
         created_dt = datetime.fromisoformat(proxy_response.timestamp)
@@ -205,19 +208,18 @@ async def chat_completions(data: ChatCompletionRequest):
         enc = tiktoken.get_encoding("gpt2")
         tokens = enc.encode(prompt_text)
 
-    except Exception as e:
-        logger.warning(f"Error retrieving encoding for model '{data.model}': {e}.")
+    except Exception as err:
+        logger.warning(f"Error retrieving encoding for model '{data.model}': {err}.")
 
         raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error retrieving encoding for model '{data.model}': {e}"
+                detail=f"Error retrieving encoding for model '{data.model}': {err}"
             )
 
     prompt_tokens = len(tokens)
     completion_tokens = proxy_response.generated_tokens
     total_tokens = prompt_tokens + completion_tokens
 
-    # create an OpenAI-style choice from the proxy response
     chat_response = ChatCompletionResponse(
         id=f"chatcmpl-{uuid.uuid4()}",
         object="chat.completion",

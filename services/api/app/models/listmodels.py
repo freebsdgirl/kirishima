@@ -26,11 +26,10 @@ Logging:
 - Logs errors for failed HTTP requests or response parsing issues.
 """
 
-import app.config
-
 from shared.models.models import OllamaModelList, OpenAIModelList
 
 from shared.consul import get_service_address
+from shared.config import TIMEOUT
 
 from shared.log_config import get_logger
 logger = get_logger(f"api.{__name__}")
@@ -75,27 +74,27 @@ async def list_models():
     """
     logger.debug(f"/models Request.")
 
-    async with httpx.AsyncClient(timeout=60) as client:
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         try:
             brain_address, brain_port = get_service_address('brain')
 
             response = await client.get(f"http://{brain_address}:{brain_port}/models")
             response.raise_for_status()
 
-        except Exception as exc:
-            logger.error(f"Error fetching models from brain: {exc}")
+        except Exception as e:
+            logger.error(f"Error fetching models from brain: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error fetching models from brain: {exc}")
+                detail=f"Error fetching models from brain: {e}")
 
     try:
         ollama_models = OllamaModelList.model_validate_json(response.text)
 
-    except Exception as exc:
-        logger.error(f"Failed to parse Ollama models: {exc}")
+    except Exception as e:
+        logger.error(f"Failed to parse Ollama models: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-            detail=f"Failed to parse Ollama models: {exc}")
+            detail=f"Failed to parse Ollama models: {e}")
 
     # Convert each OllamaModel to an OpenAIModel
     openai_models = [model.to_openai_model() for model in ollama_models.data]

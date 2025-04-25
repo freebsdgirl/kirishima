@@ -1,31 +1,22 @@
 """
-This module provides FastAPI endpoints for handling model-related operations, including
-redirecting requests for OpenAI model compatibility and retrieving model details in
-OpenAI-compatible format.
-The endpoints interact with a backend service ("brain") to fetch model data and transform
-it into the desired format. The module also includes error handling for issues such as
-network failures or invalid data.
-Classes:
-    None
-Functions:
-    openai_completions(model_id: str) -> RedirectResponse:
-        Redirects POST requests to the v1 models endpoint with a temporary redirect status code.
-    get_model(model_id: str) -> OpenAIModel:
-        Retrieves a specific model by its ID, validates the data, and converts it to an
-        OpenAI-compatible format.
+This module defines API endpoints for retrieving and redirecting model information in OpenAI-compatible format.
+Endpoints:
+    - GET /models/{model_id}: Redirects to the v1 models endpoint for compatibility with OpenAI API clients.
+    - GET /v1/models/{model_id}: Fetches a model from the brain service, validates and transforms it into an OpenAIModel.
 Dependencies:
-    - app.config: Application configuration.
-    - shared.models.models: Contains the OpenAIModel and OllamaModel classes.
-    - shared.log_config: Provides logging functionality.
-    - httpx: For making asynchronous HTTP requests.
-    - fastapi: For building the API endpoints.
+    - shared.models.models: Contains model schemas for OpenAIModel and OllamaModel.
+    - shared.consul: Provides service discovery utilities.
+    - shared.config: Contains configuration constants such as TIMEOUT.
+    - shared.log_config: Provides logging utilities.
+    - httpx: Used for asynchronous HTTP requests.
+    - fastapi: Web framework for building API endpoints.
+    - HTTPException: If there is an error fetching or parsing model data from the brain service.
 """
-
-import app.config
 
 from shared.models.models import OpenAIModel, OllamaModel
 
 from shared.consul import get_service_address
+from shared.config import TIMEOUT
 
 from shared.log_config import get_logger
 logger = get_logger(f"api.{__name__}")
@@ -75,25 +66,25 @@ async def get_model(model_id: str):
         HTTPException: If there's an error fetching or parsing the model data.
     """
 
-    async with httpx.AsyncClient(timeout=60) as client:
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         try:
             brain_address, brain_port = get_service_address('brain')
             response = await client.get(f"http://{brain_address}:{brain_port}/model/{model_id}")
             response.raise_for_status()
 
-        except Exception as exc:
+        except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error fetching model from brain: {exc}"
+                detail=f"Error fetching model from brain: {e}"
             )
     
     try:
         ollama_model = OllamaModel.model_validate_json(response.text)
 
-    except Exception as exc:
+    except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to parse the returned model data: {exc}"
+            detail=f"Failed to parse the returned model data: {e}"
         )
 
     # Convert the OllamaModel to an OpenAIModel

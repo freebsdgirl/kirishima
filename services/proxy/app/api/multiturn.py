@@ -133,7 +133,7 @@ def build_multiturn_prompt(request: ProxyMultiTurnRequest, system_prompt: str) -
     return prompt
 
 
-@router.post("/from/api/multiturn", response_model=ProxyResponse)
+@router.post("/api/multiturn", response_model=ProxyResponse)
 async def from_api_multiturn(request: ProxyMultiTurnRequest) -> ProxyResponse:
     """
     Handle multi-turn API requests by generating prompts for language models.
@@ -152,7 +152,7 @@ async def from_api_multiturn(request: ProxyMultiTurnRequest) -> ProxyResponse:
         HTTPException: If the model is not instruct-compatible or API request fails.
     """
 
-    logger.debug(f"/from/api/multiturn Request:\n{request.model_dump_json(indent=4)}")
+    logger.debug(f"/api/multiturn Request:\n{request.model_dump_json(indent=4)}")
 
     # fetch the builder function
     build_sys = await get_prompt_builder()
@@ -230,5 +230,5 @@ async def from_api_multiturn(request: ProxyMultiTurnRequest) -> ProxyResponse:
         timestamp=datetime.now().isoformat()
     )
 
-    logger.debug(f"/from/api/multiturn Response:\n{proxy_response.model_dump_json(indent=4)}")
+    logger.debug(f"/api/multiturn Response:\n{proxy_response.model_dump_json(indent=4)}")
     return proxy_response

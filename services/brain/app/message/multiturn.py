@@ -12,8 +12,8 @@ Functions:
         discovery. Handles errors and raises HTTP exceptions for service 
         unavailability, connection failures, or HTTP errors.
 Routes:
-    @router.post("/message/multiturn/incoming", response_model=ProxyResponse):
-        endpoint (/from/api/multiturn). Acts as a proxy with no additional 
+    @router.post("/api/multiturn", response_model=ProxyResponse):
+        endpoint (/api/multiturn). Acts as a proxy with no additional 
         processing. Handles intents detection, retrieves the current mode, 
         queries memory, sanitizes messages, and processes the proxy response.
 """
@@ -38,11 +38,11 @@ from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
 
 
-@router.post("/message/multiturn/incoming", response_model=ProxyResponse)
+@router.post("/api/multiturn", response_model=ProxyResponse)
 async def outgoing_multiturn_message(message: ProxyMultiTurnRequest) -> ProxyResponse:
     """
     Forwards a multi-turn conversation request to the internal multi-turn 
-    endpoint (/from/api/multiturn). This endpoint acts as a simple proxy with no
+    endpoint (/api/multiturn). This endpoint acts as a simple proxy with no
     additional processing.
 
     Args:
@@ -54,7 +54,7 @@ async def outgoing_multiturn_message(message: ProxyMultiTurnRequest) -> ProxyRes
     Raises:
         HTTPException: If any error occurs when contacting the proxy service.
     """
-    logger.debug(f"/message/multiturn/incoming Request:\n{message.model_dump_json(indent=4)}")
+    logger.debug(f"brain: /api/multiturn Request:\n{message.model_dump_json(indent=4)}")
 
     payload = message.model_dump()
 
@@ -159,7 +159,7 @@ async def outgoing_multiturn_message(message: ProxyMultiTurnRequest) -> ProxyRes
             )
     
     response = await post_to_service(
-        'proxy', '/from/api/multiturn', payload,
+        'proxy', '/api/multiturn', payload,
         error_prefix="Error forwarding to proxy service"
     )
     try:
@@ -231,6 +231,6 @@ async def outgoing_multiturn_message(message: ProxyMultiTurnRequest) -> ProxyRes
             detail="Failed to sync proxy_response with ledger service."
         )
 
-    logger.debug(f"/message/multiturn/incoming Returns:\n{proxy_response.model_dump_json(indent=4)}")
+    logger.debug(f"brain: /api/multiturn Returns:\n{proxy_response.model_dump_json(indent=4)}")
 
     return proxy_response

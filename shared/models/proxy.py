@@ -14,6 +14,9 @@ Usage:
     and responses in applications that involve communication platforms or language model interactions.
 """
 
+from shared.config import LLM_DEFAULTS
+
+
 from typing import List, Optional, Dict, Any, Literal
 from pydantic import BaseModel, Field
 from shared.models.chromadb import MemoryEntryFull
@@ -62,18 +65,45 @@ class ProxyRequest(BaseModel):
     
     Attributes:
         message (IncomingMessage): The incoming message associated with the proxy request.
-        user_id (str): The unique identifier of the user making the request.
+        user_id (str): The uuid of the user making the request.
         context (str): The context of the proxy request.
         mode (Optional[str], optional): An optional mode specification for the request. Defaults to None.
         memories (Optional[List[MemoryEntryFull]], optional): A list of memory entries associated with the request. Defaults to None.
         summaries (Optional[str], optional): A list of user summaries associated with the request. Defaults to None.
     """
     message: IncomingMessage                        = Field(..., description="The incoming message associated with the proxy request.")
-    user_id: str                                    = Field(..., description="The unique identifier of the user making the request.")
+    user_id: str                                    = Field(..., description="The uuid of the user making the request.")
     context: str                                    = Field(..., description="The context of the proxy request.")
     mode: Optional[str]                             = Field(None, description="An optional mode specification for the request.")
     memories: Optional[List[MemoryEntryFull]]       = Field(None, description="An optional list of memory references.")
     summaries: Optional[str]                        = Field(None, description="An optional list of user summaries.")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "message": {
+                    "platform": "imessage",
+                    "sender_id": "+15555555555",
+                    "text": "Don't forget your meds",
+                    "timestamp": "2025-04-09T04:00:00Z",
+                    "metadata": {
+                        "chat_id": "BBUUID-ABC123"
+                    }
+                },
+                "user_id": "8a03289a-3b28-4c84-a04e-a5429db91ec1",
+                "context": "health",
+                "mode": None,
+                "memories": [
+                    {
+                        "memory": "Reminder to take meds",
+                        "component": "proxy",
+                        "priority": 1.0,
+                        "mode": "default"
+                    }
+                ],
+                "summaries": None
+            }
+        }
 
 
 # reworked models go down here
@@ -116,6 +146,14 @@ class ChatMessage(BaseModel):
     role: Literal["user", "assistant", "system"]    = Field(..., description="The role of the message sender (e.g., 'user', 'assistant').")
     content: str                                    = Field(..., description="The content of the message.")
 
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "role": "user",
+                "content": "Don't forget your meds"
+            }
+        }
+
 
 class ProxyMultiTurnRequest(BaseModel):
     """
@@ -129,10 +167,10 @@ class ProxyMultiTurnRequest(BaseModel):
         memories (Optional[List[MemoryEntryFull]]): A list of memory entries associated with the conversation.
         summaries (Optional[str]): A list of user summaries associated with the conversation.
     """
-    model: Optional[str]                        = Field('nemo', description="The model to be used for generating the response.")
-    messages: List[ChatMessage]                = Field(..., description="List of messages for multi-turn conversation.")
-    temperature: Optional[float]                = Field(0.7, description="The temperature setting for randomness in the model's output.")
-    max_tokens: Optional[int]                   = Field(256, description="The maximum number of tokens to generate in the response.")
+    model: Optional[str]                        = Field(LLM_DEFAULTS.get('model'), description="The model to be used for generating the response.")
+    messages: List[ChatMessage]                 = Field(..., description="List of messages for multi-turn conversation.")
+    temperature: Optional[float]                = Field(LLM_DEFAULTS.get('temperature'), description="The temperature setting for randomness in the model's output.")
+    max_tokens: Optional[int]                   = Field(LLM_DEFAULTS.get('max_tokens'), description="The maximum number of tokens to generate in the response.")
     memories: Optional[List[MemoryEntryFull]]   = Field(None, description="List of memory entries associated with the conversation.")
     summaries: Optional[str]                    = Field(None, description="List of user summaries associated with the conversation.")
 
@@ -284,6 +322,7 @@ class OllamaResponse(BaseModel):
     prompt_eval_duration: int   = Field(..., description="Duration of prompt evaluation in nanoseconds.")
     eval_count: int             = Field(..., description="Number of evaluations performed by the model.")
     eval_duration: int          = Field(..., description="Duration of evaluations in nanoseconds.")
+
     class Config:
         json_schema_extra = {
             "example": {

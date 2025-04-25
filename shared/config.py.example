@@ -8,3 +8,13 @@ GREYLOG_PORT                    = 12201         # GELF UDP port
 GREYLOG_LOG_LEVEL               = "DEBUG"       # DEBUG INFO WARNING ERROR CRITICAL
 
 TRACING_ENABLED                 = False
+
+# global LLM defaults
+LLM_DEFAULTS                            = {
+    "model"         : "nemo:latest",
+    "temperature"   : 0.3,
+    "stream"        : False,
+    "max_tokens"    : 512
+}
+
+TIMEOUT                            = 120 # seconds

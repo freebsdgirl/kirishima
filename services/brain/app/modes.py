@@ -1,34 +1,40 @@
 """
-This module provides FastAPI endpoints for setting and retrieving the current mode
-stored in a SQLite database. It includes two endpoints:
-1. `POST /mode/{mode}`: Sets the current mode in the database.
-2. `GET /mode`: Retrieves the current mode from the database.
-The module uses the following components:
-- `sqlite3` for database operations.
-- `FastAPI` for defining API routes and handling HTTP requests.
-- `shared.log_config.get_logger` for logging.
-Functions:
-- `mode_set(mode: str) -> JSONResponse`: Sets the mode in the database and returns a success message.
-- `mode_get() -> JSONResponse`: Retrieves the current mode from the database and returns it.
-Error Handling:
-- Handles SQLite-specific errors and logs them with full stack traces.
-- Handles unexpected errors and logs them appropriately.
-- Raises `HTTPException` with appropriate status codes for client and server errors.
-Logging:
-- Logs debug, info, warning, and exception messages for better traceability.
-"""
+This module provides FastAPI endpoints and utility functions for managing the operational mode of the application
+using a SQLite-backed status database.
 
+Key Features:
+- Ensures the existence of a status database and initializes it if missing.
+- Provides endpoints to set and retrieve the current mode.
+- Handles database creation, error logging, and HTTP error responses.
+
+Endpoints:
+- POST /mode/{mode}: Sets the current mode in the status database.
+- GET /mode: Retrieves the current mode from the status database.
+
+Functions:
+- verify_database(): Ensures the status database and required table exist, initializing with a default mode if necessary.
+- mode_set(mode: str): FastAPI endpoint to set the mode.
+- mode_get(): FastAPI endpoint to get the current mode.
+
+Dependencies:
+- FastAPI for API routing and responses.
+- SQLite3 for lightweight database storage.
+- Logging for error and event reporting.
+- app.config for configuration, specifically the STATUS_DB path.
+
+"""
 import app.config
-import sqlite3
-from pathlib import Path
 
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
 
+import sqlite3
+from pathlib import Path
+
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import JSONResponse
-
 router = APIRouter()
+
 
 def verify_database():
     """
@@ -83,7 +89,6 @@ def mode_set(mode: str) -> JSONResponse:
     Raises:
         HTTPException: If a database error or unexpected error occurs during mode setting.
     """
-    logger.debug("🔄 Attempting to set mode to '%s'", mode)
 
     try:
         verify_database()
@@ -95,26 +100,18 @@ def mode_set(mode: str) -> JSONResponse:
             )
             conn.commit()
 
-        logger.info("✅ Mode successfully set to '%s'.", mode)
+        logger.info(f"✅ Mode successfully set to {mode}")
         return JSONResponse(
             content={"message": "Mode changed successfully"},
             status_code=status.HTTP_200_OK
         )
 
-    except sqlite3.Error as db_err:
-        # Log database-specific errors with the full stack trace.
-        logger.exception("SQLite error occurred while setting mode: %s", db_err)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database error occurred while setting mode."
-        )
-
     except Exception as err:
         # Log any unexpected error.
-        logger.exception("Unexpected error while setting mode: %s", err)
+        logger.exception(f"Unexpected error while setting mode: {err}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An unexpected error occurred while setting mode."
+            detail=f"An unexpected error occurred while setting mode: {err}"
         )
 
 
@@ -141,7 +138,7 @@ def mode_get() -> JSONResponse:
 
         if row is not None:
             mode_value = row[0]
-            logger.info("✅ Mode retrieved successfully: %s", mode_value)
+
             return JSONResponse(
                 content={"message": mode_value},
                 status_code=status.HTTP_200_OK
@@ -153,16 +150,9 @@ def mode_get() -> JSONResponse:
                 status_code=status.HTTP_404_NOT_FOUND
             )
 
-    except sqlite3.Error as db_err:
-        logger.exception("SQLite error occurred while retrieving mode: %s", db_err)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database error occurred while retrieving mode."
-        )
-
     except Exception as err:
-        logger.exception("Unexpected error while retrieving mode: %s", err)
+        logger.exception(f"Unexpected error while retrieving mode: {err}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An unexpected error occurred while retrieving mode."
+            detail=f"An unexpected error occurred while retrieving mode: {err}"
         )

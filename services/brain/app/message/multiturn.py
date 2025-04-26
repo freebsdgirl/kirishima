@@ -17,7 +17,8 @@ Routes:
         processing. Handles intents detection, retrieves the current mode, 
         queries memory, sanitizes messages, and processes the proxy response.
 """
-import json
+from shared.config import TIMEOUT
+import shared.consul
 
 from shared.models.proxy import ProxyMultiTurnRequest, ProxyResponse, ChatMessage
 from shared.models.intents import IntentRequest
@@ -27,11 +28,10 @@ from app.memory.list import list_memory
 from app.modes import mode_get
 from app.util import get_admin_user_id, sanitize_messages, post_to_service
 
-import shared.consul
-
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
 
+import json
 import httpx
 
 from fastapi import APIRouter, HTTPException, status
@@ -121,6 +121,7 @@ async def outgoing_multiturn_message(message: ProxyMultiTurnRequest) -> ProxyRes
         # Convert ledger buffer to ProxyMessage list and replace payload['messages']
         ledger_buffer = ledger_response.json()
         payload["messages"] = [ChatMessage(role=msg["role"], content=msg["content"]).model_dump() for msg in ledger_buffer]
+
     except Exception as e:
         logger.error(f"Error sending messages to ledger sync endpoint: {e}")
         raise HTTPException(
@@ -129,7 +130,7 @@ async def outgoing_multiturn_message(message: ProxyMultiTurnRequest) -> ProxyRes
         )
 
     # get a list of summaries - this returns a List[UserSummary]
-    async with httpx.AsyncClient(timeout=30) as client:
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         address, port = shared.consul.get_service_address('ledger')
         if not address or not port:
             logger.error(f"ledger service address or port is not available.")
@@ -137,6 +138,7 @@ async def outgoing_multiturn_message(message: ProxyMultiTurnRequest) -> ProxyRes
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail=f"ledger service is unavailable."
             )
+
         try:
             summary_response = await client.get(f"http://{address}:{port}/summaries/user/{user_id}?limit=4")
             summary_response.raise_for_status()
@@ -157,6 +159,12 @@ async def outgoing_multiturn_message(message: ProxyMultiTurnRequest) -> ProxyRes
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Connection error to ledger service: {req_err}"
             )
+        except Exception as e:
+            logger.error(f"Unexpected error in ledger service: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error in ledger service: {e}"
+            )
     
     response = await post_to_service(
         'proxy', '/api/multiturn', payload,
@@ -165,11 +173,12 @@ async def outgoing_multiturn_message(message: ProxyMultiTurnRequest) -> ProxyRes
     try:
         json_response = response.json()
         proxy_response = ProxyResponse.model_validate(json_response)
+
     except Exception as e:
         logger.debug(f"Error parsing response from proxy service: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to parse response from proxy service."
+            detail=f"Failed to parse response from proxy service: {e}"
         )
 
     """
@@ -182,27 +191,33 @@ async def outgoing_multiturn_message(message: ProxyMultiTurnRequest) -> ProxyRes
     if available.
     """
     response_content = proxy_response.response
+
     if not isinstance(response_content, str):
         logger.debug(f"proxy_response.response is not a string: {type(response_content)}. Converting to string.")
         response_content = str(response_content)
+
     intentreq = IntentRequest(
         mode=True,
         component="proxy",
         memory=True,
         message=[ChatMessage(role="assistant", content=response_content)]
     )
+
     response = await post_to_service(
         'intents', '/intents', intentreq.model_dump(),
         error_prefix="Error forwarding to intents service"
     )
+
     try:
         returned_messages = response.json()
+
     except Exception as e:
         logger.debug(f"Error decoding JSON from intents service response (final): {e}")
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Invalid JSON response from intents service (final)."
         )
+
     if isinstance(returned_messages, list) and returned_messages:
         proxy_response.response = returned_messages[0].get('content', proxy_response.response)
 
@@ -224,11 +239,12 @@ async def outgoing_multiturn_message(message: ProxyMultiTurnRequest) -> ProxyRes
             {"snapshot": sync_snapshot},
             error_prefix="Error forwarding to ledger service (proxy_response)"
         )
+
     except Exception as e:
         logger.error(f"Error sending proxy_response to ledger sync endpoint: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to sync proxy_response with ledger service."
+            detail=f"Failed to sync proxy_response with ledger service: {e}"
         )
 
     logger.debug(f"brain: /api/multiturn Returns:\n{proxy_response.model_dump_json(indent=4)}")

@@ -17,10 +17,13 @@ Dependencies:
     - shared.log_config: Logging configuration
     - httpx: Asynchronous HTTP client
     - fastapi: API routing and exception handling
+    - shared.config: Configuration for TIMEOUT
+    - app.scheduler.job_summarize: Function to summarize user buffers
 """
-from shared.models.scheduler import SchedulerJobRequest, SchedulerCallbackRequest
-
+from shared.config import TIMEOUT
 import shared.consul
+
+from shared.models.scheduler import SchedulerJobRequest, SchedulerCallbackRequest
 
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
@@ -30,6 +33,7 @@ import httpx
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
 
+# global functions to be called by scheduler
 from app.scheduler.job_summarize import summarize_user_buffers
 globals()["summarize_user_buffers"] = summarize_user_buffers
 
@@ -54,13 +58,13 @@ def scheduler_callback(payload: SchedulerCallbackRequest) -> dict:
                     404 if function is not found,
                     500 if function execution fails.
     """
-    logger.debug(f"/scheduler/callback Request: {payload}")
 
     metadata = payload.metadata
     func_name = metadata.get("function")
 
     if not func_name:
-        logger.error("Missing 'function' in metadata")
+        logger.error(f"Missing 'function' in metadata: {payload}")
+
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Missing 'function' in metadata"
@@ -71,6 +75,7 @@ def scheduler_callback(payload: SchedulerCallbackRequest) -> dict:
 
     except KeyError:
         logger.error(f"Function '{func_name}' not found in globals.")
+
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Function '{func_name}' not found"
@@ -78,7 +83,7 @@ def scheduler_callback(payload: SchedulerCallbackRequest) -> dict:
 
     try:
         func()
-        logger.info(f"Function '{func_name}' executed successfully.")
+
         return {
             "status": "success",
             "function": func_name
@@ -112,7 +117,7 @@ async def scheduler_add_job(request: SchedulerJobRequest) -> dict:
     """
     logger.debug(f"POST /scheduler/job Request: {request}")
 
-    async with httpx.AsyncClient(timeout=60) as client:
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         try:
             scheduler_address, scheduler_port = shared.consul.get_service_address('scheduler')
             if not scheduler_address or not scheduler_port:
@@ -125,6 +130,7 @@ async def scheduler_add_job(request: SchedulerJobRequest) -> dict:
 
             response = await client.post(f"http://{scheduler_address}:{scheduler_port}/jobs", json=request.model_dump())
             response.raise_for_status()
+
             logger.info(f"Job added successfully: {response.json()}")
             return response.json()
 
@@ -142,6 +148,14 @@ async def scheduler_add_job(request: SchedulerJobRequest) -> dict:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Connection error: {req_err}"
+            )
+        
+        except Exception as e:
+            logger.error(f"Unexpected error in scheduler service: {e}")
+
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error in scheduler service: {e}"
             )
 
 
@@ -161,7 +175,7 @@ async def scheduler_list_jobs():
     """
     logger.debug(f"GET /scheduler/job Request")
 
-    async with httpx.AsyncClient(timeout=60) as client:
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         try:
             scheduler_address, scheduler_port = shared.consul.get_service_address('scheduler')
             if not scheduler_address or not scheduler_port:
@@ -174,7 +188,7 @@ async def scheduler_list_jobs():
 
             response = await client.get(f"http://{scheduler_address}:{scheduler_port}/jobs")
             response.raise_for_status()
-            logger.info(f"Job listed successfully: {response.json()}")
+
             return response.json()
 
         except httpx.HTTPStatusError as http_err:
@@ -211,7 +225,7 @@ async def scheduler_delete_job(job_id: str) -> dict:
     """
     logger.debug(f"DELETE /scheduler/job/{job_id} Request")
 
-    async with httpx.AsyncClient(timeout=60) as client:
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         try:
             scheduler_address, scheduler_port = shared.consul.get_service_address('scheduler')
             if not scheduler_address or not scheduler_port:
@@ -224,6 +238,7 @@ async def scheduler_delete_job(job_id: str) -> dict:
 
             response = await client.delete(f"http://{scheduler_address}:{scheduler_port}/jobs/{job_id}")
             response.raise_for_status()
+
             logger.info(f"Job deleted successfully: {response.json()}")
 
             return {
@@ -245,4 +260,12 @@ async def scheduler_delete_job(job_id: str) -> dict:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Connection error: {req_err}"
+            )
+        
+        except Exception as e:
+            logger.error(f"Unexpected error in scheduler service: {e}")
+
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error in scheduler service: {e}"
             )

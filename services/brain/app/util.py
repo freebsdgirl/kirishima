@@ -1,10 +1,21 @@
 """
-This module provides utility functions for interacting with the contacts service,
-including retrieving the admin user's unique identifier.
+Utility functions for interacting with the contacts service and other internal services.
+This module provides asynchronous functions to:
+- Retrieve the admin user ID from the contacts service.
+- Retrieve a user's alias from the contacts service.
+- Sanitize message content by removing HTML details tags.
+- Post data to a specified service endpoint using Consul service discovery.
 Functions:
-    get_admin_user_id: Asynchronously retrieves the user ID of the admin user from the contacts service.
-    get_user_alias: Asynchronously retrieves the alias of a user based on their unique identifier.
+    get_admin_user_id(): Asynchronously retrieves the admin user ID from the contacts service.
+    get_user_alias(user_id): Asynchronously retrieves the alias for a given user ID from the contacts service.
+    sanitize_messages(messages): Removes HTML details tags and strips whitespace from message content.
+    post_to_service(service_name, endpoint, payload, error_prefix, timeout=60): Asynchronously sends a POST request to a service endpoint discovered via Consul.
+    HTTPException: For HTTP and connection errors when communicating with services.
+    ValueError: If required data is not found in the contacts service responses.
+
 """
+
+from shared.config import TIMEOUT
 
 import shared.consul
 
@@ -33,7 +44,7 @@ async def get_admin_user_id() -> str:
         ValueError: If no admin user is found in the contacts service.
         HTTPException: If there is an error communicating with the contacts service.
     """
-    async with httpx.AsyncClient(timeout=60) as client:
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         try:
             contacts_address, contacts_port = shared.consul.get_service_address('contacts')
             contact_response = await client.get(
@@ -79,7 +90,7 @@ async def get_user_alias(user_id: str) -> str:
     Raises:
         HTTPException: If there is an error communicating with the contacts service.
     """
-    async with httpx.AsyncClient(timeout=60) as client:
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         try:
             contacts_address, contacts_port = shared.consul.get_service_address('contacts')
             contact_response = await client.get(f"http://{contacts_address}:{contacts_port}/contact/{user_id}")
@@ -147,7 +158,7 @@ async def post_to_service(service_name, endpoint, payload, error_prefix, timeout
     Raises:
         HTTPException: If service is unavailable, connection fails, or HTTP error occurs.
     """
-    async with httpx.AsyncClient(timeout=timeout) as client:
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         address, port = shared.consul.get_service_address(service_name)
         if not address or not port:
             logger.error(f"{service_name.capitalize()} service address or port is not available.")

@@ -1,32 +1,25 @@
 """
-This module defines FastAPI routes for interacting with Ollama models through a proxy service.
-
-Routes:
-    - GET /models: Retrieves a list of available Ollama models.
-    - GET /model/{model_name}: Retrieves details for a specific Ollama model by its name.
-
-Functions:
-    - get_models: Fetches a list of available Ollama models from the proxy service.
-    - from_api_completions: Fetches details for a specific Ollama model by its name.
-
+This module defines FastAPI route handlers for retrieving Ollama model information
+from a proxy service. It provides endpoints to list all available models and to
+fetch details for a specific model by name. The module handles communication with
+the proxy service, error handling, and response validation.
+Endpoints:
+    - GET /models: Retrieve a list of available Ollama models.
+    - GET /model/{model_name}: Retrieve details for a specific Ollama model.
 Dependencies:
-    - app.config: Contains application configuration, including the proxy service URL.
-    - shared.models.models: Provides the OllamaModel and OllamaModelList schemas.
-    - shared.log_config: Configures logging for the module.
-    - httpx: Used for making asynchronous HTTP requests.
-    - fastapi: Provides the APIRouter and HTTPException classes for defining routes and handling errors.
-
-Logging:
-    - Logs debug messages for incoming requests, responses from the proxy service, and outgoing responses.
-    - Logs errors for HTTP and request issues, as well as response parsing errors.
-
-Error Handling:
-    - Raises HTTPException for HTTP errors, request errors, and response parsing issues.
+    - shared.config.TIMEOUT: Timeout configuration for HTTP requests.
+    - shared.consul.get_service_address: Service discovery for the proxy.
+    - shared.models.models.OllamaModel, OllamaModelList: Response models.
+    - shared.log_config.get_logger: Logging utility.
+    - httpx: Async HTTP client for proxy communication.
+    - fastapi: API routing and exception handling.
+    - HTTPException: For proxy service errors, connection issues, and response parsing failures.
 """
 
-from shared.models.models import OllamaModel, OllamaModelList
-
+from shared.config import TIMEOUT
 import shared.consul
+
+from shared.models.models import OllamaModel, OllamaModelList
 
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
@@ -52,9 +45,8 @@ async def get_models() -> OllamaModelList:
     Raises:
         HTTPException: If there are issues with the proxy service request or response parsing.
     """
-    logger.debug(f"/models Request")
 
-    async with httpx.AsyncClient(timeout=60) as client:
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         try:
             proxy_address, proxy_port = shared.consul.get_service_address('proxy')
             if not proxy_address or not proxy_port:
@@ -83,6 +75,14 @@ async def get_models() -> OllamaModelList:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Connection error: {req_err}"
             )
+        
+        except Exception as e:
+            logger.error(f"Unexpected error in proxy service: {e}")
+
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error in proxy service: {e}"
+            )
 
     try:
         json_response = response.json()
@@ -96,8 +96,6 @@ async def get_models() -> OllamaModelList:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to parse response from proxy service: {req_err}"
         )
-
-    logger.debug(f"/models Returns:\n{proxy_response.model_dump_json(indent=4)}")
 
     return proxy_response
 
@@ -123,7 +121,7 @@ async def from_api_completions(model_name: str) -> OllamaModel:
     logger.debug(f"/model Request: {model_name}")
 
     # Send the POST request using an async HTTP client
-    async with httpx.AsyncClient(timeout=60) as client:
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         try:
             proxy_address, proxy_port = shared.consul.get_service_address('proxy')
             if not proxy_address or not proxy_port:
@@ -153,6 +151,14 @@ async def from_api_completions(model_name: str) -> OllamaModel:
                 detail=f"Connection error: {req_err}"
             )
 
+        except Exception as e: 
+            logger.error(f"Unexpected error in proxy service: {e}")
+
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error in proxy service: {e}"
+            )
+
     try:
         json_response = response.json()
 
@@ -163,9 +169,7 @@ async def from_api_completions(model_name: str) -> OllamaModel:
 
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to parse response from proxy service: {req_err}"
+            detail=f"Failed to parse response from proxy service: {e}"
         )
-
-    logger.debug(f"/model Returns:\n{proxy_response.model_dump_json(indent=4)}")
 
     return proxy_response

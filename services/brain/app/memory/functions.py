@@ -1,32 +1,35 @@
 """
-This module provides FastAPI endpoints for creating and deleting memory entries 
-in the ChromaDB service. It interacts with external services such as the brain 
-service for retrieving the current mode and ChromaDB for embedding generation 
-and memory storage.
+This module provides FastAPI endpoints for managing memory entries in the ChromaDB service. 
+It includes functionality to create and delete memory entries, leveraging external services 
+for mode retrieval and embedding generation.
 Functions:
     create_memory(request: MemoryEntry) -> MemoryEntryFull:
-        Creates a new memory entry by retrieving the current mode, generating 
-        an embedding, and storing the memory in ChromaDB.
-    delete_memory(request: MemoryEntry):
-        Deletes a specific memory entry from ChromaDB based on the provided 
-        memory content and mode.
+        Creates a new memory entry by retrieving the current mode from the brain service, 
+        generating an embedding for the memory using ChromaDB, and storing the complete 
+        memory entry in ChromaDB.
+    delete_memory(request: MemoryEntry) -> dict:
+        Deletes a specific memory entry from ChromaDB based on memory content and mode. 
+        Returns the ID of the deleted memory if successful, or raises an HTTPException 
+        if the memory is not found or deletion fails.
 Dependencies:
-    - shared.consul: For retrieving service addresses.
-    - shared.log_config: For logging configuration.
-    - shared.models.chromadb: For memory entry models.
-    - httpx: For making asynchronous HTTP requests.
-    - fastapi: For defining API routes and handling HTTP exceptions.
-"""
+    - shared.config: Provides configuration constants such as TIMEOUT.
+    - shared.consul: Used to retrieve service addresses for 'brain' and 'chromadb'.
+    - shared.models.chromadb: Defines the MemoryEntry and MemoryEntryFull models.
+    - shared.log_config: Provides a logger for logging debug and error messages.
+    - httpx: Used for making asynchronous HTTP requests.
+    - fastapi: Provides the APIRouter and HTTPException classes for building API endpoints.
 
+"""
+from shared.config import TIMEOUT
 import shared.consul
+
+from shared.models.chromadb import MemoryEntry, MemoryEntryFull
 
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
 
-from shared.models.chromadb import MemoryEntry, MemoryEntryFull
-
-
 import httpx
+
 from fastapi import APIRouter, HTTPException, status, Body
 router = APIRouter()
 
@@ -54,7 +57,7 @@ async def create_memory(request: MemoryEntry) -> MemoryEntryFull:
 
     payload = request.model_dump()
 
-    async with httpx.AsyncClient(timeout=60) as client:
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         brain_address, brain_port = shared.consul.get_service_address('brain')
         
         response = await client.get(f"http://{brain_address}:{brain_port}/mode")
@@ -73,7 +76,7 @@ async def create_memory(request: MemoryEntry) -> MemoryEntryFull:
                 detail="ChromaDB service is unavailable."
             )
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
             response = await client.post(
                 f"http://{chromadb_host}:{chromadb_port}/embedding",
                 json={"input": payload['memory']}
@@ -95,7 +98,7 @@ async def create_memory(request: MemoryEntry) -> MemoryEntryFull:
             detail=f"Error creating embedding: {e}"
         )
     
-    async with httpx.AsyncClient(timeout=60) as client:
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         try:
             chromadb_address, chromadb_port = shared.consul.get_service_address('chromadb')
             if not chromadb_address or not chromadb_port:
@@ -114,7 +117,7 @@ async def create_memory(request: MemoryEntry) -> MemoryEntryFull:
 
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to create memory."
+                detail=f"Failed to create memory: {e.response.status_code} {e.response.text}"
             )
 
         except Exception as e:
@@ -122,7 +125,7 @@ async def create_memory(request: MemoryEntry) -> MemoryEntryFull:
 
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to create memory."
+                detail=f"Failed to create memory: {e}"
             )
 
     return MemoryEntryFull(**response.json())
@@ -153,13 +156,13 @@ async def delete_memory(request: MemoryEntry = Body(...)):
                 detail="ChromaDB service is unavailable."
             )
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
             response = await client.get(
                 f"http://{chromadb_host}:{chromadb_port}/memory",
                 params={"mode": request.mode}
             )
 
-            if response.status_code != 200:
+            if response.status_code != status.HTTP_200_OK:
                 logger.error(f"Failed to search memories: {response.status_code} {response.text}")
 
                 raise HTTPException(
@@ -189,8 +192,10 @@ async def delete_memory(request: MemoryEntry = Body(...)):
                     detail=f"Failed to delete memory id={mem_id}."
                 )
             return {"id": mem_id}
+
     except HTTPException:
         raise
+
     except Exception as e:
         logger.error(f"An error occurred while deleting memory: {e}")
         raise HTTPException(

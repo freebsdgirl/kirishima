@@ -1,29 +1,25 @@
 """
 This module defines an API endpoint for handling single-turn messages.
 The endpoint receives a `ProxyOneShotRequest`, forwards it to a proxy service,
-and returns the response as a `ProxyResponse`. It acts as an intermediary layer
-to facilitate communication with the proxy service, allowing for future
-enhancements or additional processing.
-Modules:
-    app.config: Configuration settings for the application.
-    shared.models.proxy: Contains the `ProxyOneShotRequest` and `ProxyResponse` models.
-    shared.log_config: Provides logging functionality.
-    httpx: For making asynchronous HTTP requests.
-    fastapi: Framework for building API endpoints.
-Attributes:
-    logger: Logger instance for logging debug and error messages.
-    router: FastAPI APIRouter instance for defining API routes.
-Routes:
-    POST /message/single/incoming:
-        - Receives a `ProxyOneShotRequest` payload.
-        - Forwards the payload to the proxy service.
-        - Returns the response as a `ProxyResponse`.
-        - Handles HTTP and connection errors gracefully.
+and returns the response as a `ProxyResponse`. It acts as an intermediary
+service, allowing for additional scaffolding or processing if needed in the
+future.
+Modules and Libraries:
+- `shared.config`: Provides configuration constants such as `TIMEOUT`.
+- `shared.consul`: Used to retrieve the proxy service address and port.
+- `shared.models.proxy`: Contains the `ProxyOneShotRequest` and `ProxyResponse` models.
+- `shared.log_config`: Provides logging functionality.
+- `httpx`: Used for making asynchronous HTTP requests.
+- `json`: Used for JSON serialization and deserialization.
+- `fastapi`: Provides the `APIRouter` and `HTTPException` for building the API.
+Functions:
+- `incoming_singleturn_message`: Handles POST requests to the `/message/single/incoming` endpoint.
 """
+from shared.config import TIMEOUT
+import shared.consul
 
 from shared.models.proxy import ProxyOneShotRequest, ProxyResponse
 
-import shared.consul
 
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
@@ -57,7 +53,7 @@ async def incoming_singleturn_message(message: ProxyOneShotRequest) -> ProxyResp
 
     payload = message.model_dump()
     
-    async with httpx.AsyncClient(timeout=60) as client:
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         try:
             proxy_address, proxy_port = shared.consul.get_service_address('proxy')
             if not proxy_address or not proxy_port:
@@ -86,10 +82,18 @@ async def incoming_singleturn_message(message: ProxyOneShotRequest) -> ProxyResp
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Connection error: {req_err}"
             )
+        
+        except Exception as e:
+            logger.error(f"Unexpected error in proxy service: {e}")
+
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error in proxy service: {e}"
+            )
 
     try:
         json_response = response.json()
-        logger.debug(f"Response from Ollama API:\n{json.dumps(json_response, indent=4, ensure_ascii=False)}")
+        logger.debug(f"🦙 Response from Ollama API:\n{json.dumps(json_response, indent=4, ensure_ascii=False)}")
         
         proxy_response = ProxyResponse.model_validate(json_response)
 

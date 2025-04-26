@@ -160,7 +160,7 @@ async def discord_message_incoming(message: DiscordDirectMessage):
         logger.error(f"Error sending messages to ledger sync endpoint: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to sync messages with ledger service."
+            detail=f"Failed to sync messages with ledger service: {e}"
         )
 
     # sanitize proxy messages
@@ -177,6 +177,7 @@ async def discord_message_incoming(message: DiscordDirectMessage):
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail=f"ledger service is unavailable."
             )
+
         try:
             summary_response = await client.get(f"http://{address}:{port}/summaries/user/{user_id}?limit=4")
             summary_response.raise_for_status()
@@ -206,7 +207,7 @@ async def discord_message_incoming(message: DiscordDirectMessage):
 
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Error contacting ledger service: {e}"
+                detail=f"Error contacting ledger service: {e}"
             )
 
     # Start constructing our ProxyDiscordDMRequest

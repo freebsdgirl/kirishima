@@ -1,27 +1,29 @@
 """
 This module initializes and configures the FastAPI application for the "brain" service.
 
-It includes the following functionalities:
-- Registers routers for various components such as memory, buffer, modes, scheduler, docs, message handling, models, and embeddings.
-- Sets up system-level routes and documentation routes.
-- Configures message-related routes with specific prefixes and tags.
-- Optionally enables tracing if the `TRACING_ENABLED` configuration is set to `True`.
+It includes:
+- Middleware for caching request bodies.
+- Routers for various functionalities such as modes, scheduler, memory, messaging, models, embedding, Discord DM, and user summaries.
+- System and documentation routes.
+- Dynamic route registration.
+- Optional tracing setup if enabled in the shared configuration.
 
-Modules and Routers:
-- `memory_router`: Handles memory-related operations.
-- `buffer_router`: Manages buffer-related functionalities.
-- `modes_router`: Provides endpoints for mode configurations.
-- `scheduler_router`: Manages scheduling tasks.
-- `docs_router`: Serves API documentation.
-- `message_router`: Handles general message-related operations.
-- `message_multiturn_router`: Manages multi-turn message interactions.
-- `message_singleturn_router`: Handles single-turn message interactions.
-- `models_router`: Provides endpoints for model-related operations.
-- `embedding_router`: Manages embedding-related functionalities.
-- `routes_router`: Defines shared system-level routes.
+Modules and functionalities:
+- `app.modes`: Handles mode-related operations.
+- `app.scheduler.scheduler`: Manages scheduling tasks.
+- `app.memory.functions` and `app.memory.list`: Provide memory-related functionalities.
+- `app.message.multiturn` and `app.message.singleturn`: Handle multi-turn and single-turn messaging, respectively.
+- `app.summary.user`: Manages user summary operations.
+- `app.models`: Handles model-related operations.
+- `app.embedding`: Manages embedding-related functionalities.
+- `app.discord.dm`: Handles Discord direct messaging.
+- `shared.docs_exporter`: Exports API documentation.
+- `shared.routes`: Manages system routes and dynamic route registration.
+- `shared.models.middleware.CacheRequestBodyMiddleware`: Middleware for caching request bodies.
+- `shared.tracing`: Optional tracing setup for monitoring and debugging.
 
-Tracing:
-- If tracing is enabled via the `TRACING_ENABLED` configuration, the `setup_tracing` function is invoked to integrate tracing capabilities with the application.
+Environment-specific behavior:
+- If `TRACING_ENABLED` is set in the shared configuration, tracing is initialized for the application.
 """
 
 from app.modes import router as modes_router
@@ -38,10 +40,11 @@ from app.discord.dm import router as discord_dm_router
 from shared.docs_exporter import router as docs_router
 from shared.routes import router as routes_router, register_list_routes
 
-
 from shared.models.middleware import CacheRequestBodyMiddleware
+
 from fastapi import FastAPI
 app = FastAPI()
+
 app.add_middleware(CacheRequestBodyMiddleware)
 
 app.include_router(routes_router, tags=["system"])

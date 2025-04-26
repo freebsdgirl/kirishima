@@ -1,3 +1,24 @@
+"""
+This module provides an API endpoint for generating text embeddings using ChromaDB.
+
+It defines a FastAPI router with a single POST endpoint `/embedding` that accepts an
+EmbeddingRequest and returns a list of embedding vector values. The endpoint retrieves
+the ChromaDB service address via Consul, sends the input text for embedding generation,
+and handles errors related to service availability and processing.
+
+Modules and dependencies:
+- shared.config: Provides configuration constants (e.g., TIMEOUT).
+- shared.log_config: Logger configuration for consistent logging.
+- shared.models.embedding: EmbeddingRequest model definition.
+- httpx: For making asynchronous HTTP requests.
+- shared.consul: Service discovery for ChromaDB.
+- fastapi: API routing and exception handling.
+
+    HTTPException: For invalid input, service unavailability, or processing errors.
+"""
+
+from shared.config import TIMEOUT
+
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
 
@@ -30,13 +51,15 @@ async def embedding(input: EmbeddingRequest) -> list:
 
     try: 
         request = input.model_dump()
-        logger.debug(f"/embedding Request:\n{input.model_dump_json(indent=4)}")
+
     except:
-        logger.error("Error converting request to JSON format.")
+        logger.error(f"Error converting request to JSON format: {input}")
+
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid input format."
         )
+
     try:
         chromadb_host, chromadb_port = shared.consul.get_service_address('chromadb')
         if not chromadb_host or not chromadb_port:
@@ -45,7 +68,7 @@ async def embedding(input: EmbeddingRequest) -> list:
                 detail="ChromaDB service is unavailable."
             )
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
             response = await client.post(
                 f"http://{chromadb_host}:{chromadb_port}/embedding",
                 json={"input": request['input']}

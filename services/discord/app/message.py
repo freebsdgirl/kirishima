@@ -1,4 +1,5 @@
 import shared.consul
+from shared.config import TIMEOUT
 
 from shared.models.discord import DiscordDirectMessage
 from shared.models.proxy import ProxyResponse
@@ -44,7 +45,7 @@ def setup(bot):
                     display_name=message.author.display_name
                 )
 
-                async with httpx.AsyncClient(timeout=60) as client:
+                async with httpx.AsyncClient(timeout=TIMEOUT) as client:
                     try:
                         brain_address, brain_port = shared.consul.get_service_address('brain')
                     
@@ -54,8 +55,6 @@ def setup(bot):
                         proxy_response = response.json()
                         print(f"RESPONSE {proxy_response}")
                         await ctx.send(proxy_response['response'])
-                    except Exception as e:
-                        logger.exception("Error retrieving service address for ledger:", e)
 
                     except httpx.HTTPStatusError as http_err:
                         logger.error(f"HTTP error forwarding from ledger: {http_err.response.status_code} - {http_err.response.text}")
@@ -72,6 +71,9 @@ def setup(bot):
                             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                             detail=f"Connection error: {req_err}"
                         )
+                    
+                    except Exception as e:
+                        logger.exception("Error retrieving service address for ledger:", e)
                 
             await bot.process_commands(message)  # Ensure commands still work
         except Exception as e:

@@ -23,226 +23,228 @@ digraph Microservices {
     style=dashed;
     color=lightgrey;
     node [style=filled, fillcolor=lightyellow];
-    "API: GET /models"
-    "API: GET /models/MODEL_ID"
-    "API: GET /v1/models/MODEL_ID"
-    "API: POST /chat/completions"
     "API: POST /completions"
-    "API: POST /v1/chat/completions"
     "API: POST /v1/completions"
+    "API: POST /chat/completions"
+    "API: POST /v1/chat/completions"
+    "API: GET /models/{model_id}"
+    "API: GET /v1/models/{model_id}"
+    "API: GET /models"
+    "API: GET /v1/models"
   }
 
-  /* Brain endpoints */
+  /* BRAIN endpoints */
   subgraph cluster_brain {
-    label="Brain endpoints";
+    label="BRAIN endpoints";
     style=dashed;
     color=lightgrey;
     node [style=filled, fillcolor=lightgreen];
-    "Brain: DELETE /memory"
-    "Brain: DELETE /scheduler/job/JOB_ID"
-    "Brain: GET /memory"
-    "Brain: GET /memory/semantic"
-    "Brain: GET /model/MODEL_NAME"
-    "Brain: GET /models"
-    "Brain: GET /scheduler/job"
-    "Brain: POST /embedding"
-    "Brain: POST /memory"
-    "Brain: POST /message/incoming"
-    "Brain: POST /message/multiturn/incoming"
-    "Brain: POST /message/single/incoming"
-    "Brain: POST /scheduler/job"
+    "BRAIN: POST /mode/{mode}"
+    "BRAIN: GET /mode"
+    "BRAIN: POST /scheduler/callback"
+    "BRAIN: POST /scheduler/job"
+    "BRAIN: GET /scheduler/job"
+    "BRAIN: DELETE /scheduler/job/{job_id}"
+    "BRAIN: POST /memory"
+    "BRAIN: DELETE /memory"
+    "BRAIN: GET /memory"
+    "BRAIN: GET /memory/semantic"
+    "BRAIN: POST /api/multiturn"
+    "BRAIN: POST /message/single/incoming"
+    "BRAIN: GET /models"
+    "BRAIN: GET /model/{model_name}"
+    "BRAIN: POST /embedding"
+    "BRAIN: POST /discord/message/incoming"
+    "BRAIN: POST /summary/user"
+    "BRAIN: POST /summary/user/combined"
   }
 
-  /* ChromaDB endpoints */
+  /* CHROMADB endpoints */
   subgraph cluster_chromadb {
-    label="ChromaDB endpoints";
+    label="CHROMADB endpoints";
     style=dashed;
     color=lightgrey;
     node [style=filled, fillcolor=lightpink];
-    "ChromaDB: DELETE /memory/MEM_ID"
-    "ChromaDB: GET /memory"
-    "ChromaDB: GET /memory/id/MEM_ID"
-    "ChromaDB: GET /memory/search"
-    "ChromaDB: GET /memory/semantic"
-    "ChromaDB: PATCH /memory/MEM_ID"
-    "ChromaDB: POST /embedding"
-    "ChromaDB: POST /memory"
-    "ChromaDB: PUT /memory/MEM_ID"
+    "CHROMADB: POST /embedding"
+    "CHROMADB: POST /memory"
+    "CHROMADB: DELETE /memory/{memory_id}"
+    "CHROMADB: PUT /memory/{memory_id}"
+    "CHROMADB: PATCH /memory/{memory_id}"
+    "CHROMADB: GET /memory/id/{memory_id}"
+    "CHROMADB: GET /memory"
+    "CHROMADB: GET /memory/search"
+    "CHROMADB: GET /memory/semantic"
   }
 
-  /* Contacts endpoints */
+  /* CONTACTS endpoints */
   subgraph cluster_contacts {
-    label="Contacts endpoints";
+    label="CONTACTS endpoints";
     style=dashed;
     color=lightgrey;
     node [style=filled, fillcolor=lightcoral];
-    "Contacts: DELETE /contact/CONTACT_ID"
-    "Contacts: GET /contacts"
-    "Contacts: GET /search"
-    "Contacts: GET /contact/CONTACT_ID"
-    "Contacts: PATCH /contact/CONTACT_ID"
-    "Contacts: POST /contact"
-    "Contacts: PUT /contact/CONTACT_ID"
+    "CONTACTS: POST /contact"
+    "CONTACTS: GET /contacts"
+    "CONTACTS: GET /contact/{contact_id}"
+    "CONTACTS: GET /search"
+    "CONTACTS: PUT /contact/{contact_id}"
+    "CONTACTS: DELETE /contact/{contact_id}"
+    "CONTACTS: PATCH /contact/{contact_id}"
   }
 
-  /* iMessage endpoints */
+  /* IMESSAGE endpoints */
   subgraph cluster_imessage {
-    label="iMessage endpoints";
+    label="IMESSAGE endpoints";
     style=dashed;
     color=lightgrey;
     node [style=filled, fillcolor=lightcyan];
-    "iMessage: POST /imessage/recv"
-    "iMessage: POST /imessage/send"
+    "IMESSAGE: POST /imessage/send"
+    "IMESSAGE: POST /imessage/recv"
   }
 
-  /* Intents endpoints */
+  /* INTENTS endpoints */
   subgraph cluster_intents {
-    label="Intents endpoints";
+    label="INTENTS endpoints";
     style=dashed;
     color=lightgrey;
     node [style=filled, fillcolor=lightgoldenrod];
-    "Intents: GET /intents"
-    "Intents: POST /intents"
+    "INTENTS: POST /intents"
   }
 
-  /* Intents endpoints */
-  subgraph cluster_intents {
-    label="Ledger endpoints";
+  /* LEDGER endpoints */
+  subgraph cluster_ledger {
+    label="LEDGER endpoints";
     style=dashed;
     color=lightgrey;
-    node [style=filled, fillcolor=lightgoldenrod];
-    "Ledger: POST /ledger/user/{user_id}/sync"
-    "Ledger: GET /ledger/user/{user_id}/messages"
-    "Ledger: DELETE /ledger/user/{user_id}/before/{message_id}"
-    "Ledger: DELETE /ledger/user/{user_id}"
-    "Ledger: POST /ledger/conversation/{conversation_id}/sync"
-    "Ledger: GET /ledger/conversation/{conversation_id}/messages"
-    "Ledger: DELETE /ledger/conversation/{conversation_id}/before/{message_id}"
-    "Ledger: DELETE /ledger/conversation/{conversation_id}"
-    "Ledger: GET /summaries/user/{user_id}?limit=&level="
-    "Ledger: DELETE /summaries/user/{user_id}"
-    "Ledger: POST /summaries/user/{user_id}/create"
-    "Ledger: GET /summaries/conversation/{conversation_id}"
-    "Ledger: POST /summaries/conversation/{conversation_id}/daily/create"
-    "Ledger: POST /summaries/conversation/{conversation_id}/weekly/create"
-    "Ledger: POST /summaries/conversation/{conversation_id}/monthly/create"
+    node [style=filled, fillcolor="#16b3b3"];
+    "LEDGER: DELETE /ledger/user/{user_id}/before/{message_id}"
+    "LEDGER: DELETE /ledger/user/{user_id}"
+    "LEDGER: GET /ledger/user/{user_id}/messages"
+    "LEDGER: GET /summaries/user/{user_id}"
+    "LEDGER: DELETE /summaries/user/{user_id}"
+    "LEDGER: POST /summaries/user/{user_id}/create"
+    "LEDGER: POST /summaries/inactive"
+    "LEDGER: POST /ledger/user/{user_id}/sync"
+    "LEDGER: DELETE /ledger/conversation/{conversation_id}/before/{message_id}"
+    "LEDGER: DELETE /ledger/conversation/{conversation_id}"
+    "LEDGER: GET /ledger/conversation/{conversation_id}/messages"
+    "LEDGER: GET /summaries/conversation/{conversation_id}"
+    "LEDGER: POST /summaries/conversation/{conversation_id}/daily/create"
+    "LEDGER: POST /summaries/conversation/{conversation_id}/weekly/create"
+    "LEDGER: POST /summaries/conversation/{conversation_id}/monthly/create"
+    "LEDGER: POST /ledger/conversation/{conversation_id}/sync"
   }
 
   
-  /* Proxy endpoints */
+  /* PROXY endpoints */
   subgraph cluster_proxy {
-    label="Proxy endpoints";
+    label="PROXY endpoints";
     style=dashed;
     color=lightgrey;
     node [style=filled, fillcolor=lightsteelblue];
-    "Proxy: GET /api/models"
-    "Proxy: GET /api/models/MODEL_NAME"
-    "Proxy: POST /from/api/completions"
-    "Proxy: POST /from/api/multiturn"
-    "Proxy: POST /from/imessage"
+    "PROXY: GET /api/models"
+    "PROXY: GET /api/models/{model_name}"
+    "PROXY: POST /from/api/completions"
+    "PROXY: POST /api/multiturn"
+    "PROXY: POST /summary/user"
+    "PROXY: POST /summary/user/combined"
+    "PROXY: POST /from/imessage"
+    "PROXY: POST /discord/dm"
+    "PROXY: POST /queue/enqueue"
+    "PROXY: GET /queue/status"
+    "PROXY: GET /queue/task/{task_id}"
   }
 
-  /* Scheduler endpoints */
+  /* SCHEDULER endpoints */
   subgraph cluster_scheduler {
-    label="Scheduler endpoints";
+    label="SCHEDULER endpoints";
     style=dashed;
     color=lightgrey;
     node [style=filled, fillcolor=lightseagreen];
-    "Scheduler: DELETE /jobs/JOB_ID"
-    "Scheduler: GET /jobs"
-    "Scheduler: POST /jobs"
-    "Scheduler: POST /jobs/JOB_ID/pause"
-    "Scheduler: POST /jobs/JOB_ID/resume"
+    "SCHEDULER: POST /jobs/{job_id}/pause"
+    "SCHEDULER: POST /jobs/{job_id}/resume"
+    "SCHEDULER: POST /jobs"
+    "SCHEDULER: DELETE /jobs/{job_id}"
+    "SCHEDULER: GET /jobs"
   }
-
-  /* Summarize endpoints */
-  subgraph cluster_summarize {
-    label="Summarize endpoints";
-    style=dashed;
-    color=lightgrey;
-    node [style=filled, fillcolor=lightgray];
-    "Summarize: DELETE /buffer/USER_ID"
-    "Summarize: DELETE /summary/ID"
-    "Summarize: DELETE /summary/user/USER_ID"
-    "Summarize: GET /buffer"
-    "Summarize: GET /buffer/USER_ID"
-    "Summarize: GET /context/USER_ID"
-    "Summarize: GET /summary/ID"
-    "Summarize: GET /summary/search"
-    "Summarize: GET /summary/user/USER_ID"
-    "Summarize: POST /buffer"
-    "Summarize: POST /summarize_buffers"
-    "Summarize: POST /summary"
-  }
-
-  /* No external dependencies for contacts endpoints (all DB local) */
-
-  /* No external dependencies for intents endpoints (all logic local) */
 
   /* Describe connections */
   /* API endpoint dependencies */
-  "API: POST /v1/chat/completions" -> "Brain: POST /message/multiturn/incoming"
-  "API: POST /v1/completions" -> "Brain: POST /message/single/incoming"
-  "API: GET /v1/models/MODEL_ID" -> "Brain: GET /model/MODEL_NAME"
-  "API: POST /completions" -> "API: POST /v1/completions"
-  "API: POST /chat/completions" -> "API: POST /v1/chat/completions"
-  "API: GET /models" -> "API: GET /v1/models"
-  "API: GET /models/MODEL_ID" -> "API: GET /v1/models/MODEL_ID"
-  "API: POST /v1/chat/completions" -> "API: POST /v1/completions" [label="if '### Task'"]
+  "API: POST /v1/chat/completions"  -> "BRAIN: POST /message/multiturn/incoming"
+  "API: POST /v1/completions"       -> "BRAIN: POST /message/single/incoming"
+  "API: GET /v1/models/{model_id}"  -> "BRAIN: GET /model/{model_name}"
+  "API: POST /completions"          -> "API: POST /v1/completions" [label="Redirect"]
+  "API: POST /chat/completions"     -> "API: POST /v1/chat/completions" [label="Redirect"]
+  "API: GET /models"                -> "API: GET /v1/models" [label="Redirect"]
+  "API: GET /models/{model_id}"     -> "API: GET /v1/models/{model_id}" [label="Redirect"]
+  "API: POST /v1/chat/completions"  -> "API: POST /v1/completions" [label="if '### Task'"]
 
-  /* Brain endpoint dependencies */
-  "Brain: POST /embedding" -> "ChromaDB: POST /embedding"
-  "Brain: GET /models" -> "Proxy: GET /api/models"
-  "Brain: GET /model/MODEL_NAME" -> "Proxy: GET /api/models/MODEL_NAME"
-  "Brain: POST /scheduler/job" -> "Scheduler: POST /jobs"
-  "Brain: GET /scheduler/job" -> "Scheduler: GET /jobs"
-  "Brain: DELETE /scheduler/job/JOB_ID" -> "Scheduler: DELETE /jobs/JOB_ID"
-  "Brain: POST /message/incoming" -> "Contacts: GET /search"
-  "Brain: POST /message/incoming" -> "Contacts: POST /contact" [label="if not found"]
-  "Brain: POST /message/incoming" -> "Summarize: POST /buffer"
-  "Brain: POST /message/single/incoming" -> "Proxy: POST /from/api/completions"
-  "Brain: POST /message/multiturn/incoming" -> "Intents: POST /intents" [label="intent detection"]
-  "Brain: POST /message/multiturn/incoming" -> "Proxy: POST /from/api/multiturn"
-  "Brain: POST /message/multiturn/incoming" -> "Intents: POST /intents" [label="response post-processing"]
-  "Brain: GET /memory" -> "ChromaDB: GET /memory"
-  "Brain: GET /memory/semantic" -> "ChromaDB: GET /memory/semantic"
-  "Brain: POST /memory" -> "Brain: GET /mode"
-  "Brain: POST /memory" -> "ChromaDB: POST /embedding"
-  "Brain: POST /memory" -> "ChromaDB: POST /memory"
-  "Brain: DELETE /memory" -> "ChromaDB: GET /memory"
-  "Brain: DELETE /memory" -> "ChromaDB: DELETE /memory/MEM_ID"
+  /* BRAIN endpoint dependencies */
+  "BRAIN: POST /embedding"                    -> "CHROMADB: POST /embedding"
+  "BRAIN: GET /models"                        -> "PROXY: GET /api/models"
+  "BRAIN: GET /model/{model_name}"            -> "PROXY: GET /api/models/{model_name}"
+  "BRAIN: POST /scheduler/job"                -> "SCHEDULER: POST /jobs"
+  "BRAIN: GET /scheduler/job"                 -> "SCHEDULER: GET /jobs"
+  "BRAIN: DELETE /scheduler/job/{job_id}"     -> "SCHEDULER: DELETE /jobs/{job_id}"
+  "BRAIN: POST /message/incoming"             -> "CONTACTS: GET /search"
+  "BRAIN: POST /message/incoming"             -> "CONTACTS: POST /contact" [label="if not found"]
+  "BRAIN: POST /message/incoming"             -> "Summarize: POST /buffer"
+  "BRAIN: POST /message/single/incoming"      -> "PROXY: POST /from/api/completions"
+  "BRAIN: POST /message/multiturn/incoming"   -> "INTENTS: POST /intents"
+  "BRAIN: POST /message/multiturn/incoming"   -> "PROXY: POST /from/api/multiturn"
+  "BRAIN: POST /message/multiturn/incoming"   -> "INTENTS: POST /intents" [label="response post-processing"]
+  "BRAIN: POST /message/multiturn/incoming"   -> "LEDGER: POST /ledger/user/{user_id}/sync"
+  "BRAIN: POST /message/multiturn/incoming"   -> "LEDGER: GET /summaries/user/{user_id}"
+  "BRAIN: GET /memory"                        -> "CHROMADB: GET /memory"
+  "BRAIN: GET /memory/semantic"               -> "CHROMADB: GET /memory/semantic"
+  "BRAIN: POST /memory"                       -> "BRAIN: GET /mode"
+  "BRAIN: POST /memory"                       -> "CHROMADB: POST /embedding"
+  "BRAIN: POST /memory"                       -> "CHROMADB: POST /memory"
+  "BRAIN: DELETE /memory"                     -> "CHROMADB: GET /memory"
+  "BRAIN: DELETE /memory"                     -> "CHROMADB: DELETE /memory/{memory_id}"
+  "BRAIN: POST /discord/message/incoming"     -> "CONTACTS: GET /search"
+  "BRAIN: POST /discord/message/incoming"     -> "PROXY: POST /discord/dm"
+  "BRAIN: POST /discord/message/incoming"     -> "INTENTS: POST /intents"
+  "BRAIN: POST /discord/message/incoming"     -> "LEDGER: POST /ledger/user/{user_id}/sync"
+  "BRAIN: POST /discord/message/incoming"     -> "LEDGER: GET /summaries/user/{user_id}"
+  "BRAIN: POST /summary/user"                 -> "CONTACTS: GET /search"
+  "BRAIN: POST /summary/user"                 -> "PROXY: POST /summary/user"
+  "BRAIN: POST /summary/user/combined"        -> "CONTACTS: GET /search"
+  "BRAIN: POST /summary/user/combined"        -> "PROXY: POST /summary/user/combined"
 
   /* discord endpoint dependencies */
-  "Discord: Main Loop" -> "Contacts: GET /search"
-  "Discord: Main Loop" -> "Contacts: GET /contact/CONTACT_ID"
+  "DISCORD: Main Loop" -> "CONTACTS: GET /search"
+  "DISCORD: Main Loop" -> "CONTACTS: GET /contact/{contact_id}"
+  "DISCORD: Main Loop" -> "CONTACTS: POST /contact"
+  "DISCORD: Main Loop" -> "CONTACTS: PATCH /contact/{contact_id}"
+  "DISCORD: Main Loop" -> "BRAIN: POST /discord/message/incoming"
 
-  /* iMessage endpoint dependencies */
-  "iMessage: POST /imessage/send" -> "BlueBubbles: POST /api/v1/message/text"
-  "iMessage: POST /imessage/send" -> "BlueBubbles: POST /api/v1/chat/new" [label="if chat does not exist"]
-  "iMessage: POST /imessage/recv" -> "Brain: POST /message/incoming"
-  "iMessage: POST /imessage/recv" -> "BlueBubbles: POST /api/v1/message/text" [label="if Brain replies"]
+  /* IMESSAGE endpoint dependencies */
+  "IMESSAGE: POST /imessage/send" -> "BLUEBUBBLES: POST /api/v1/message/text"
+  "IMESSAGE: POST /imessage/send" -> "BLUEBUBBLES: POST /api/v1/chat/new" [label="if chat does not exist"]
+  "IMESSAGE: POST /imessage/recv" -> "BRAIN: POST /message/incoming"
+  "IMESSAGE: POST /imessage/recv" -> "BLUEBUBBLES: POST /api/v1/message/text" [label="if BRAIN replies"]
 
-  /* Intents service dependencies (calls to Brain) */
-  "Intents: POST /intents" -> "Brain: GET /mode"
-  "Intents: POST /intents" -> "Brain: POST /mode/MODE"
-  "Intents: POST /intents" -> "Brain: POST /memory"
-  "Intents: POST /intents" -> "Brain: DELETE /memory"
+  /* INTENTS service dependencies (calls to BRAIN) */
+  "INTENTS: POST /intents" -> "BRAIN: GET /mode"
+  "INTENTS: POST /intents" -> "BRAIN: POST /mode/MODE"
+  "INTENTS: POST /intents" -> "BRAIN: POST /memory"
+  "INTENTS: POST /intents" -> "BRAIN: DELETE /memory"
 
-  /* Ledger endpoint dependencies */
-  /* TODO: Update */
+  /* LEDGER endpoint dependencies */
+  "LEDGER: POST /summaries/user/{user_id}/create" -> "LEDGER: GET /ledger/user/{user_id}/messages"
+  "LEDGER: POST /summaries/user/{user_id}/create" -> "BRAIN: POST /summary/user"
+  "LEDGER: POST /summaries/user/{user_id}/create" -> "LEDGER: DELETE /ledger/user/{user_id}/before/{message_id}"
+  "LEDGER: POST /summaries/user/{user_id}/create" -> "BRAIN: POST /summary/user/combined"
 
-  /* Proxy endpoint dependencies */
-  "Proxy: POST /from/api/completions" -> "Ollama: POST /api/generate"
-  "Proxy: POST /from/api/multiturn" -> "Ollama: POST /api/generate"
-  "Proxy: POST /from/imessage" -> "Ollama: POST /api/generate"
-  "Proxy: GET /api/models" -> "Ollama: GET /api/tags"
-  "Proxy: GET /api/models/MODEL_NAME" -> "Ollama: GET /api/tags"
+  /* PROXY endpoint dependencies */
+  "PROXY: POST /from/api/completions" -> "OLLAMA: POST /api/generate"
+  "PROXY: POST /from/api/multiturn" -> "OLLAMA: POST /api/generate"
+  "PROXY: POST /from/imessage" -> "OLLAMA: POST /api/generate"
+  "PROXY: GET /api/models" -> "OLLAMA: GET /api/tags"
+  "PROXY: GET /api/models/MODEL_NAME" -> "OLLAMA: GET /api/tags"
 
-  /* Scheduler endpoint dependencies */
-  "Scheduler: POST /jobs" -> "External: POST <external_url>" [label="when job runs"]
-
-  /* Summarize endpoint dependencies */
-  "Summarize: POST /summarize_buffers" -> "Ollama: POST /api/generate" [label="summarization"]
+  /* SCHEDULER endpoint dependencies */
+  "SCHEDULER: POST /jobs" -> "External: POST <external_url>" [label="when job runs"]
 }
 
 /* generate with twopi -Tsvg endpoint.dot -o endpoint.svg or neato -Tpng endpoint.dot -o endpoint.png */

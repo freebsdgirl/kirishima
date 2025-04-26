@@ -15,11 +15,12 @@ ChromaDB provides an HTTP API for storing, retrieving, updating, and searching v
 
 ## Port
 
-- **4206** (default)
+4206
 
 ## Main Endpoints
 
 ### Memory (`/memory`)
+
 - `POST /memory` – Add a memory entry (document + embedding + metadata)
 - `GET /memory` – List memory entries, with optional filters (component, mode, priority, limit)
 - `GET /memory/id/{id}` – Retrieve a specific memory by ID

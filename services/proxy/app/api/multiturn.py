@@ -24,7 +24,7 @@ Key Features:
 - Includes error handling for model compatibility and API request failures.
 - Logs detailed debug information for request and response processing.
 """
-
+from shared.config import TIMEOUT
 import app.config
 
 from app.util import is_instruct_model
@@ -32,21 +32,18 @@ from app.prompts.dispatcher import get_prompt_builder
 
 from shared.models.proxy import ProxyRequest, IncomingMessage, ProxyMultiTurnRequest, ProxyResponse
 
-
 from shared.log_config import get_logger
 logger = get_logger(f"proxy.{__name__}")
 
 import httpx
 import json
+import tiktoken
 
 from datetime import datetime
 from dateutil import tz
 
-import tiktoken
-
 local_tz = tz.tzlocal()
 ts_with_offset = datetime.now(local_tz).isoformat(timespec="seconds")
-
 
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
@@ -78,52 +75,20 @@ def build_multiturn_prompt(request: ProxyMultiTurnRequest, system_prompt: str) -
     """
     # 1) System prompt header
     prompt_header = f"[INST] <<SYS>>{system_prompt}<<SYS>> [/INST]\n\n"
-    max_history_tokens = 1024
-    enc = tiktoken.get_encoding("gpt2")
 
-    # Only count tokens for conversation history, not the prompt_header
+    # Use all messages (or last N if you want to limit elsewhere)
     messages = request.messages
-    selected = []
-    total_tokens = 0  # Do NOT include prompt_header tokens here
-    i = len(messages) - 1
-    while i >= 0:
-        msg = messages[i]
-        # Estimate tokens for this message (with scaffolding)
-        if msg.role == "system":
-            msg_text = f"[INST] <<SYS>>{msg.content}<<SYS>> [/INST]\n"
-        elif msg.role == "user":
-            # Look ahead for assistant reply
-            if (i + 1 < len(messages)) and (messages[i + 1].role == "assistant"):
-                msg_text = f"[INST] {msg.content} [/INST] {messages[i + 1].content}\n"
-            else:
-                msg_text = f"[INST] {msg.content} [/INST]\n"
-        else:
-            i -= 1
-            continue
-        msg_tokens = len(enc.encode(msg_text))
-        if total_tokens + msg_tokens > max_history_tokens:
-            break
-        selected.append(i)
-        if msg.role == "user" and (i + 1 < len(messages)) and (messages[i + 1].role == "assistant"):
-            selected.append(i + 1)
-            i -= 2
-        else:
-            i -= 1
-        total_tokens += msg_tokens
-    # selected now has indices of messages to include, in reverse order
-    selected = sorted(set(selected))
-    # 2) Build prompt from selected messages
+    # 2) Build prompt from all messages
     prompt = prompt_header
     i = 0
-    while i < len(selected):
-        idx = selected[i]
-        msg = messages[idx]
+    while i < len(messages):
+        msg = messages[i]
         if msg.role == "system":
             prompt += f"[INST] <<SYS>>{msg.content}<<SYS>> [/INST]\n"
             i += 1
         elif msg.role == "user":
-            if (i + 1 < len(selected)) and (messages[selected[i + 1]].role == "assistant") and (selected[i + 1] == idx + 1):
-                prompt += f"[INST] {msg.content} [/INST] {messages[selected[i + 1]].content}\n"
+            if (i + 1 < len(messages)) and (messages[i + 1].role == "assistant"):
+                prompt += f"[INST] {msg.content} [/INST] {messages[i + 1].content}\n"
                 i += 2
             else:
                 prompt += f"[INST] {msg.content} [/INST]\n"
@@ -198,10 +163,10 @@ async def from_api_multiturn(request: ProxyMultiTurnRequest) -> ProxyResponse:
         "raw": True
     }
 
-    logger.debug(f"Request to Ollama API:\n{json.dumps(payload, indent=4, ensure_ascii=False)}")
+    logger.debug(f"🦙 Request to Ollama API:\n{json.dumps(payload, indent=4, ensure_ascii=False)}")
 
     # Send the POST request using an async HTTP client
-    async with httpx.AsyncClient(timeout=60) as client:
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         try:
             response = await client.post(f"{app.config.OLLAMA_URL}/api/generate", json=payload)
             response.raise_for_status()
@@ -220,15 +185,24 @@ async def from_api_multiturn(request: ProxyMultiTurnRequest) -> ProxyResponse:
                 detail=f"Connection error: {req_err}"
             )
 
-    json_response = response.json()
-    logger.debug(f"Response from Ollama API:\n{json.dumps(json_response, indent=4, ensure_ascii=False)}")
+    try:
+        json_response = response.json()
+        logger.debug(f"🦙 Response from Ollama API:\n{json.dumps(json_response, indent=4, ensure_ascii=False)}")
 
-    # Construct the ProxyResponse from the API response data.
-    proxy_response = ProxyResponse(
-        response=json_response.get("response"),
-        generated_tokens=json_response.get("eval_count"),
-        timestamp=datetime.now().isoformat()
-    )
+        # Construct the ProxyResponse from the API response data.
+        proxy_response = ProxyResponse(
+            response=json_response.get("response"),
+            generated_tokens=json_response.get("eval_count"),
+            timestamp=datetime.now().isoformat()
+        )
+
+    except Exception as e:
+        logger.error(f"Error parsing response from Ollama API: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to parse response from language model service: {e}"
+        )
 
     logger.debug(f"/api/multiturn Response:\n{proxy_response.model_dump_json(indent=4)}")
+
     return proxy_response

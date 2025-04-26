@@ -6,7 +6,7 @@ Acts as the OpenAI-compatible gateway for clients, translating requests into int
 
 ## Port
 
-- **4200** (default)
+4200
 
 ## Main Endpoints
 
@@ -74,15 +74,6 @@ Acts as the OpenAI-compatible gateway for clients, translating requests into int
 - Provide model listing and metadata.
 - Expose system health and documentation endpoints.
 
-## Known Issues
-
-- Some advanced function-calling and memory features may be handled in downstream services (Brain).
-- Mode switching and certain stateful operations are managed outside the API microservice.
-
 ## External Dependencies
 
 - Brain (reasoning, memory, model inference)
-- Proxy (model and request routing)
-- ChromaDB (semantic memory, via Brain)
-- Scheduler (job management, via Brain)
-

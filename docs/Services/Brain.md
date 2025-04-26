@@ -20,12 +20,14 @@ Brain is the central orchestrator of the Kirishima architecture. It coordinates 
 ## Main Endpoints
 
 ### Message Routing
+
 - `POST /message/multiturn/incoming`  
   Handles multi-turn user messages, including context retrieval, memory, and reply generation.
 - `POST /message/single/incoming`  
   Handles stateless, single-turn user messages.
 
 ### Memory Management
+
 - `POST /memory`  
   Create a new memory with embedding.
 - `GET /memory`  
@@ -44,6 +46,7 @@ Brain is the central orchestrator of the Kirishima architecture. It coordinates 
   Semantic search for memory entries.
 
 ### Scheduler Integration
+
 - `POST /scheduler/job`  
   Schedule a new job in the external scheduler.
 - `GET /scheduler/job`  
@@ -54,12 +57,14 @@ Brain is the central orchestrator of the Kirishima architecture. It coordinates 
   Callback from Scheduler to execute a registered function.
 
 ### System Mode
+
 - `GET /mode`  
   Returns current system mode (e.g., “chat”, “dev”, “proxy_default”).
 - `POST /mode/{mode}`  
   Sets the system mode.
 
 ### Models & Embeddings
+
 - `GET /models`  
   List available models (proxied from Proxy/Ollama).
 - `GET /model/{model_name}`  
@@ -68,6 +73,7 @@ Brain is the central orchestrator of the Kirishima architecture. It coordinates 
   Generate an embedding for a given input.
 
 ### System & Docs
+
 - `GET /ping`  
   Health check.
 - `GET /__list_routes__`  

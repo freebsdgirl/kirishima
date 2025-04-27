@@ -187,7 +187,6 @@ digraph Microservices {
   "BRAIN: DELETE /scheduler/job/{job_id}"     -> "SCHEDULER: DELETE /jobs/{job_id}"
   "BRAIN: POST /message/incoming"             -> "CONTACTS: GET /search"
   "BRAIN: POST /message/incoming"             -> "CONTACTS: POST /contact" [label="if not found"]
-  "BRAIN: POST /message/incoming"             -> "Summarize: POST /buffer"
   "BRAIN: POST /message/single/incoming"      -> "PROXY: POST /from/api/completions"
   "BRAIN: POST /message/multiturn/incoming"   -> "INTENTS: POST /intents"
   "BRAIN: POST /message/multiturn/incoming"   -> "PROXY: POST /from/api/multiturn"
@@ -237,11 +236,11 @@ digraph Microservices {
   "LEDGER: POST /summaries/user/{user_id}/create" -> "BRAIN: POST /summary/user/combined"
 
   /* PROXY endpoint dependencies */
-  "PROXY: POST /from/api/completions" -> "OLLAMA: POST /api/generate"
-  "PROXY: POST /from/api/multiturn" -> "OLLAMA: POST /api/generate"
-  "PROXY: POST /from/imessage" -> "OLLAMA: POST /api/generate"
-  "PROXY: GET /api/models" -> "OLLAMA: GET /api/tags"
-  "PROXY: GET /api/models/MODEL_NAME" -> "OLLAMA: GET /api/tags"
+  "PROXY: POST /from/api/completions"   -> "OLLAMA: POST /api/generate"
+  "PROXY: POST /from/api/multiturn"     -> "OLLAMA: POST /api/generate"
+  "PROXY: POST /from/imessage"          -> "OLLAMA: POST /api/generate"
+  "PROXY: GET /api/models"              -> "OLLAMA: GET /api/tags"
+  "PROXY: GET /api/models/MODEL_NAME"   -> "OLLAMA: GET /api/tags"
 
   /* SCHEDULER endpoint dependencies */
   "SCHEDULER: POST /jobs" -> "External: POST <external_url>" [label="when job runs"]

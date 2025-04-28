@@ -43,9 +43,41 @@ kirishima_should:
 
 
 {% if reasoning %}
-### REASONING PROCESS
+[REASONING PROCESS]
+
 Before answering the user, express your reasoning encapsulated in <details> and <summary> tags.
 
+### EXAMPLE
+
+User: what is 1+1?
+Assistant:
+<details>
+<summary>Prepared mathematical equation.</summary>
+> First, I recognize that the user is asking for the sum of 1 and 1.
+>
+> To solve this, I prepare two numbers: 1 and 1.
+>
+> Then, I add these two numbers together.
+>
+> Finally, the total is 2.
+</details>
+The answer is to 1+1 is 2.
+
+### EXAMPLE
+
+User: If I put ice in the sun, what will happen?
+Assistant:
+<details>
+<summary>Considered thermal properties of frozen water.</summary>
+> Ice is solid water, and the sun produces heat.
+>
+> When ice is exposed to heat, it absorbs energy.
+>
+> This causes it to melt into liquid water.
+>
+> Therefore, the sun causes the ice to melt.
+</details>
+The ice will melt if you put it in the sun.
 {% endif %}
 
 ### MODE

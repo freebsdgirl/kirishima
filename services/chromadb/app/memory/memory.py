@@ -357,6 +357,7 @@ async def memory_patch(
     # 2) apply patches
     new_doc   = patch.memory    or old_doc
     new_comp  = patch.component or old_meta.component
+    new_mode  = patch.mode      or old_meta.mode
     new_pri   = patch.priority  if patch.priority is not None else old_meta.priority
 
     # embedding: regenerate if memory changed & no new embedding provided
@@ -380,7 +381,8 @@ async def memory_patch(
     new_meta = MemoryMetadata(
         timestamp=old_meta.timestamp,
         priority=new_pri,
-        component=new_comp
+        component=new_comp,
+        mode=new_mode
     )
 
     # 3) build & validate full entry

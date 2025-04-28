@@ -74,9 +74,9 @@ def delete_memory(uuid):
         print(f"Error deleting memory: {e}")
 
 
-def modify_priority(uuid, new_priority):
+def modify_priority(uuid, patch_data):
     try:
-        resp = requests.patch(f"{API_URL}/memory/{uuid}", json={"priority": float(new_priority)})
+        resp = requests.patch(f"{API_URL}/memory/{uuid}", json=patch_data)
         resp.raise_for_status()
         m = resp.json()
         print("Priority updated:")
@@ -107,6 +107,8 @@ def main():
     mod_parser = subparsers.add_parser("modify", help="Modify a memory's priority")
     mod_parser.add_argument("uuid", help="Memory UUID")
     mod_parser.add_argument("priority", type=float, help="New priority (0-1)")
+    mod_parser.add_argument("component", help="Component name")
+    mod_parser.add_argument("mode", help="Mode")
 
     args = parser.parse_args()
 
@@ -119,7 +121,8 @@ def main():
     elif args.command == "delete":
         delete_memory(args.uuid)
     elif args.command == "modify":
-        modify_priority(args.uuid, args.priority)
+        patch_data = {"priority": args.priority, "component": args.component, "mode": args.mode}
+        modify_priority(args.uuid, patch_data)
     else:
         parser.print_help()
 

@@ -318,7 +318,7 @@ async def memory_patch(
     """
     # 1) fetch existing record
     try:
-        res = collection.get(ids=[memory_id])
+        res = collection.get(ids=[memory_id], include=["embeddings", "metadatas", "documents"])
 
     except Exception as e:
         logger.error(f"ChromaDB lookup failed: {e}")
@@ -337,7 +337,9 @@ async def memory_patch(
         )
 
     old_doc      = res["documents"][0]
-    old_emb      = res["embeddings"][0] or []
+    old_emb      = res["embeddings"][0]
+    if old_emb is None:
+        old_emb = []
     old_meta_raw = res["metadatas"][0]
 
     # parse old metadata into model

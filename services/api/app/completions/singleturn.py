@@ -96,7 +96,7 @@ async def openai_v1_completions(request: OpenAICompletionRequest, request_data: 
             try:
                 brain_address, brain_port = get_service_address('brain')
                 response = await client.post(
-                    f"http://{brain_address}:{brain_port}/message/single/incoming", 
+                    f"http://{brain_address}:{brain_port}/api/singleturn", 
                     json=proxy_request_data
                 )
                 response.raise_for_status()
@@ -134,7 +134,7 @@ async def openai_v1_completions(request: OpenAICompletionRequest, request_data: 
                 logger.error(f"Error converting timestamp: {err}")
                 created_unix = int(datetime.datetime.now().timestamp())
 
-            total_completion_tokens += proxy_response.generated_tokens
+            total_completion_tokens += proxy_response.eval_count
 
             # Create an OpenAI-style choice from the proxy response
             choice = OpenAICompletionChoice(

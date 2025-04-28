@@ -33,7 +33,6 @@ logger = get_logger(f"api.{__name__}")
 import uuid
 import httpx
 from datetime import datetime
-import tiktoken
 
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import RedirectResponse
@@ -202,23 +201,7 @@ async def chat_completions(data: ChatCompletionRequest):
     except Exception:
         created_unix = int(datetime.now().timestamp())
 
-    prompt_text = " ".join(msg.content for msg in data.messages if msg.role in ["user", "assistant"])
-
-    try:
-        enc = tiktoken.get_encoding("gpt2")
-        tokens = enc.encode(prompt_text)
-
-    except Exception as err:
-        logger.warning(f"Error retrieving encoding for model '{data.model}': {err}.")
-
-        raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error retrieving encoding for model '{data.model}': {err}"
-            )
-
-    prompt_tokens = len(tokens)
-    completion_tokens = proxy_response.generated_tokens
-    total_tokens = prompt_tokens + completion_tokens
+    total_tokens = proxy_response.prompt_eval_count + proxy_response.eval_count
 
     chat_response = ChatCompletionResponse(
         id=f"chatcmpl-{uuid.uuid4()}",
@@ -233,8 +216,8 @@ async def chat_completions(data: ChatCompletionRequest):
             )
         ],
         usage=ChatUsage(
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens,
+            prompt_tokens=proxy_response.prompt_eval_count,
+            completion_tokens=proxy_response.eval_count,
             total_tokens=total_tokens
         )
     )

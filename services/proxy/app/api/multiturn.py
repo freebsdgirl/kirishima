@@ -19,7 +19,8 @@ Functions:
         Handles multi-turn API requests by generating prompts for language models.
 """
 from shared.config import TIMEOUT
-from shared.models.proxy import ProxyRequest, ChatMessages, IncomingMessage, ProxyMultiTurnRequest, ProxyResponse, OllamaRequest, OllamaResponse
+from shared.models.proxy import ChatMessages, ProxyMultiTurnRequest, ProxyResponse, OllamaRequest, OllamaResponse
+from shared.models.prompt import BuildSystemPrompt
 
 from app.util import build_multiturn_prompt
 from app.prompts.dispatcher import get_system_prompt
@@ -62,25 +63,17 @@ async def from_api_multiturn(request: ProxyMultiTurnRequest) -> ProxyResponse:
 
     logger.debug(f"/api/multiturn Request:\n{json.dumps(request.model_dump(), indent=4, ensure_ascii=False)}")
 
-    # assemble a minimal ProxyRequest just to generate the system prompt
-    # it only needs .message, .user_id, .context, .mode, .memories
-    proxy_req = ProxyRequest(
-        message=IncomingMessage(
-            platform="api", 
-            sender_id="internal", 
-            text=request.messages[-1].content,
-            timestamp=ts_with_offset,
-            metadata={}
-        ),
-        user_id="randi",
-        context="\n".join(f"{m.role}: {m.content}" for m in request.messages),
-        memories=request.memories,
-        summaries=request.summaries,
-        mode='work'
-    )
-
     # now get your dynamic system prompt
-    system_prompt = get_system_prompt(proxy_req)
+    system_prompt = get_system_prompt(
+        BuildSystemPrompt(
+            memories=request.memories,
+            mode='nsfw',
+            platform='api',
+            summaries=request.summaries,
+            username='Randi',
+            timestamp=datetime.now().isoformat(timespec="seconds")
+        )
+    )
 
     # 4) build the full instruct‑style prompt
     full_prompt = build_multiturn_prompt(ChatMessages(messages=request.messages), system_prompt)
@@ -132,7 +125,8 @@ async def from_api_multiturn(request: ProxyMultiTurnRequest) -> ProxyResponse:
         ollama_response = OllamaResponse(**json_response)
         proxy_response = ProxyResponse(
             response=ollama_response.response,
-            generated_tokens=ollama_response.eval_count,
+            eval_count=ollama_response.eval_count,
+            prompt_eval_count=ollama_response.prompt_eval_count,
             timestamp=datetime.now().isoformat()
         )
 

@@ -2,7 +2,6 @@ import shared.consul
 from shared.config import TIMEOUT
 
 from shared.models.discord import DiscordDirectMessage
-from shared.models.proxy import ProxyResponse
 
 from shared.log_config import get_logger
 logger = get_logger(f"discord.{__name__}")

@@ -13,7 +13,7 @@ Modules and Libraries:
 - `json`: Used for JSON serialization and deserialization.
 - `fastapi`: Provides the `APIRouter` and `HTTPException` for building the API.
 Functions:
-- `incoming_singleturn_message`: Handles POST requests to the `/message/single/incoming` endpoint.
+- `incoming_singleturn_message`: Handles POST requests to the `/api/singleturn` endpoint.
 """
 from shared.config import TIMEOUT
 import shared.consul
@@ -31,7 +31,7 @@ from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
 
 
-@router.post("/message/single/incoming", response_model=ProxyResponse)
+@router.post("/api/singleturn", response_model=ProxyResponse)
 async def incoming_singleturn_message(message: ProxyOneShotRequest) -> ProxyResponse:
     """
     Proxies the incoming single-turn message to the proxy service.
@@ -49,7 +49,7 @@ async def incoming_singleturn_message(message: ProxyOneShotRequest) -> ProxyResp
     Raises:
         HTTPException: If any error occurs when contacting the proxy service.
     """
-    logger.debug(f"/message/single/incoming Request:\n{message.model_dump_json(indent=4)}")
+    logger.debug(f"brain: /api/singleturn Request:\n{message.model_dump_json(indent=4)}")
 
     payload = message.model_dump()
     
@@ -93,18 +93,15 @@ async def incoming_singleturn_message(message: ProxyOneShotRequest) -> ProxyResp
 
     try:
         json_response = response.json()
-        logger.debug(f"🦙 Response from Ollama API:\n{json.dumps(json_response, indent=4, ensure_ascii=False)}")
-        
         proxy_response = ProxyResponse.model_validate(json_response)
 
     except Exception as err:
         logger.error(f"Error parsing response from proxy service: {err}")
-
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Invalid response format from proxy service."
+            detail=f"Invalid response format from proxy service: {err}"
         )
     
-    logger.debug(f"/message/single/incoming Returns:\n{proxy_response.model_dump_json(indent=4)}")
+    logger.debug(f"brain: /api/singleturn Returns:\n{proxy_response.model_dump_json(indent=4)}")
 
     return proxy_response

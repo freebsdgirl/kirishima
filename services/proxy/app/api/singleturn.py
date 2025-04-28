@@ -19,7 +19,7 @@ Dependencies:
 import app.config
 from shared.config import TIMEOUT
 
-from shared.models.proxy import ProxyOneShotRequest, ProxyResponse
+from shared.models.proxy import ProxyOneShotRequest, ProxyResponse, OllamaRequest, OllamaResponse
 
 from shared.log_config import get_logger
 logger = get_logger(f"proxy.{__name__}")
@@ -54,19 +54,21 @@ async def from_api_completions(message: ProxyOneShotRequest) -> ProxyResponse:
     logger.debug(f"/from/api/completions Request:\n{message.model_dump_json(indent=4)}")
 
     # Construct the payload for the Ollama API request
-    payload = {
-        "model": message.model,
-        "prompt": message.prompt,
-        "temperature": message.temperature,
-        "max_tokens": message.max_tokens,
-        "stream": False,
-        "raw": True
-    }
+    payload = OllamaRequest(
+        model=message.model,
+        prompt=message.prompt,
+        temperature=message.temperature,
+        max_tokens=message.max_tokens,
+        stream=False,
+        raw=True
+    )
+
+    logger.debug(f"🦙 Request to Ollama API:\n{json.dumps(payload.model_dump(), indent=4, ensure_ascii=False)}")
 
     # Send the POST request using an async HTTP client
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         try:
-            response = await client.post(f"{app.config.OLLAMA_URL}/api/generate", json=payload)
+            response = await client.post(f"{app.config.OLLAMA_URL}/api/generate", json=payload.model_dump())
             response.raise_for_status()
 
         except httpx.HTTPStatusError as http_err:
@@ -96,24 +98,22 @@ async def from_api_completions(message: ProxyOneShotRequest) -> ProxyResponse:
     try:
         # Log the raw response from the Ollama API
         json_response = response.json()
-        
-        logger.debug(f"Response from Ollama API:\n{json.dumps(json_response, indent=4, ensure_ascii=False)}")
+        logger.debug(f"🦙 Response from Ollama API:\n{json.dumps(json_response, indent=4, ensure_ascii=False)}")
 
         # Construct the ProxyResponse from the API response data
+        ollama_response = OllamaResponse(**json_response)
         proxy_response = ProxyResponse(
-            response=json_response.get("response"),
-            generated_tokens=json_response.get("eval_count"),
+            response=ollama_response.response,
+            eval_count=ollama_response.eval_count,
+            prompt_eval_count=ollama_response.prompt_eval_count,
             timestamp=datetime.now().isoformat()
         )
 
     except Exception as e:
         logger.error(f"Error parsing response from Ollama API: {e}")
-
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to parse response from the language model service: {e}"
         )
-
-    logger.debug(f"/from/api/completions Response:\n{proxy_response.model_dump_json(indent=4)}")
 
     return proxy_response

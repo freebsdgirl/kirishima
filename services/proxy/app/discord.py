@@ -1,5 +1,5 @@
 from shared.config import TIMEOUT, LLM_DEFAULTS
-from shared.models.proxy import ProxyDiscordDMRequest, ProxyResponse, ProxyRequest, IncomingMessage, ChatMessages
+from shared.models.proxy import ProxyDiscordDMRequest, ProxyResponse, ProxyRequest, IncomingMessage, ChatMessages, OllamaResponse
 
 from shared.log_config import get_logger
 logger = get_logger(f"proxy.{__name__}")
@@ -101,8 +101,11 @@ async def discord_dm(request: ProxyDiscordDMRequest) -> ProxyResponse:
     try:
         json_response = response.json()
         logger.debug(f"🦙 Response from Ollama API:\n{json.dumps(json_response, indent=4, ensure_ascii=False)}")
+        
+        # Construct the ProxyResponse from the API response data.
+        ollama_response = OllamaResponse(**json_response)
 
-        llm_response = json_response.get("response")
+        llm_response = ollama_response["response"]
 
         # Remove anything that looks like an HTML tag or is enclosed in angle brackets (even multiple brackets)
         if llm_response:
@@ -111,7 +114,8 @@ async def discord_dm(request: ProxyDiscordDMRequest) -> ProxyResponse:
         # Construct the ProxyResponse from the API response data.
         proxy_response = ProxyResponse(
             response=llm_response,
-            generated_tokens=json_response.get("eval_count"),
+            eval_count=ollama_response.eval_count,
+            prompt_eval_count=ollama_response.prompt_eval_count,
             timestamp=datetime.now().isoformat()
         )
 
@@ -123,4 +127,5 @@ async def discord_dm(request: ProxyDiscordDMRequest) -> ProxyResponse:
         )
 
     logger.debug(f"/discord/dm Response:\n{proxy_response.model_dump_json(indent=4)}")
+
     return proxy_response

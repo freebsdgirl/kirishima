@@ -1,6 +1,5 @@
 uvicorn
 fastapi
-graypy
 httpx
 transformers
 opentelemetry-sdk
@@ -11,3 +10,4 @@ opentelemetry-instrumentation-fastapi
 pygelf
 python-dateutil
 tiktoken
+Jinja2

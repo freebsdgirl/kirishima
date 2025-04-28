@@ -1,62 +1,37 @@
+"""
+This module provides a dispatcher for selecting and generating system prompts based on the request mode.
+It imports prompt-building functions for different modes ('guest', 'nsfw', 'work', 'default') and exposes
+a single function, `get_system_prompt`, which determines the appropriate prompt to use according to the
+mode specified in the request object.
+Functions:
+    get_system_prompt(request): Returns a system prompt string generated for the specified request mode.
+"""
 
-import shared.consul
-
-from shared.log_config import get_logger
-logger = get_logger(f"proxy.{__name__}")
-
-import httpx
-from fastapi import HTTPException, status
+from app.prompts.guest import build_prompt as guest_prompt
+from app.prompts.nsfw import build_prompt as nsfw_prompt
+from app.prompts.work import build_prompt as work_prompt
+from app.prompts.default import build_prompt as default_prompt
 
 
-async def get_prompt_builder():
-    # Get mode from brain.
-    async with httpx.AsyncClient(timeout=60) as client:
-        try:
-            brain_address, brain_port = shared.consul.get_service_address('brain')
-            if not brain_address or not brain_port:
-                logger.error("Brain service address or port is not available.")
-
-                raise HTTPException(
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail="Brain service is unavailable."
-                )
-            
-            response = await client.get(f"http://{brain_address}:{brain_port}/mode")
-            response.raise_for_status()
-
-        except httpx.HTTPStatusError as http_err:
-            logger.error(f"HTTP error from brain service: {http_err.response.status_code} - {http_err.response.text}")
-
-            raise HTTPException(
-                status_code=http_err.response.status_code,
-                detail=f"Error forwarding to brain service: {http_err.response.text}"
-            )
-
-        except httpx.RequestError as req_err:
-            logger.error(f"Request error forwarding to brain service: {req_err}")
-
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Connection error to brain service: {req_err}"
-            )
-     
-        json_response = response.json()
-        mode = json_response.get("message", None)
-
-    if mode:
-        if mode == "nsfw":
-            from app.prompts.nsfw.generate import build_prompt
-
-        elif mode == "work":
-            from app.prompts.work.generate import build_prompt
-
-        elif mode == "guest":
-            from app.prompts.guest.generate import build_prompt
-
-        else:
-            from app.prompts.default.generate import build_prompt
-
+def get_system_prompt(request):
+    """
+    Determine and generate the appropriate system prompt based on the request mode.
+    
+    Selects a system prompt generation function based on the mode attribute of the request.
+    Supports 'nsfw', 'work', 'default', and fallback 'guest' modes.
+    
+    Args:
+        request: The request object containing the mode attribute.
+    
+    Returns:
+        str: The generated system prompt corresponding to the specified mode.
+    """
+    mode = getattr(request, "mode", None) or "guest"
+    if mode == "nsfw":
+        return nsfw_prompt(request)
+    elif mode == "work":
+        return work_prompt(request)
+    elif mode == "default":
+        return default_prompt(request)
     else:
-        from app.prompts.guest.generate import build_prompt
-
-    return build_prompt
+        return guest_prompt(request)

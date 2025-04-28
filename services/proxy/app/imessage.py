@@ -18,12 +18,13 @@ Dependencies:
     - Logger: Used for logging debug information about incoming requests and LLM responses.
 """
 
-from shared.models.proxy import ProxyRequest
-from app.prompts.dispatcher import get_prompt_builder
-from app.util import send_prompt_to_llm
+from shared.models.proxy import ProxyRequest, ChatMessages
 
 from shared.log_config import get_logger
-logger = get_logger(__name__)
+logger = get_logger(f"proxy.{__name__}")
+
+from app.util import build_multiturn_prompt, send_prompt_to_llm
+from app.prompts.dispatcher import get_system_prompt
 
 from fastapi import APIRouter
 
@@ -32,7 +33,7 @@ router = APIRouter()
 
 
 @router.post("/from/imessage", response_model=dict)
-async def from_imessage(message: ProxyRequest) -> dict:
+async def from_imessage(proxy_req: ProxyRequest) -> dict:
     """
     Handle incoming iMessage requests by processing the message through a prompt builder and sending it to an LLM.
 
@@ -42,16 +43,16 @@ async def from_imessage(message: ProxyRequest) -> dict:
     Returns:
         dict: A response containing the status, LLM reply, and raw response data.
     """
-    logger.debug(f"Received iMessage request: {message}")
+    logger.debug(f"Received iMessage request: {proxy_req}")
 
-    # 1. Use dispatcher to pick correct builder
-    builder = get_prompt_builder(message.mode, message.memories)
+    # now get your dynamic system prompt
+    system_prompt = get_system_prompt(proxy_req)
 
-    # 2. Call the selected builder with full ProxyRequest
-    prompt = builder(message)
+    # 4) build the full instruct‑style prompt
+    full_prompt = build_multiturn_prompt(ChatMessages(messages=proxy_req.messages), system_prompt)
 
     # 3. Log or return the prompt (for now)
-    response = await send_prompt_to_llm(prompt)
+    response = await send_prompt_to_llm(full_prompt)
 
     logger.debug(f"LLM response: {response}")
 

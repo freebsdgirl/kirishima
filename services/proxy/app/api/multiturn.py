@@ -1,43 +1,35 @@
 """
-This module provides functionality for handling multi-turn conversational prompts and API requests 
-for language models. It includes utilities for constructing formatted prompts based on conversation 
-history and system-level instructions, as well as an API endpoint for processing multi-turn requests.
-
-Modules and Functions:
-- `build_multiturn_prompt`: Constructs a multi-turn conversational prompt using the provided 
-    conversation history and system prompt.
-- `from_api_multiturn`: FastAPI route handler for processing multi-turn API requests, validating 
-    model compatibility, generating prompts, and interacting with the Ollama API.
-
-Dependencies:
-- `app.config`: Configuration settings for the application.
-- `app.util`: Utility functions, including model compatibility checks.
-- `app.prompts.dispatcher`: Retrieves the prompt builder function.
-- `shared.models.proxy`: Data models for handling proxy requests and responses.
-- `shared.log_config`: Logging configuration for structured logging.
-- `httpx`: Asynchronous HTTP client for API requests.
-- `fastapi`: Framework for building API routes.
-- `dateutil.tz`: Timezone utilities for timestamp formatting.
-
-Key Features:
-- Supports instruct-style formatting for multi-turn conversation prompts.
-- Includes error handling for model compatibility and API request failures.
-- Logs detailed debug information for request and response processing.
+This module defines an API endpoint for handling multi-turn conversation requests.
+The `/api/multiturn` endpoint processes requests to generate responses for multi-turn
+conversations using a language model. It validates the request, constructs a system
+prompt, builds an instruct-style prompt, and communicates with the Ollama API to
+generate a response. The endpoint returns the generated response along with metadata.
+Modules:
+    - shared.config: Provides configuration constants such as TIMEOUT.
+    - shared.models.proxy: Defines data models for ProxyRequest, ChatMessages, etc.
+    - app.util: Contains utility functions for building prompts.
+    - app.config: Application-specific configuration.
+    - shared.log_config: Provides logging configuration.
+    - httpx: Used for making asynchronous HTTP requests.
+    - json: Used for JSON serialization and deserialization.
+    - datetime, dateutil.tz: Used for handling timestamps with timezone information.
+    - fastapi: Provides the APIRouter and HTTPException classes for API routing and error handling.
+Functions:
+    - from_api_multiturn(request: ProxyMultiTurnRequest) -> ProxyResponse:
+        Handles multi-turn API requests by generating prompts for language models.
 """
 from shared.config import TIMEOUT
+from shared.models.proxy import ProxyRequest, ChatMessages, IncomingMessage, ProxyMultiTurnRequest, ProxyResponse
+
+from app.util import build_multiturn_prompt
+from app.prompts.dispatcher import get_system_prompt
 import app.config
-
-from app.util import is_instruct_model
-from app.prompts.dispatcher import get_prompt_builder
-
-from shared.models.proxy import ProxyRequest, IncomingMessage, ProxyMultiTurnRequest, ProxyResponse
 
 from shared.log_config import get_logger
 logger = get_logger(f"proxy.{__name__}")
 
 import httpx
 import json
-import tiktoken
 
 from datetime import datetime
 from dateutil import tz
@@ -47,55 +39,6 @@ ts_with_offset = datetime.now(local_tz).isoformat(timespec="seconds")
 
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
-
-
-def build_multiturn_prompt(request: ProxyMultiTurnRequest, system_prompt: str) -> str:
-    """
-    Constructs a multi-turn conversational prompt based on the provided request and system prompt.
-
-    Args:
-        request (ProxyMultiTurnRequest): The request object containing a list of messages 
-            representing the conversation history. Each message has a `role` (e.g., "system", 
-            "user", "assistant") and `content` (the message text).
-        system_prompt (str): The system-level prompt to include at the beginning of the conversation.
-
-    Returns:
-        str: A formatted string representing the multi-turn conversational prompt, 
-        including the system prompt and the last 15 messages from the conversation history.
-
-    Notes:
-        - The system prompt is added as a header at the beginning of the prompt.
-        - Only the last 15 messages (or fewer) from the conversation history are included.
-        - Messages are formatted based on their role:
-            - "system" messages are wrapped with "[INST] <<SYS>>...<<SYS>> [/INST]".
-            - "user" messages are wrapped with "[INST] ... [/INST]".
-            - If a "user" message is immediately followed by an "assistant" message, 
-              they are concatenated in the same line.
-        - Any unexpected message roles are skipped, and a warning is logged.
-    """
-    # 1) System prompt header
-    prompt_header = f"[INST] <<SYS>>{system_prompt}<<SYS>> [/INST]\n\n"
-
-    # Use all messages (or last N if you want to limit elsewhere)
-    messages = request.messages
-    # 2) Build prompt from all messages
-    prompt = prompt_header
-    i = 0
-    while i < len(messages):
-        msg = messages[i]
-        if msg.role == "system":
-            prompt += f"[INST] <<SYS>>{msg.content}<<SYS>> [/INST]\n"
-            i += 1
-        elif msg.role == "user":
-            if (i + 1 < len(messages)) and (messages[i + 1].role == "assistant"):
-                prompt += f"[INST] {msg.content} [/INST] {messages[i + 1].content}\n"
-                i += 2
-            else:
-                prompt += f"[INST] {msg.content} [/INST]\n"
-                i += 1
-        else:
-            i += 1
-    return prompt
 
 
 @router.post("/api/multiturn", response_model=ProxyResponse)
@@ -119,9 +62,6 @@ async def from_api_multiturn(request: ProxyMultiTurnRequest) -> ProxyResponse:
 
     logger.debug(f"/api/multiturn Request:\n{request.model_dump_json(indent=4)}")
 
-    # fetch the builder function
-    build_sys = await get_prompt_builder()
-
     # assemble a minimal ProxyRequest just to generate the system prompt
     # it only needs .message, .user_id, .context, .mode, .memories
     proxy_req = ProxyRequest(
@@ -135,23 +75,15 @@ async def from_api_multiturn(request: ProxyMultiTurnRequest) -> ProxyResponse:
         user_id="randi",
         context="\n".join(f"{m.role}: {m.content}" for m in request.messages),
         memories=request.memories,
-        summaries=request.summaries
+        summaries=request.summaries,
+        mode='nsfw'
     )
 
-    # Check if the model supports instruct formatting.
-    if not await is_instruct_model(request.model):
-        logger.error(f"Model '{request.model}' is not instruct compatible.")
-
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Model '{request.model}' is not instruct compatible."
-        )
-
-    # 3) now get your dynamic system prompt
-    system_prompt = build_sys(proxy_req)
+    # now get your dynamic system prompt
+    system_prompt = get_system_prompt(proxy_req)
 
     # 4) build the full instruct‑style prompt
-    full_prompt = build_multiturn_prompt(request, system_prompt)
+    full_prompt = build_multiturn_prompt(ChatMessages(messages=request.messages), system_prompt)
 
     # Construct the payload for the Ollama API call
     payload = {
@@ -184,6 +116,13 @@ async def from_api_multiturn(request: ProxyMultiTurnRequest) -> ProxyResponse:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Connection error: {req_err}"
             )
+        
+        except Exception as e:
+            logger.error(f"Unexpected error in Ollama API: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error in language model service: {e}"
+            )
 
     try:
         json_response = response.json()
@@ -200,7 +139,7 @@ async def from_api_multiturn(request: ProxyMultiTurnRequest) -> ProxyResponse:
         logger.error(f"Error parsing response from Ollama API: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to parse response from language model service: {e}"
+            detail=f"Failed to parse response from Ollama API: {e}"
         )
 
     logger.debug(f"/api/multiturn Response:\n{proxy_response.model_dump_json(indent=4)}")

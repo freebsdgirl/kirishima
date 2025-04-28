@@ -1,17 +1,37 @@
 """
-This module provides utility functions for interacting with a language model service 
-and processing memory entries. It includes functions to send prompts to the language 
-model, check if a model uses an instruct format, and create a string representation 
-of memory entries.
+This module provides utility functions for interacting with a language model (LLM), 
+building prompts, and managing memory entries. It includes functions for sending 
+prompts to the LLM, checking model formats, creating memory strings, and dynamically 
+selecting prompt builders based on modes.
 Functions:
-    - send_prompt_to_llm(prompt: str) -> dict:
-        Sends a prompt to the language model and retrieves its response.
-    - is_instruct_model(model_name: str) -> bool:
-        Checks if a given model uses an instruct-style format by querying the service.
-    - create_memory_str(memories: List[MemoryEntryFull]) -> str:
+- send_prompt_to_llm(prompt: str) -> dict:
+    Sends a prompt to the LLM and retrieves its response.
+- is_instruct_model(model_name: str) -> bool:
+    Checks if a given model uses an instruct-style format by querying its template.
+- create_memory_str(memories: List[MemoryEntryFull]) -> str:
+- build_multiturn_prompt(request: ChatMessages, system_prompt: str) -> str:
+    Builds a multi-turn prompt for an instruct-style LLM using chat messages and a system prompt.
+- get_prompt_builder(mode: str = None):
+- get_system_prompt(request):
+    Determines and generates the appropriate system prompt based on the request mode.
+Dependencies:
+- app.config: Configuration settings for the application.
+- shared.config: Shared configuration settings, including TIMEOUT.
+- shared.log_config: Logging configuration for the application.
+- httpx: HTTP client for making asynchronous requests.
+- shared.models.chromadb: Memory entry model definitions.
+- shared.models.proxy: Chat message model definitions.
+- app.prompts: Modules for building prompts based on different modes.
+Logging:
+- Uses a logger instance to log debug, error, and warning messages.
+Exceptions:
+- Handles HTTP and general exceptions during LLM interactions and logs errors or warnings.
+
 """
 
 import app.config
+
+from shared.config import TIMEOUT
 
 from shared.log_config import get_logger
 logger = get_logger(f"proxy.{__name__}")
@@ -19,6 +39,8 @@ logger = get_logger(f"proxy.{__name__}")
 import httpx
 from typing import List
 from shared.models.chromadb import MemoryEntryFull
+from shared.models.proxy import ChatMessages
+
 
 async def send_prompt_to_llm(prompt: str) -> dict:
     """
@@ -39,7 +61,7 @@ async def send_prompt_to_llm(prompt: str) -> dict:
     """
     logger.debug(f"Sending prompt to LLM: {prompt}")
     try:
-        async with httpx.AsyncClient(timeout=60) as client:
+        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
             response = await client.post(
                 f"http://{app.config.OLLAMA_URL}/api/generate",
                 json={
@@ -47,8 +69,7 @@ async def send_prompt_to_llm(prompt: str) -> dict:
                     "prompt": prompt,
                     "stream": False,
                     "stop": ["<|im_end|>", "[USER]"]
-                },
-                timeout=30
+                }
             )
 
             response.raise_for_status()
@@ -84,7 +105,7 @@ async def is_instruct_model(model_name: str) -> bool:
     url = f"{app.config.OLLAMA_URL}/api/show"
     payload = {"model": model_name}
 
-    async with httpx.AsyncClient(timeout=60) as client:
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         try:
             response = await client.post(url, json=payload)
             response.raise_for_status()
@@ -107,4 +128,33 @@ def create_memory_str(memories: List[MemoryEntryFull]) -> str:
     Returns:
         str: A single string with memory entries joined by newlines, in reverse order.
     """
-    return "\n".join([f" - {m.memory}" for m in reversed(memories)])
+    return "\n".join([f" - {m.memory}" for m in reversed(memories)])\
+
+
+def build_multiturn_prompt(request: ChatMessages, system_prompt: str) -> str:
+    """
+    Builds a multi-turn prompt for an instruct-style language model using the specified chat messages and system prompt.
+    
+    This function constructs a formatted prompt that follows the instruct model convention, 
+    handling system, user, and assistant messages with appropriate bracketing.
+    
+    Args:
+        request (ChatMessages): The sequence of chat messages to be formatted.
+        system_prompt (str): The initial system-level instruction for the model.
+    
+    Returns:
+        str: A formatted multi-turn prompt compatible with instruct-style models.
+    """
+    prompt_header = f"[INST] <<SYS>>{system_prompt}<</SYS>> [/INST]\n\n"
+    
+    prompt = prompt_header
+
+    for m in request.messages:
+        if m.role == "system":
+            prompt += f"[INST] <<SYS>>{m.content}<</SYS>> [/INST]\n"
+        elif m.role == "user":
+            prompt += f"[INST] {m.content} [/INST]"
+        elif m.role == "assistant":
+            prompt += f" {m.content}\n"
+
+    return prompt

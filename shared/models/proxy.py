@@ -1,17 +1,22 @@
 """
-This module defines data models for handling proxy requests and responses, as well as structured incoming messages. 
-The models are built using Pydantic for data validation and serialization.
+This module defines a set of Pydantic models for handling structured data in a proxy system. 
+The models are designed to standardize and validate incoming and outgoing data for various 
+interactions, including single-turn and multi-turn conversations, as well as specific 
+platform integrations like Discord.
 Classes:
     IncomingMessage:
     ProxyRequest:
-        Useful for handling requests that involve user context and additional metadata.
+        Represents a proxy request with message, user identification, context, and optional 
+        mode and memories.
     ProxyOneShotRequest:
-        Includes parameters for model configuration, input prompt, and generation settings.
+    ChatMessage:
+    ChatMessages:
+    ProxyMultiTurnRequest:
     ProxyResponse:
-        Contains the generated response text, token usage, and timestamp of the response.
-Usage:
-    These models can be used to standardize the structure of incoming messages, proxy requests, 
-    and responses in applications that involve communication platforms or language model interactions.
+    ProxyDiscordDMRequest:
+    OllamaResponse:
+Each model includes detailed attributes, validation rules, and example configurations 
+to facilitate consistent usage and integration across different components of the system.
 """
 
 from shared.config import LLM_DEFAULTS
@@ -106,9 +111,6 @@ class ProxyRequest(BaseModel):
         }
 
 
-# reworked models go down here
-
-
 class ProxyOneShotRequest(BaseModel):
     """
     Represents a request for a one-shot proxy interaction with a language model.
@@ -119,10 +121,10 @@ class ProxyOneShotRequest(BaseModel):
         temperature (float): Controls the randomness of the model's output. Defaults to 0.7.
         max_tokens (int): The maximum number of tokens to generate in the response. Defaults to 256.
     """
-    model: Optional[str]            = Field('nemo', description="The model to be used for generating the response.")
+    model: Optional[str]            = Field(LLM_DEFAULTS.get('model'), description="The model to be used for generating the response.")
     prompt: str                     = Field(..., description="The prompt or input text for the model.")
-    temperature: Optional[float]    = Field(0.7, description="The temperature setting for randomness in the model's output.")
-    max_tokens: Optional[int]       = Field(256, description="The maximum number of tokens to generate in the response.")
+    temperature: Optional[float]    = Field(LLM_DEFAULTS.get('temperature'), description="The temperature setting for randomness in the model's output.")
+    max_tokens: Optional[int]       = Field(LLM_DEFAULTS.get('max_tokens'), description="The maximum number of tokens to generate in the response.")
 
     class Config:
         json_schema_extra = {
@@ -153,6 +155,33 @@ class ChatMessage(BaseModel):
                 "content": "Don't forget your meds"
             }
         }
+
+
+class ChatMessages(BaseModel):
+    """
+    Represents a collection of chat messages for a multi-turn conversation.
+    
+    Attributes:
+        messages (List[ChatMessage]): A list of chat messages representing the conversation history.
+    """
+    messages: List[ChatMessage]                     = Field(..., description="List of messages for multi-turn conversation.")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "Don't forget your meds"
+                    },
+                    {
+                        "role": "assistant",
+                        "content": "Sure, I will remind you!"
+                    }
+                ]
+            }
+        }
+    }
 
 
 class ProxyMultiTurnRequest(BaseModel):
@@ -224,6 +253,7 @@ class ProxyResponse(BaseModel):
                 "timestamp": "2025-04-09T04:00:00Z"
             }
         }
+
 
 class ProxyDiscordDMRequest(BaseModel):
     """

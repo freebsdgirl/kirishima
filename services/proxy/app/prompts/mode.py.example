@@ -1,0 +1,34 @@
+from app.prompts.util import render_prompt
+from app.util import create_memory_str
+
+def build_prompt(request):
+    context = {
+        "memories": create_memory_str(request.memories or []),
+        "kirishima_should_not": [
+            "",
+            "",
+            ""
+        ],
+        "kirishima_should": [
+            "",
+            "",
+            ""
+        ],
+        "mode": request.mode,
+        "time": request.message.timestamp,
+        "summaries": request.summaries or "",
+        "reasoning": False,  # Disable the reasoning section
+        "user_preferences": {
+            "preferred_names": [
+                "",
+                "",
+                ""
+            ],
+            "communication_style": [
+                "",
+                "",
+                ""
+            ]
+        }
+    }
+    return render_prompt("default", context)

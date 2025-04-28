@@ -1,27 +1,23 @@
 """
-This module defines an API endpoint for handling single-turn completion requests
-to a language model service. It includes the following:
-
-- An asynchronous POST endpoint `/from/api/completions` that processes a 
-    `ProxyOneShotRequest` and forwards it to the Ollama language model service.
-- Constructs a payload for the external API, sends the request, and handles 
-    the response.
-- Returns a `ProxyResponse` containing the generated text, token count, 
-    and timestamp.
-- Logs detailed information for debugging purposes, including request payloads 
-    and responses.
-- Handles and raises appropriate HTTP exceptions for communication errors.
-
+This module defines the FastAPI router and endpoint for handling single-turn completion
+requests to a language model service (Ollama) via a proxy API.
+It provides the following functionality:
+- Receives a ProxyOneShotRequest containing model parameters and prompt.
+- Forwards the request to the Ollama API using an asynchronous HTTP client.
+- Handles and logs HTTP and connection errors, returning appropriate HTTPException responses.
+- Parses the Ollama API response and constructs a ProxyResponse containing the generated text,
+    token count, and timestamp.
+- Logs both the incoming request and outgoing response for debugging and traceability.
 Dependencies:
-- `app.config`: Configuration settings for the application, including the 
-    `OLLAMA_URL`.
-- `shared.models.proxy`: Data models for request and response payloads.
-- `shared.log_config`: Logging configuration for structured and consistent logs.
-- `httpx`: Asynchronous HTTP client for making API requests.
-- `fastapi`: Framework for defining API routes and handling HTTP exceptions.
+- FastAPI for API routing and exception handling.
+- httpx for asynchronous HTTP requests.
+- shared.models.proxy for request/response models.
+- shared.log_config for logging.
+- app.config for configuration values (e.g., OLLAMA_URL).
 """
 
 import app.config
+from shared.config import TIMEOUT
 
 from shared.models.proxy import ProxyOneShotRequest, ProxyResponse
 
@@ -68,7 +64,7 @@ async def from_api_completions(message: ProxyOneShotRequest) -> ProxyResponse:
     }
 
     # Send the POST request using an async HTTP client
-    async with httpx.AsyncClient(timeout=60) as client:
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         try:
             response = await client.post(f"{app.config.OLLAMA_URL}/api/generate", json=payload)
             response.raise_for_status()
@@ -88,18 +84,35 @@ async def from_api_completions(message: ProxyOneShotRequest) -> ProxyResponse:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to connect to the language model service: {req_err}"
             )
+        
+        except Exception as e:
+            logger.error(f"Unexpected error occurred: {e}")
 
-    # Log the raw response from the Ollama API
-    json_response = response.json()
-    
-    logger.debug(f"Response from Ollama API:\n{json.dumps(json_response, indent=4, ensure_ascii=False)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"An unexpected error occurred: {e}"
+            )
 
-    # Construct the ProxyResponse from the API response data
-    proxy_response = ProxyResponse(
-        response=json_response.get("response"),
-        generated_tokens=json_response.get("eval_count"),
-        timestamp=datetime.now().isoformat()
-    )
+    try:
+        # Log the raw response from the Ollama API
+        json_response = response.json()
+        
+        logger.debug(f"Response from Ollama API:\n{json.dumps(json_response, indent=4, ensure_ascii=False)}")
+
+        # Construct the ProxyResponse from the API response data
+        proxy_response = ProxyResponse(
+            response=json_response.get("response"),
+            generated_tokens=json_response.get("eval_count"),
+            timestamp=datetime.now().isoformat()
+        )
+
+    except Exception as e:
+        logger.error(f"Error parsing response from Ollama API: {e}")
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to parse response from the language model service: {e}"
+        )
 
     logger.debug(f"/from/api/completions Response:\n{proxy_response.model_dump_json(indent=4)}")
 

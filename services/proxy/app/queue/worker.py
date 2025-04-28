@@ -8,18 +8,22 @@ Functions:
         Continuously processes tasks from a ProxyTaskQueue by sending their payloads to Ollama, handling both blocking
         and non-blocking tasks, and managing task results or callbacks accordingly.
 """
+import app.config
+
+from shared.config import TIMEOUT
+from shared.models.proxy import OllamaRequest, OllamaResponse
+from shared.models.queue import ProxyTaskQueue, ProxyTask
 
 from shared.log_config import get_logger
 logger = get_logger(f"proxy.{__name__}")
 
-from shared.models.queue import ProxyTaskQueue, ProxyTask
 import httpx
 import json
-import app.config
+
 from fastapi import HTTPException, status
 
 
-async def send_to_ollama(payload):
+async def send_to_ollama(payload: OllamaRequest) -> OllamaResponse:
     """
     Send a payload to the Ollama API for generation.
     
@@ -35,15 +39,12 @@ async def send_to_ollama(payload):
     Raises:
         HTTPException: If there are HTTP status errors or connection issues with the Ollama API.
     """
-    logger.debug(f"Request to Ollama API:\n{json.dumps(payload, indent=4, ensure_ascii=False)}")
+    logger.debug(f"🦙 Request to Ollama API:\n{json.dumps(payload.model_dump(), indent=4, ensure_ascii=False)}")
 
     # Send the POST request using an async HTTP client
-    async with httpx.AsyncClient(timeout=60) as client:
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         try:
-            response = await client.post(
-                f"{app.config.OLLAMA_URL}/api/generate",
-                json=payload
-            )
+            response = await client.post(f"{app.config.OLLAMA_URL}/api/generate", json=payload.model_dump())
             response.raise_for_status()
 
         except httpx.HTTPStatusError as http_err:
@@ -61,11 +62,21 @@ async def send_to_ollama(payload):
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Connection error: {req_err}"
             )
+        
+        except Exception as e:
+            logger.error(f"Unexpected error: {e}")
+
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error: {e}"
+            )
 
     json_response = response.json()
-    logger.debug(f"Response from Ollama API:\n{json.dumps(json_response, indent=4, ensure_ascii=False)}")
+    logger.debug(f"🦙 Response from Ollama API:\n{json.dumps(json_response, indent=4, ensure_ascii=False)}")
 
-    return response
+    ollama_response = OllamaResponse(**json_response)
+
+    return ollama_response
 
 
 async def queue_worker_main(queue: ProxyTaskQueue):

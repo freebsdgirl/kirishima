@@ -26,6 +26,11 @@ from app.util import build_multiturn_prompt
 from app.prompts.dispatcher import get_system_prompt
 import app.config
 
+from app.queue.router import queue
+from shared.models.queue import ProxyTask
+import uuid
+import asyncio
+
 from shared.log_config import get_logger
 logger = get_logger(f"proxy.{__name__}")
 
@@ -88,53 +93,37 @@ async def from_api_multiturn(request: ProxyMultiTurnRequest) -> ProxyResponse:
         raw=True
     )
 
-    logger.debug(f"🦙 Request to Ollama API:\n{json.dumps(payload.model_dump(), indent=4, ensure_ascii=False)}")
-
-    # Send the POST request using an async HTTP client
-    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-        try:
-            response = await client.post(f"{app.config.OLLAMA_URL}/api/generate", json=payload.model_dump())
-            response.raise_for_status()
-
-        except httpx.HTTPStatusError as http_err:
-            logger.error(f"HTTP error from Ollama API: {http_err.response.status_code} - {http_err.response.text}")
-            raise HTTPException(
-                status_code=http_err.response.status_code,
-                detail=f"Error from language model service: {http_err.response.text}"
-            )
-
-        except httpx.RequestError as req_err:
-            logger.error(f"Request error connecting to Ollama API: {req_err}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Connection error: {req_err}"
-            )
-        
-        except Exception as e:
-            logger.error(f"Unexpected error in Ollama API: {e}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Unexpected error in language model service: {e}"
-            )
+    # Create a blocking ProxyTask
+    task_id = str(uuid.uuid4())
+    future = asyncio.Future()
+    task = ProxyTask(
+        priority=0,
+        task_id=task_id,
+        payload=payload,
+        blocking=True,
+        future=future,
+        callback=None
+    )
+    await queue.enqueue(task)
 
     try:
-        json_response = response.json()
-        logger.debug(f"🦙 Response from Ollama API:\n{json.dumps(json_response, indent=4, ensure_ascii=False)}")
+        result: OllamaResponse = await asyncio.wait_for(future, timeout=TIMEOUT)
 
-        # Construct the ProxyResponse from the API response data.
-        ollama_response = OllamaResponse(**json_response)
-        proxy_response = ProxyResponse(
-            response=ollama_response.response,
-            eval_count=ollama_response.eval_count,
-            prompt_eval_count=ollama_response.prompt_eval_count,
-            timestamp=datetime.now().isoformat()
-        )
-
-    except Exception as e:
-        logger.error(f"Error parsing response from Ollama API: {e}")
+    except asyncio.TimeoutError:
+        queue.remove_task(task_id)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to parse response from Ollama API: {e}"
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="Task timed out"
         )
+
+    # result is an OllamaResponse
+    proxy_response = ProxyResponse(
+        response=result.response,
+        eval_count=result.eval_count,
+        prompt_eval_count=result.prompt_eval_count,
+        timestamp=datetime.now().isoformat()
+    )
+
+    queue.remove_task(task_id)
 
     return proxy_response

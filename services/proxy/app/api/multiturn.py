@@ -19,7 +19,7 @@ Functions:
         Handles multi-turn API requests by generating prompts for language models.
 """
 from shared.config import TIMEOUT
-from shared.models.proxy import ProxyRequest, ChatMessages, IncomingMessage, ProxyMultiTurnRequest, ProxyResponse
+from shared.models.proxy import ProxyRequest, ChatMessages, IncomingMessage, ProxyMultiTurnRequest, ProxyResponse, OllamaRequest, OllamaResponse
 
 from app.util import build_multiturn_prompt
 from app.prompts.dispatcher import get_system_prompt
@@ -60,7 +60,7 @@ async def from_api_multiturn(request: ProxyMultiTurnRequest) -> ProxyResponse:
         HTTPException: If the model is not instruct-compatible or API request fails.
     """
 
-    logger.debug(f"/api/multiturn Request:\n{request.model_dump_json(indent=4)}")
+    logger.debug(f"/api/multiturn Request:\n{json.dumps(request.model_dump(), indent=4, ensure_ascii=False)}")
 
     # assemble a minimal ProxyRequest just to generate the system prompt
     # it only needs .message, .user_id, .context, .mode, .memories
@@ -76,7 +76,7 @@ async def from_api_multiturn(request: ProxyMultiTurnRequest) -> ProxyResponse:
         context="\n".join(f"{m.role}: {m.content}" for m in request.messages),
         memories=request.memories,
         summaries=request.summaries,
-        mode='nsfw'
+        mode='work'
     )
 
     # now get your dynamic system prompt
@@ -86,21 +86,21 @@ async def from_api_multiturn(request: ProxyMultiTurnRequest) -> ProxyResponse:
     full_prompt = build_multiturn_prompt(ChatMessages(messages=request.messages), system_prompt)
 
     # Construct the payload for the Ollama API call
-    payload = {
-        "model": request.model,
-        "prompt": full_prompt,
-        "temperature": request.temperature,
-        "max_tokens": request.max_tokens,
-        "stream": False,
-        "raw": True
-    }
+    payload = OllamaRequest(
+        model=request.model,
+        prompt=full_prompt,
+        temperature=request.temperature,
+        max_tokens=request.max_tokens,
+        stream=False,
+        raw=True
+    )
 
-    logger.debug(f"🦙 Request to Ollama API:\n{json.dumps(payload, indent=4, ensure_ascii=False)}")
+    logger.debug(f"🦙 Request to Ollama API:\n{json.dumps(payload.model_dump(), indent=4, ensure_ascii=False)}")
 
     # Send the POST request using an async HTTP client
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         try:
-            response = await client.post(f"{app.config.OLLAMA_URL}/api/generate", json=payload)
+            response = await client.post(f"{app.config.OLLAMA_URL}/api/generate", json=payload.model_dump())
             response.raise_for_status()
 
         except httpx.HTTPStatusError as http_err:
@@ -129,9 +129,10 @@ async def from_api_multiturn(request: ProxyMultiTurnRequest) -> ProxyResponse:
         logger.debug(f"🦙 Response from Ollama API:\n{json.dumps(json_response, indent=4, ensure_ascii=False)}")
 
         # Construct the ProxyResponse from the API response data.
+        ollama_response = OllamaResponse(**json_response)
         proxy_response = ProxyResponse(
-            response=json_response.get("response"),
-            generated_tokens=json_response.get("eval_count"),
+            response=ollama_response.response,
+            generated_tokens=ollama_response.eval_count,
             timestamp=datetime.now().isoformat()
         )
 
@@ -141,7 +142,5 @@ async def from_api_multiturn(request: ProxyMultiTurnRequest) -> ProxyResponse:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to parse response from Ollama API: {e}"
         )
-
-    logger.debug(f"/api/multiturn Response:\n{proxy_response.model_dump_json(indent=4)}")
 
     return proxy_response

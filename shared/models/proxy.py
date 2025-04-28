@@ -121,10 +121,10 @@ class ProxyOneShotRequest(BaseModel):
         temperature (float): Controls the randomness of the model's output. Defaults to 0.7.
         max_tokens (int): The maximum number of tokens to generate in the response. Defaults to 256.
     """
-    model: Optional[str]            = Field(LLM_DEFAULTS.get('model'), description="The model to be used for generating the response.")
+    model: Optional[str]            = Field(LLM_DEFAULTS['model'], description="The model to be used for generating the response.")
     prompt: str                     = Field(..., description="The prompt or input text for the model.")
-    temperature: Optional[float]    = Field(LLM_DEFAULTS.get('temperature'), description="The temperature setting for randomness in the model's output.")
-    max_tokens: Optional[int]       = Field(LLM_DEFAULTS.get('max_tokens'), description="The maximum number of tokens to generate in the response.")
+    temperature: Optional[float]    = Field(LLM_DEFAULTS['temperature'], description="The temperature setting for randomness in the model's output.")
+    max_tokens: Optional[int]       = Field(LLM_DEFAULTS['max_tokens'], description="The maximum number of tokens to generate in the response.")
 
     class Config:
         json_schema_extra = {
@@ -196,10 +196,10 @@ class ProxyMultiTurnRequest(BaseModel):
         memories (Optional[List[MemoryEntryFull]]): A list of memory entries associated with the conversation.
         summaries (Optional[str]): A list of user summaries associated with the conversation.
     """
-    model: Optional[str]                        = Field(LLM_DEFAULTS.get('model'), description="The model to be used for generating the response.")
+    model: Optional[str]                        = Field(LLM_DEFAULTS['model'], description="The model to be used for generating the response.")
     messages: List[ChatMessage]                 = Field(..., description="List of messages for multi-turn conversation.")
-    temperature: Optional[float]                = Field(LLM_DEFAULTS.get('temperature'), description="The temperature setting for randomness in the model's output.")
-    max_tokens: Optional[int]                   = Field(LLM_DEFAULTS.get('max_tokens'), description="The maximum number of tokens to generate in the response.")
+    temperature: Optional[float]                = Field(LLM_DEFAULTS['temperature'], description="The temperature setting for randomness in the model's output.")
+    max_tokens: Optional[int]                   = Field(LLM_DEFAULTS['max_tokens'], description="The maximum number of tokens to generate in the response.")
     memories: Optional[List[MemoryEntryFull]]   = Field(None, description="List of memory entries associated with the conversation.")
     summaries: Optional[str]                    = Field(None, description="List of user summaries associated with the conversation.")
 
@@ -267,15 +267,15 @@ class ProxyDiscordDMRequest(BaseModel):
         message (DiscordDirectMessage): The incoming Discord direct message.
         messages (List[ChatMessage]): Conversation history for multi-turn interactions.
         contact (Contact): User contact information.
-        is_admin (bool): Indicates whether the user has administrative privileges.
+        is_admin (Optional[bool]): Indicates if the user is an admin (defaults to False).
         mode (Optional[str]): Specifies the interaction mode (defaults to 'guest').
         memories (Optional[List[MemoryEntryFull]]): Optional contextual memory references.
         summaries (Optional[str]): Optional summary of the conversation.
     """
     message: DiscordDirectMessage               = Field(..., description="The incoming message associated with the proxy request.")
-    messages: List[ChatMessage]                = Field(..., description="List of messages for multi-turn conversation.")
+    messages: List[ChatMessage]                 = Field(..., description="List of messages for multi-turn conversation.")
     contact: Contact                            = Field(..., description="The contact information associated with the user.")
-    is_admin: bool                              = Field(..., description="Indicates if the user is an admin.")
+    is_admin: Optional[bool]                    = Field(False, description="Indicates if the user is an admin.")
     mode: Optional[str]                         = Field("guest", description="An optional mode specification for the request.")
     memories: Optional[List[MemoryEntryFull]]   = Field(None, description="An optional list of memory references.")
     summaries: Optional[str]                    = Field(None, description="An optional list of user summaries.")
@@ -324,6 +324,39 @@ class ProxyDiscordDMRequest(BaseModel):
         }
 
 
+class OllamaRequest(BaseModel):
+    """
+    Represents a request to the Ollama API for generating text responses.
+    
+    Attributes:
+        model Optional[str]: The name of the model to be used for generating the response.
+        prompt (str): The input text or prompt to be processed by the model.
+        temperature (Optional[float]): Controls the randomness of the model's output.
+        max_tokens (Optional[int]): The maximum number of tokens to generate in the response.
+        stream (Optional[bool]): Indicates whether to stream the response.
+        raw (Optional[bool]): Indicates whether to return the raw response.
+    """
+    model: Optional[str]                = Field(LLM_DEFAULTS['model'], description="The name of the model to be used for generating the response.")
+    prompt: str                         = Field(..., description="The input text or prompt to be processed by the model.")
+    temperature: Optional[float]        = Field(LLM_DEFAULTS['temperature'], description="Controls the randomness of the model's output.")
+    max_tokens: Optional[int]           = Field(LLM_DEFAULTS['max_tokens'], description="The maximum number of tokens to generate in the response.")
+    stream: Optional[bool]              = Field(False, description="Indicates whether to stream the response.")
+    raw: Optional[bool]                 = Field(True, description="Indicates whether to return the raw response.")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "model": "nemo",
+                "prompt": "Don't forget your meds",
+                "temperature": 0.7,
+                "max_tokens": 256,
+                "stream": False,
+                "raw": True
+            }
+        }
+    }
+
+
 class OllamaResponse(BaseModel):
     """
     Represents the response from the Ollama API.
@@ -341,31 +374,32 @@ class OllamaResponse(BaseModel):
         eval_count (int): Number of evaluations performed by the model.
         eval_duration (int): Duration of evaluations in nanoseconds.
     """
-    model: str                  = Field(..., description="The name of the model used for generating the response.")
-    created_at: str             = Field(..., description="The timestamp when the response was created.")
-    response: str               = Field(..., description="The generated text response from the model.")
-    done: bool                  = Field(..., description="Indicates whether the response generation is complete.")
-    done_reason: str            = Field(..., description="The reason for completion of the response generation.")
-    total_duration: int         = Field(..., description="Total duration of the request in nanoseconds.")
-    load_duration: int          = Field(..., description="Duration of loading the model in nanoseconds.")
-    prompt_eval_count: int      = Field(..., description="Number of times the prompt was evaluated.")
-    prompt_eval_duration: int   = Field(..., description="Duration of prompt evaluation in nanoseconds.")
-    eval_count: int             = Field(..., description="Number of evaluations performed by the model.")
-    eval_duration: int          = Field(..., description="Duration of evaluations in nanoseconds.")
+    model: str                          = Field(..., description="The name of the model used for generating the response.")
+    created_at: str                     = Field(..., description="The timestamp when the response was created.")
+    response: str                       = Field(..., description="The generated text response from the model.")
+    done: bool                          = Field(..., description="Indicates whether the response generation is complete.")
+    done_reason: str                    = Field(..., description="The reason for completion of the response generation.")
+    total_duration: int                 = Field(..., description="Total duration of the request in nanoseconds.")
+    load_duration: int                  = Field(..., description="Duration of loading the model in nanoseconds.")
+    prompt_eval_count: int              = Field(..., description="Number of times the prompt was evaluated.")
+    prompt_eval_duration: int           = Field(..., description="Duration of prompt evaluation in nanoseconds.")
+    eval_count: int                     = Field(..., description="Number of evaluations performed by the model.")
+    eval_duration: int                  = Field(..., description="Duration of evaluations in nanoseconds.")
 
-    class Config:
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
-                "model": "nemo:latest",
-                "created_at": "2025-04-25T11:25:15.76717875Z",
-                "response": "Would you like to discuss any specific aspects of the prompt or make adjustments?",
+                "model": "nemo",
+                "created_at": "2025-04-09T04:00:00Z",
+                "response": "Don't forget your meds",
                 "done": True,
-                "done_reason": "stop",
-                "total_duration": 6385338186,
-                "load_duration": 13581276,
-                "prompt_eval_count": 1343,
-                "prompt_eval_duration": 105649929,
-                "eval_count": 16,
-                "eval_duration": 6265828180
+                "done_reason": "completed",
+                "total_duration": 1000000,
+                "load_duration": 500000,
+                "prompt_eval_count": 1,
+                "prompt_eval_duration": 200000,
+                "eval_count": 1,
+                "eval_duration": 300000
             }
         }
+    }

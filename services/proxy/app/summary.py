@@ -68,7 +68,7 @@ async def summary_user(request: SummaryRequest):
                     detail="Proxy service is unavailable."
                 )
 
-            response = await client.post(f"http://{proxy_address}:{proxy_port}/from/api/completions", json=payload.model_dump())
+            response = await client.post(f"http://{proxy_address}:{proxy_port}/api/singleturn", json=payload.model_dump())
             response.raise_for_status()
             proxy_response = response.json()
             summary_text = proxy_response.get("response")
@@ -131,7 +131,7 @@ async def summary_user_combined(request: CombinedSummaryRequest):
                     detail="Proxy service is unavailable."
                 )
 
-            response = await client.post(f"http://{proxy_address}:{proxy_port}/from/api/completions", json=payload.model_dump())
+            response = await client.post(f"http://{proxy_address}:{proxy_port}/api/singleturn", json=payload.model_dump())
             response.raise_for_status()
             proxy_response = response.json()
             summary_text = proxy_response.get("response")

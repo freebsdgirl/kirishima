@@ -60,7 +60,7 @@ async def openai_completions(request: OpenAICompletionRequest) -> RedirectRespon
 async def openai_v1_completions(request: OpenAICompletionRequest, request_data: Request) -> OpenAICompletionResponse:
     """
     Handles an OpenAI-style completions request and proxies it to the internal
-    proxy service (/from/api/completions). All incoming request data is logged.
+    proxy service (/api/singleturn). All incoming request data is logged.
     
     If the request includes the parameter `n`, the proxy call is executed sequentially
     that many times. The response is then aggregated to simulate an OpenAI completions

@@ -64,7 +64,7 @@ async def incoming_singleturn_message(message: ProxyOneShotRequest) -> ProxyResp
                     detail="Proxy service is unavailable."
                 )
 
-            response = await client.post(f"http://{proxy_address}:{proxy_port}/from/api/completions", json=payload)
+            response = await client.post(f"http://{proxy_address}:{proxy_port}/api/singleturn", json=payload)
             response.raise_for_status()
 
         except httpx.HTTPStatusError as http_err:

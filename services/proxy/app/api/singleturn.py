@@ -31,7 +31,7 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
 
-@router.post("/from/api/completions", response_model=ProxyResponse)
+@router.post("/api/singleturn", response_model=ProxyResponse)
 async def from_api_completions(message: ProxyOneShotRequest) -> ProxyResponse:
     """
     Handle API completions request by forwarding the request to the Ollama language model service.
@@ -51,7 +51,7 @@ async def from_api_completions(message: ProxyOneShotRequest) -> ProxyResponse:
     Raises:
         HTTPException: If there are connection or communication errors with the Ollama service.
     """
-    logger.debug(f"/from/api/completions Request:\n{message.model_dump_json(indent=4)}")
+    logger.debug(f"/api/singleturn Request:\n{message.model_dump_json(indent=4)}")
 
     # Construct the payload for the Ollama API request
     payload = OllamaRequest(

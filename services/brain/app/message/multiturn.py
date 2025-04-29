@@ -86,7 +86,7 @@ async def outgoing_multiturn_message(message: ProxyMultiTurnRequest) -> ProxyRes
     payload["mode"] = mode_json.get('message')
 
     # get a list of memories
-    memory_query = MemoryListQuery(component="proxy", limit=100, mode=mode)
+    memory_query = MemoryListQuery(component="proxy", limit=100, mode=payload['mode'])
     memories = await list_memory(memory_query)
     payload["memories"] = [m.model_dump() for m in memories]
 

@@ -146,7 +146,8 @@ async def chat_completions(data: ChatCompletionRequest):
         model=data.model,
         messages=filtered_messages,
         temperature=data.temperature,
-        max_tokens=data.max_tokens
+        max_tokens=data.max_tokens,
+        platform='api'
     )
 
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:

@@ -26,7 +26,7 @@ from shared.models.chromadb import MemoryListQuery
 
 from app.memory.list import list_memory
 from app.modes import mode_get
-from app.util import get_admin_user_id, sanitize_messages, post_to_service
+from app.util import get_admin_user_id, sanitize_messages, post_to_service, get_user_alias
 
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
@@ -81,11 +81,9 @@ async def outgoing_multiturn_message(message: ProxyMultiTurnRequest) -> ProxyRes
 
     # get the current mode
     mode_response = mode_get()
-    if hasattr(mode_response, 'body'):
-        mode_json = json.loads(mode_response.body)
-        mode = mode_json.get('message')
-    else:
-        mode = None
+    mode_json = json.loads(mode_response.body)
+
+    payload["mode"] = mode_json.get('message')
 
     # get a list of memories
     memory_query = MemoryListQuery(component="proxy", limit=100, mode=mode)
@@ -98,7 +96,8 @@ async def outgoing_multiturn_message(message: ProxyMultiTurnRequest) -> ProxyRes
     # --- Send last 4 messages to ledger as RawUserMessage ---
     try:
         user_id = await get_admin_user_id()
-        platform = 'api'
+        payload["username"] = await get_user_alias(user_id)
+        platform = payload.get("platform", "api")
         platform_msg_id = None
         last_msgs = payload["messages"][-4:]
         sync_snapshot = [
@@ -166,6 +165,7 @@ async def outgoing_multiturn_message(message: ProxyMultiTurnRequest) -> ProxyRes
                 detail=f"Unexpected error in ledger service: {e}"
             )
     
+    # send the payload to the proxy service
     response = await post_to_service(
         'proxy', '/api/multiturn', payload,
         error_prefix="Error forwarding to proxy service"

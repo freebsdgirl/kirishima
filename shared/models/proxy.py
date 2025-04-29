@@ -126,8 +126,8 @@ class ProxyOneShotRequest(BaseModel):
     temperature: Optional[float]    = Field(LLM_DEFAULTS['temperature'], description="The temperature setting for randomness in the model's output.")
     max_tokens: Optional[int]       = Field(LLM_DEFAULTS['max_tokens'], description="The maximum number of tokens to generate in the response.")
 
-    class Config:
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "model": "nemo",
                 "prompt": "Don't forget your meds",
@@ -135,6 +135,7 @@ class ProxyOneShotRequest(BaseModel):
                 "max_tokens": 256
             }
         }
+    }
 
 
 class ChatMessage(BaseModel):
@@ -195,6 +196,9 @@ class ProxyMultiTurnRequest(BaseModel):
         max_tokens (int): The maximum number of tokens to generate in the response. Defaults to 256.
         memories (Optional[List[MemoryEntryFull]]): A list of memory entries associated with the conversation.
         summaries (Optional[str]): A list of user summaries associated with the conversation.
+        mode (Optional[str]): An optional mode specification for the request.
+        platform (Optional[str]): The platform from which the request originates.
+        username (Optional[str]): The username of the person making the request.
     """
     model: Optional[str]                        = Field(LLM_DEFAULTS['model'], description="The model to be used for generating the response.")
     messages: List[ChatMessage]                 = Field(..., description="List of messages for multi-turn conversation.")
@@ -202,9 +206,12 @@ class ProxyMultiTurnRequest(BaseModel):
     max_tokens: Optional[int]                   = Field(LLM_DEFAULTS['max_tokens'], description="The maximum number of tokens to generate in the response.")
     memories: Optional[List[MemoryEntryFull]]   = Field(None, description="List of memory entries associated with the conversation.")
     summaries: Optional[str]                    = Field(None, description="List of user summaries associated with the conversation.")
+    mode: Optional[str]                         = Field(None, description="An optional mode specification for the request.")
+    platform: Optional[str]                     = Field(None, description="The platform from which the request originates.")
+    username: Optional[str]                     = Field(None, description="The username of the person making the request.")
 
-    class Config:
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "model": "nemo",
                 "messages": [
@@ -222,14 +229,15 @@ class ProxyMultiTurnRequest(BaseModel):
                 "memories": [
                     {
                         "memory": "Reminder to take meds",
-                        "component": "health",
+                        "component": "proxy",
                         "priority": 1.0,
                         "mode": "default"
                     }
                 ],
-                "summaries": "User summary of the conversation."
+                "summaries": None
             }
         }
+    }
 
 
 class ProxyResponse(BaseModel):
@@ -243,7 +251,6 @@ class ProxyResponse(BaseModel):
         prompt_eval_count (int): The number of tokens used in the prompt.
     """
     response: str                       = Field(..., description="The generated text response from the model.")
-#    generated_tokens: int               = Field(..., description="The number of tokens used in the response.")
     timestamp: str                      = Field(..., description="ISO 8601 formatted timestamp of when the response was generated.")
     eval_count: int                     = Field(None, description="The number of tokens used in the response.")
     prompt_eval_count: int              = Field(None, description="The number of tokens used in the prompt.")

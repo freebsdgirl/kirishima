@@ -24,7 +24,6 @@ from shared.models.prompt import BuildSystemPrompt
 
 from app.util import build_multiturn_prompt
 from app.prompts.dispatcher import get_system_prompt
-import app.config
 
 from app.queue.router import queue
 from shared.models.queue import ProxyTask
@@ -34,7 +33,6 @@ import asyncio
 from shared.log_config import get_logger
 logger = get_logger(f"proxy.{__name__}")
 
-import httpx
 import json
 
 from datetime import datetime
@@ -72,10 +70,10 @@ async def from_api_multiturn(request: ProxyMultiTurnRequest) -> ProxyResponse:
     system_prompt = get_system_prompt(
         BuildSystemPrompt(
             memories=request.memories,
-            mode='nsfw',
-            platform='api',
+            mode=request.mode or 'work',
+            platform=request.platform or 'api',
             summaries=request.summaries,
-            username='Randi',
+            username=request.username or 'Randi',
             timestamp=datetime.now().isoformat(timespec="seconds")
         )
     )

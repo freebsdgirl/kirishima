@@ -78,7 +78,7 @@ async def from_api_multiturn(request: ProxyMultiTurnRequest) -> ProxyResponse:
         )
     )
 
-    # 4) build the full instruct‑style prompt
+    # build the full instruct‑style prompt
     full_prompt = build_multiturn_prompt(ChatMessages(messages=request.messages), system_prompt)
 
     # Construct the payload for the Ollama API call

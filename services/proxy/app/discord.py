@@ -1,5 +1,5 @@
-from shared.config import TIMEOUT, LLM_DEFAULTS
-from shared.models.proxy import ProxyDiscordDMRequest, ProxyResponse, ProxyRequest, IncomingMessage, ChatMessages, OllamaResponse
+from shared.config import TIMEOUT
+from shared.models.proxy import ProxyDiscordDMRequest, ProxyResponse, ProxyRequest, IncomingMessage, ChatMessages, OllamaResponse, OllamaRequest
 
 from shared.log_config import get_logger
 logger = get_logger(f"proxy.{__name__}")
@@ -7,30 +7,36 @@ logger = get_logger(f"proxy.{__name__}")
 from app.util import build_multiturn_prompt
 from app.prompts.dispatcher import get_system_prompt
 
-import app.config
 
-import httpx
-import json
-from datetime import datetime
-import re
+from app.queue.router import queue
+from shared.models.queue import ProxyTask
+import uuid
+import asyncio
 
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
 
 
 @router.post("/discord/dm")
-async def discord_dm(request: ProxyDiscordDMRequest) -> ProxyResponse:
+async def discord_dm(request: ProxyDiscordDMRequest) -> OllamaResponse:
     """
-    Send a direct message to a Discord user.
-    
+    Handle Discord direct message (DM) proxy requests.
+
+    This endpoint processes incoming Discord DM requests by:
+    1. Constructing a proxy request from the Discord message
+    2. Generating a dynamic system prompt
+    3. Building a multi-turn prompt
+    4. Enqueueing the request to the task queue
+    5. Waiting for and returning the Ollama API response
+
     Args:
-        request (ProxyDiscordDMRequest): The request object containing the message details.
-    
+        request (ProxyDiscordDMRequest): The incoming Discord DM request details
+
     Returns:
-        dict: A dictionary containing the status of the message sending operation.
-    
+        ProxyResponse: The generated response from the language model
+
     Raises:
-        HTTPException: If there is an error in sending the message.
+        HTTPException: If the task times out after the specified timeout period
     """
     logger.debug(f"/discord/dm Request: {request}")
 
@@ -60,72 +66,33 @@ async def discord_dm(request: ProxyDiscordDMRequest) -> ProxyResponse:
     full_prompt = build_multiturn_prompt(ChatMessages(messages=request.messages), system_prompt)
 
     # Construct the payload for the Ollama API call
-    payload = {
-        "model": LLM_DEFAULTS["model"],
-        "prompt": full_prompt,
-        "temperature": LLM_DEFAULTS["temperature"],
-        "max_tokens": LLM_DEFAULTS["max_tokens"],
-        "stream": False,
-        "raw": True
-    }
+    payload = OllamaRequest(
+        prompt=full_prompt
+    )
 
-    logger.debug(f"🦙 Request to Ollama API:\n{json.dumps(payload, indent=4, ensure_ascii=False)}")
-
-    # Send the POST request using an async HTTP client
-    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-        try:
-            response = await client.post(f"{app.config.OLLAMA_URL}/api/generate", json=payload)
-            response.raise_for_status()
-
-        except httpx.HTTPStatusError as http_err:
-            logger.error(f"HTTP error from Ollama API: {http_err.response.status_code} - {http_err.response.text}")
-            raise HTTPException(
-                status_code=http_err.response.status_code,
-                detail=f"Error from language model service: {http_err.response.text}"
-            )
-
-        except httpx.RequestError as req_err:
-            logger.error(f"Request error connecting to Ollama API: {req_err}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Connection error: {req_err}"
-            )
-        
-        except Exception as e:
-            logger.error(f"Unexpected error in Ollama API: {e}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Unexpected error in language model service: {e}"
-            )
+    # Create a blocking ProxyTask
+    task_id = str(uuid.uuid4())
+    future = asyncio.Future()
+    task = ProxyTask(
+        priority=5,
+        task_id=task_id,
+        payload=payload,
+        blocking=True,
+        future=future,
+        callback=None
+    )
+    await queue.enqueue(task)
 
     try:
-        json_response = response.json()
-        logger.debug(f"🦙 Response from Ollama API:\n{json.dumps(json_response, indent=4, ensure_ascii=False)}")
-        
-        # Construct the ProxyResponse from the API response data.
-        ollama_response = OllamaResponse(**json_response)
+        result: OllamaResponse = await asyncio.wait_for(future, timeout=TIMEOUT)
 
-        llm_response = ollama_response["response"]
-
-        # Remove anything that looks like an HTML tag or is enclosed in angle brackets (even multiple brackets)
-        if llm_response:
-            llm_response = re.sub(r"<+[^>]+>+", "", llm_response)
-
-        # Construct the ProxyResponse from the API response data.
-        proxy_response = ProxyResponse(
-            response=llm_response,
-            eval_count=ollama_response.eval_count,
-            prompt_eval_count=ollama_response.prompt_eval_count,
-            timestamp=datetime.now().isoformat()
-        )
-
-    except Exception as e:
-        logger.error(f"Error parsing response from Ollama API: {e}")
+    except asyncio.TimeoutError:
+        queue.remove_task(task_id)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Invalid response format from Ollama API: {e}"
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="Task timed out"
         )
 
-    logger.debug(f"/discord/dm Response:\n{proxy_response.model_dump_json(indent=4)}")
+    queue.remove_task(task_id)
 
-    return proxy_response
+    return result

@@ -1,12 +1,17 @@
 import httpx
 
 from shared.models.ledger import SummaryRequest, CombinedSummaryRequest
-from shared.models.proxy import ProxyOneShotRequest
-
-import shared.consul
+from shared.models.proxy import OllamaRequest, OllamaResponse
 
 from shared.log_config import get_logger
 logger = get_logger(f"proxy.{__name__}")
+
+from shared.config import TIMEOUT
+
+from app.queue.router import queue
+from shared.models.queue import ProxyTask
+import uuid
+import asyncio
 
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
@@ -45,50 +50,41 @@ async def summary_user(request: SummaryRequest):
 ### Instructions
 
 - The summary should capture the main points and tone of the conversation.
-- The summary should be no more than 128 tokens in length.
+- The summary should be no more than 64 tokens in length.
 - The summary should be a single paragraph.
 
 <</SYS>>[/INST]"""
 
-    payload = ProxyOneShotRequest(
-            model="nemo:latest",
-            prompt=prompt,
-            temperature=0.3,
-            max_tokens=request.max_tokens
+    payload = OllamaRequest(
+        prompt=prompt
+    )
+
+    # Create a blocking ProxyTask
+    task_id = str(uuid.uuid4())
+    future = asyncio.Future()
+    task = ProxyTask(
+        priority=5,
+        task_id=task_id,
+        payload=payload,
+        blocking=True,
+        future=future,
+        callback=None
+    )
+    await queue.enqueue(task)
+
+    try:
+        result: OllamaResponse = await asyncio.wait_for(future, timeout=TIMEOUT)
+
+    except asyncio.TimeoutError:
+        queue.remove_task(task_id)
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="Task timed out"
         )
 
-    async with httpx.AsyncClient(timeout=60) as client:
-        try:
-            proxy_address, proxy_port = shared.consul.get_service_address('proxy')
-            if not proxy_address or not proxy_port:
-                logger.error("Proxy service address or port is not available.")
-
-                raise HTTPException(
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail="Proxy service is unavailable."
-                )
-
-            response = await client.post(f"http://{proxy_address}:{proxy_port}/api/singleturn", json=payload.model_dump())
-            response.raise_for_status()
-            proxy_response = response.json()
-            summary_text = proxy_response.get("response")
-            return {"summary": summary_text}
-
-        except httpx.HTTPStatusError as http_err:
-            logger.error(f"HTTP error from proxy service: {http_err.response.status_code} - {http_err.response.text}")
-
-            raise HTTPException(
-                status_code=http_err.response.status_code,
-                detail=f"Error from proxy service: {http_err.response.text}"
-            )
-
-        except httpx.RequestError as req_err:
-            logger.error(f"Request error connecting to proxy service: {req_err}")
-
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Connection error: {req_err}"
-            )
+    queue.remove_task(task_id)
+    
+    return {"summary": result.response}
 
 
 @router.post("/summary/user/combined", status_code=status.HTTP_201_CREATED)
@@ -113,42 +109,33 @@ async def summary_user_combined(request: CombinedSummaryRequest):
 - If the conversation involved high emotion (e.g., distress, anger), and the topic moved on, reflect that shift with neutral phrasing.
 - The summary should be a single paragraph of no more than 128 tokens.<</SYS>>[/INST] """
 
-    payload = ProxyOneShotRequest(
-            model="nemo:latest",
-            prompt=prompt,
-            temperature=0.3,
-            max_tokens=request.max_tokens
+    payload = OllamaRequest(
+        prompt=prompt
+    )
+
+    # Create a blocking ProxyTask
+    task_id = str(uuid.uuid4())
+    future = asyncio.Future()
+    task = ProxyTask(
+        priority=5,
+        task_id=task_id,
+        payload=payload,
+        blocking=True,
+        future=future,
+        callback=None
+    )
+    await queue.enqueue(task)
+
+    try:
+        result: OllamaResponse = await asyncio.wait_for(future, timeout=TIMEOUT)
+
+    except asyncio.TimeoutError:
+        queue.remove_task(task_id)
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="Task timed out"
         )
 
-    async with httpx.AsyncClient(timeout=60) as client:
-        try:
-            proxy_address, proxy_port = shared.consul.get_service_address('proxy')
-            if not proxy_address or not proxy_port:
-                logger.error("Proxy service address or port is not available.")
-
-                raise HTTPException(
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail="Proxy service is unavailable."
-                )
-
-            response = await client.post(f"http://{proxy_address}:{proxy_port}/api/singleturn", json=payload.model_dump())
-            response.raise_for_status()
-            proxy_response = response.json()
-            summary_text = proxy_response.get("response")
-            return {"summary": summary_text}
-
-        except httpx.HTTPStatusError as http_err:
-            logger.error(f"HTTP error from proxy service: {http_err.response.status_code} - {http_err.response.text}")
-
-            raise HTTPException(
-                status_code=http_err.response.status_code,
-                detail=f"Error from proxy service: {http_err.response.text}"
-            )
-
-        except httpx.RequestError as req_err:
-            logger.error(f"Request error connecting to proxy service: {req_err}")
-
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Connection error: {req_err}"
-            )
+    queue.remove_task(task_id)
+    
+    return {"summary": result.response}

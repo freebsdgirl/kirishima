@@ -23,6 +23,7 @@ from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
 
 from shared.models.chromadb import MemoryEntryFull, MemoryListQuery, SemanticSearchQuery
+from shared.models.memory import MemorySearch
 
 import httpx
 from fastapi import APIRouter, HTTPException, status, Depends
@@ -121,10 +122,12 @@ async def search_semantic(query: SemanticSearchQuery = Depends()):
         params = query.model_dump(exclude_none=True)
         params['text'] = params.pop('search')
 
+        payload = MemorySearch(**params)
+
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
             response = await client.get(
                 f"http://{chromadb_host}:{chromadb_port}/memory/semantic",
-                params=params
+                params=payload.model_dump(exclude_none=True)
             )
             response.raise_for_status()
             json_response = response.json()

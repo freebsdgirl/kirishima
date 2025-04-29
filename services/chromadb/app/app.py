@@ -18,8 +18,16 @@ Dependencies:
 """
 
 from app.embedding import router as embedding_router
-from app.memory.memory import router as memory_router
-from app.memory.search import router as memory_search_router
+
+from app.memory.delete import router as memory_delete_router
+from app.memory.get_id import router as memory_get_id_router
+from app.memory.get_list import router as memory_get_list_router
+from app.memory.get_search import router as memory_get_search_router
+from app.memory.get_semantic_search import router as memory_get_semantic_search_router
+from app.memory.patch import router as memory_patch_router
+from app.memory.post import router as memory_post_router
+from app.memory.put import router as memory_put_router
+
 from shared.docs_exporter import router as docs_router
 from shared.routes import router as routes_router, register_list_routes
 
@@ -31,9 +39,17 @@ app.add_middleware(CacheRequestBodyMiddleware)
 
 app.include_router(routes_router, tags=["system"])
 app.include_router(docs_router, tags=["docs"])
+
 app.include_router(embedding_router, tags=["embedding"])
-app.include_router(memory_router, tags=["memory"])
-app.include_router(memory_search_router, tags=["memory"])
+
+app.include_router(memory_delete_router, tags=["memory"])
+app.include_router(memory_get_id_router, tags=["memory"])
+app.include_router(memory_get_list_router, tags=["memory"])
+app.include_router(memory_get_search_router, tags=["memory"])
+app.include_router(memory_get_semantic_search_router, tags=["memory"])
+app.include_router(memory_patch_router, tags=["memory"])
+app.include_router(memory_post_router, tags=["memory"])
+app.include_router(memory_put_router, tags=["memory"])
 
 register_list_routes(app)
 

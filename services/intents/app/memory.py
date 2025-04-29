@@ -18,16 +18,18 @@ Dependencies:
     - re: For regular expression operations.
 """
 
-from fastapi import HTTPException, status
 from shared.models.proxy import ChatMessage
+from shared.models.memory import MemoryEntry
+
+from shared.consul import get_service_address
 
 from shared.log_config import get_logger
 logger = get_logger(f"intents.{__name__}")
 
 import re
 import httpx
-from shared.models.chromadb import MemoryEntry
-from shared.consul import get_service_address
+
+from fastapi import HTTPException, status
 
 
 async def process_memory(message: ChatMessage, component: str) -> ChatMessage:

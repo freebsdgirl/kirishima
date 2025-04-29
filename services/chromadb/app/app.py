@@ -1,20 +1,24 @@
 """
-This module initializes and configures the FastAPI application for the ChromaDB service.
+Main FastAPI application setup for the ChromaDB service.
 
-It includes the following routers:
-- `routes_router`: Handles system-level routes.
-- `docs_router`: Handles documentation-related routes, accessible under the `/docs` prefix.
-- `memory_router`: Handles memory-related routes, accessible under the `/memory` prefix.
-- `summarize_router`: Handles summarization-related routes, accessible under the `/summary` prefix.
-- `buffer_router`: Handles buffer-related routes, accessible under the `/buffer` prefix.
+This module initializes the FastAPI app, adds middleware, and includes routers for various
+functionalities such as embedding, memory operations (delete, get, search, patch, post, put),
+documentation, and system routes. It also conditionally sets up tracing if enabled in the configuration.
 
-Tracing:
-- If tracing is enabled (`shared.config.TRACING_ENABLED`), the application sets up
-    tracing using the `setup_tracing` function from the `shared.tracing` module.
+Routers included:
+- Embedding operations
+- Memory operations (delete, get by ID, list, search, semantic search, patch, post, put)
+- Documentation exporter
+- System routes
 
-Dependencies:
-- FastAPI is used to create the application and manage routing.
-- Shared configurations and tracing utilities are imported from the `shared` module.
+Middleware:
+- CacheRequestBodyMiddleware: Caches the request body for downstream processing.
+
+Conditional Features:
+- Tracing: If enabled in the configuration, tracing is set up for the service.
+
+Functions:
+- register_list_routes: Registers additional list routes to the FastAPI app.
 """
 
 from app.embedding import router as embedding_router

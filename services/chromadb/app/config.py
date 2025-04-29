@@ -12,9 +12,4 @@ client                                  = PersistentClient(path='./shared/db/chr
 
 EMBEDDING_MODEL                         = "intfloat/e5-small-v2"
 MEMORY_COLLECTION                       = 'memory'
-
-
-# embedding model name
-CHROMADB_MODEL_NAME                     = "intfloat/e5-small-v2"
-
-
+SUMMARY_COLLECTION                      = 'summary'

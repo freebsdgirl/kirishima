@@ -12,7 +12,7 @@ Classes:
 
 from pydantic import BaseModel, Field
 from typing import Optional, List
-from shared.models.chromadb import MemoryEntryFull
+from shared.models.memory import MemoryEntryFull
 
 
 class BuildSystemPrompt(BaseModel):

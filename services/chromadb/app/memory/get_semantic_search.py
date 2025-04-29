@@ -23,8 +23,7 @@ Raises:
 from app.memory.util import get_collection
 from app.embedding import get_embedding
 
-from shared.models.chromadb import MemoryView
-from shared.models.memory import MemorySearch
+from shared.models.memory import MemorySearch, MemoryView
 from shared.models.embedding import EmbeddingRequest
 
 from shared.log_config import get_logger

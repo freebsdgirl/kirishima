@@ -36,7 +36,7 @@ that can be used for semantic similarity and embedding tasks.
 Attributes:
     model (SentenceTransformer): Pre-configured transformer model for generating text embeddings.
 """
-model = SentenceTransformer(app.config.CHROMADB_MODEL_NAME)
+model = SentenceTransformer(app.config.EMBEDDING_MODEL)
 
 
 @router.post("/embedding", response_model=list)

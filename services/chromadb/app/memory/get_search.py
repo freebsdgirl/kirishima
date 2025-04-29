@@ -14,7 +14,7 @@ Dependencies:
 """
 from app.memory.util import get_collection
 
-from shared.models.chromadb import MemoryView
+from shared.models.memory import MemoryView
 
 from shared.log_config import get_logger
 logger = get_logger(f"chromadb.{__name__}")

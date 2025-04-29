@@ -11,7 +11,7 @@ from app.memory.util import get_collection
 from shared.log_config import get_logger
 logger = get_logger(f"chromadb.{__name__}")
 
-from shared.models.chromadb import MemoryView
+from shared.models.memory import MemoryView
 
 from pydantic import ValidationError
 

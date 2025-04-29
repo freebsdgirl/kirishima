@@ -22,7 +22,7 @@ import shared.consul
 
 from shared.models.proxy import ProxyMultiTurnRequest, ProxyResponse, ChatMessage
 from shared.models.intents import IntentRequest
-from shared.models.chromadb import MemoryListQuery
+from shared.models.memory import MemoryListQuery
 
 from app.memory.list import list_memory
 from app.modes import mode_get

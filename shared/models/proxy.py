@@ -24,7 +24,7 @@ from shared.config import LLM_DEFAULTS
 
 from typing import List, Optional, Dict, Any, Literal
 from pydantic import BaseModel, Field
-from shared.models.chromadb import MemoryEntryFull
+from shared.models.memory import MemoryEntryFull
 from shared.models.contacts import Contact
 from shared.models.discord import DiscordDirectMessage
 

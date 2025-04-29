@@ -11,7 +11,7 @@ from shared.models.contacts import Contact
 from shared.models.discord import DiscordDirectMessage
 from shared.models.proxy import ProxyDiscordDMRequest, ChatMessage, ProxyResponse
 from shared.models.intents import IntentRequest
-from shared.models.chromadb import MemoryListQuery
+from shared.models.memory import MemoryListQuery
 
 from app.modes import mode_get
 from app.util import get_admin_user_id, sanitize_messages, post_to_service

@@ -23,7 +23,7 @@ Dependencies:
 from shared.config import TIMEOUT
 import shared.consul
 
-from shared.models.chromadb import MemoryEntry, MemoryEntryFull
+from shared.models.memory import MemoryEntry, MemoryEntryFull
 
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")

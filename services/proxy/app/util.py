@@ -19,7 +19,7 @@ Dependencies:
 - shared.config: Shared configuration settings, including TIMEOUT.
 - shared.log_config: Logging configuration for the application.
 - httpx: HTTP client for making asynchronous requests.
-- shared.models.chromadb: Memory entry model definitions.
+- shared.models.memory: Memory entry model definitions.
 - shared.models.proxy: Chat message model definitions.
 - app.prompts: Modules for building prompts based on different modes.
 Logging:
@@ -28,18 +28,18 @@ Exceptions:
 - Handles HTTP and general exceptions during LLM interactions and logs errors or warnings.
 
 """
-
 import app.config
 
 from shared.config import TIMEOUT
+
+from shared.models.memory import MemoryEntryFull
+from shared.models.proxy import ChatMessages
 
 from shared.log_config import get_logger
 logger = get_logger(f"proxy.{__name__}")
 
 import httpx
 from typing import List
-from shared.models.chromadb import MemoryEntryFull
-from shared.models.proxy import ChatMessages
 
 
 async def send_prompt_to_llm(prompt: str) -> dict:

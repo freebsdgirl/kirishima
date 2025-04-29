@@ -22,8 +22,7 @@ import shared.consul
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
 
-from shared.models.chromadb import MemoryEntryFull, MemoryListQuery, SemanticSearchQuery
-from shared.models.memory import MemorySearch
+from shared.models.memory import MemorySearch, MemoryEntryFull, MemoryListQuery, SemanticSearchQuery
 
 import httpx
 from fastapi import APIRouter, HTTPException, status, Depends

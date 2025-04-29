@@ -25,7 +25,7 @@ from app.embedding import get_embedding
 from shared.log_config import get_logger
 logger = get_logger(f"chromadb.{__name__}")
 
-from shared.models.chromadb import MemoryEntry, MemoryMetadata, MemoryEntryFull, MemoryView
+from shared.models.memory import MemoryEntry, MemoryMetadata, MemoryEntryFull, MemoryView
 from shared.models.embedding import EmbeddingRequest
 
 from pydantic import ValidationError

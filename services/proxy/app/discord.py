@@ -1,3 +1,23 @@
+"""
+This module provides an API endpoint for handling Discord direct message (DM) proxy requests.
+
+It defines a FastAPI router with a single POST endpoint `/discord/dm` that processes incoming Discord DM requests by:
+1. Constructing a minimal ProxyRequest from the incoming Discord message.
+2. Generating a dynamic system prompt based on the request context.
+3. Building a multi-turn prompt for the language model.
+4. Enqueuing the request as a blocking task in the task queue.
+5. Awaiting and returning the response from the Ollama API.
+
+Modules and Classes:
+- Imports shared configuration, models, and logging utilities.
+- Utilizes utility functions for prompt construction and system prompt dispatching.
+- Integrates with a task queue for asynchronous processing.
+
+- HTTPException with status 504 if the task times out.
+
+- OllamaResponse: The generated response from the language model.
+"""
+
 from shared.config import TIMEOUT
 from shared.models.proxy import ProxyDiscordDMRequest, ProxyResponse, ProxyRequest, IncomingMessage, ChatMessages, OllamaResponse, OllamaRequest
 

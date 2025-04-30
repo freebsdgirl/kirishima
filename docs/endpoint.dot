@@ -74,6 +74,12 @@ digraph Microservices {
     "CHROMADB: GET /memory"
     "CHROMADB: GET /memory/search"
     "CHROMADB: GET /memory/semantic"
+
+    // Added summary endpoints
+    "CHROMADB: POST /summary"
+    "CHROMADB: GET /summary/{user_id}"
+    "CHROMADB: GET /summary/{user_id}/{summary_type}"
+    "CHROMADB: DELETE /summary/{summary_id}"
   }
 
   /* CONTACTS endpoints */

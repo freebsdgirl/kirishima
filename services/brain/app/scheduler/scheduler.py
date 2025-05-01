@@ -29,17 +29,26 @@ from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
 
 import httpx
+import inspect
 
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
 
 # global functions to be called by scheduler
-from app.scheduler.job_summarize import summarize_user_buffers
-globals()["summarize_user_buffers"] = summarize_user_buffers
+from app.scheduler.job_summarize import (
+    summarize_user_buffer_morning,
+    summarize_user_buffer_afternoon,
+    summarize_user_buffer_evening,
+    summarize_user_buffer_night
+)
+globals()["summarize_user_buffer_morning"]      = summarize_user_buffer_morning
+globals()["summarize_user_buffer_afternoon"]    = summarize_user_buffer_afternoon
+globals()["summarize_user_buffer_evening"]      = summarize_user_buffer_evening
+globals()["summarize_user_buffer_night"]        = summarize_user_buffer_night
 
 
 @router.post("/scheduler/callback", response_model=dict)
-def scheduler_callback(payload: SchedulerCallbackRequest) -> dict:
+async def scheduler_callback(payload: SchedulerCallbackRequest) -> dict:
     """
     Handle a scheduler callback by executing a specified function from global namespace.
 
@@ -58,6 +67,8 @@ def scheduler_callback(payload: SchedulerCallbackRequest) -> dict:
                     404 if function is not found,
                     500 if function execution fails.
     """
+
+    logger.debug(f"POST /scheduler/callback Request: {payload}")
 
     metadata = payload.metadata
     func_name = metadata.get("function")
@@ -82,7 +93,11 @@ def scheduler_callback(payload: SchedulerCallbackRequest) -> dict:
         )
 
     try:
-        func()
+        logger.info(f"Executing function: {func_name}")
+        if inspect.iscoroutinefunction(func):
+            await func()
+        else:
+            func()
 
         return {
             "status": "success",

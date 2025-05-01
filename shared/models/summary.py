@@ -26,6 +26,7 @@ class SummaryType(str, Enum):
     MORNING = "morning"
     AFTERNOON = "afternoon"
     EVENING = "evening"
+    NIGHT = "night"
     DAILY = "daily"
     WEEKLY = "weekly"
     MONTHLY = "monthly"
@@ -131,10 +132,10 @@ class SummaryCreateRequest(BaseModel):
     
     Attributes:
         period (str): The time period for the summary, such as 'day', 'week', or 'month'.
-        date (Optional[str]): The date in YYYY-MM-DD format. Defaults to today if not specified.
+        date (Optional[str]): The starting date in YYYY-MM-DD format.
     """
     period: str                         = Field(..., description="Time period for the summary (e.g., 'day', 'week', 'month')")
-    date: Optional[str]                 = Field(None, description="Date in YYYY-MM-DD format. Defaults to today if not provided.")
+    date: str                           = Field(..., description="Starting date in YYYY-MM-DD format.")
 
     model_config = {
         "json_schema_extra": {
@@ -145,6 +146,57 @@ class SummaryCreateRequest(BaseModel):
                 },
                 {
                     "period": "week"
+                }
+            ]
+        }
+    }
+
+
+class CombinedSummaryRequest(BaseModel):
+    """
+    Represents a request to combine multiple summaries into a single summary.
+    
+    This model allows for aggregating multiple summaries with a specified maximum token limit
+    and an optional user alias.
+    
+    Attributes:
+        summaries (List[Summary]): A list of summaries to be combined.
+        max_tokens (int): The maximum number of tokens allowed for the combined summary.
+        user_alias (Optional[str], optional): An optional alias for the user creating the combined summary.
+    """
+    summaries: List[Summary] = Field(..., description="List of summaries to be combined")
+    max_tokens: int = Field(..., description="Maximum number of tokens for the combined summary")
+    user_alias: Optional[str] = Field(None, description="User alias for the summary")
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "summaries": [
+                        {
+                            "id": "123e4567-e89b-12d3-a456-426614174000",
+                            "content": "This is a summary of the events that occurred in October 2023.",
+                            "metadata": {
+                                "timestamp_begin": "2023-10-01T00:00:00Z",
+                                "timestamp_end": "2023-10-31T23:59:59Z",
+                                "summary_type": SummaryType.MONTHLY,
+                                "keywords": ["October", "2023", "monthly summary"],
+                                "user_id": "123e4567-e89b-12d3-a456-426614174000"
+                            }
+                        },
+                        {
+                            "id": "123e4567-e89b-12d3-a456-426614174001",
+                            "content": "This is a summary of the morning events on October 1, 2023.",
+                            "metadata": {
+                                "timestamp_begin": "2023-10-01T08:00:00Z",
+                                "timestamp_end": "2023-10-01T12:00:00Z",
+                                "summary_type": SummaryType.MORNING,
+                                "keywords": ["morning", "daily"],
+                                "user_id": "123e4567-e89b-12d3-a456-426614174001"
+                            }
+                        }
+                    ],
+                    "max_tokens": 100,
+                    "user_alias": "User123"
                 }
             ]
         }

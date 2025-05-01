@@ -1,51 +1,162 @@
 """
-This module defines a job scheduler function `summarize_user_buffers` that triggers a summary process
-for inactive user buffers by interacting with the ledger service. It also provides an example of how
-to create a job for this function using an HTTP POST request to the scheduler service.
+This module defines asynchronous job functions for generating user summary reports
+for different periods of the day (night, morning, afternoon, evening) and for the daily summary.
 Functions:
-  summarize_user_buffers():
-    Sends a POST request to the ledger service to process and summarize inactive user buffers.
-    Logs the result or any errors encountered during the process.
-Example:
-  The example demonstrates how to create a job for the `summarize_user_buffers` function using
-  the scheduler service. It includes the job request payload and the HTTP POST request to register
-  the job with the scheduler.
-Dependencies:
-  - shared.config.TIMEOUT: Timeout value for HTTP requests.
-  - shared.consul.get_service_address: Retrieves the service address for a given service name.
-  - shared.log_config.get_logger: Configures and retrieves a logger instance.
-  - httpx: Library for making HTTP requests.
+    - summarize_user_buffer_night: Creates a night summary for the current date.
+    - summarize_user_buffer_morning: Creates a morning summary for the current date.
+    - summarize_user_buffer_afternoon: Creates an afternoon summary for the current date.
+    - summarize_user_buffer_evening: Creates an evening summary and a daily summary for the previous day.
+Each function:
+    - Constructs a SummaryCreateRequest payload for the appropriate period and date.
+    - Calls the relevant summary creation function (create_summary or create_daily_summary).
+    - Logs the summary creation process.
+    - Handles exceptions by logging errors and raising HTTP 500 Internal Server Error responses.
+The module is intended to be used with a scheduler that triggers these jobs at specific times of day,
+as described in the example job request payloads at the end of the file.
 """
-from shared.config import TIMEOUT
+from app.summary.create_user_periodic_summary import create_summary
+from app.summary.daily import create_daily_summary
 
-import shared.consul
+from shared.models.summary import SummaryCreateRequest
 
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
 
-import httpx
+from datetime import datetime, timedelta
+
+from fastapi import HTTPException, status
 
 
-def summarize_user_buffers():
+
+async def summarize_user_buffer_night():
     """
-    Trigger a summary process for inactive user buffers by sending a POST request to the ledger service.
+    Asynchronously create a night summary for the current date.
     
-    This function attempts to call the ledger service's inactive summaries endpoint to process and summarize
-    user buffers that are currently inactive. It logs the result on successful execution and logs any
-    errors that occur during the process.
-    
-    Raises:
-        Exception: If the HTTP request to the ledger service fails or times out.
+    This function generates a summary for the night period using the current date.
+    It calls the create_summary function with a SummaryCreateRequest for the night period.
+    Logs a debug message and handles any exceptions by logging an error and 
+    raising an HTTP 500 Internal Server Error if the summary creation fails.
     """
-    ledger_address, ledger_port = shared.consul.get_service_address('ledger')
-    url = f"http://{ledger_address}:{ledger_port}/summaries/inactive"
-    try:
-        response = httpx.post(url, timeout=TIMEOUT)
-        response.raise_for_status()
-        logger.debug(f"Scheduler triggered summarize_user_buffers(): {response.json()}")
+    payload = SummaryCreateRequest(
+        period="night",
+        date=datetime.now().strftime("%Y-%m-%d")
+    )
+
+    try: 
+      logger.debug(f"Creating night summary for date: {payload.date}")
+      await create_summary(payload)
 
     except Exception as e:
-        logger.error(f"Failed to trigger summarize_user_buffers(): {e}")
+        logger.error(f"Failed to trigger summarize_user_buffer_night(): {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to trigger summarize_user_buffer_night()"
+        )
+
+
+async def summarize_user_buffer_morning():
+    """
+    Asynchronously create a morning summary for the current date.
+    
+    This function generates a summary for the morning period using the current date.
+    It calls the create_summary function with a SummaryCreateRequest for the morning period.
+    Logs a debug message and handles any exceptions by logging an error and 
+    raising an HTTP 500 Internal Server Error if the summary creation fails.
+    """
+    payload = SummaryCreateRequest(
+        period="morning",
+        date=datetime.now().strftime("%Y-%m-%d")
+    )
+
+    try: 
+      logger.debug(f"Creating morning summary for date: {payload.date}")
+      await create_summary(payload)
+
+    except Exception as e:
+        logger.error(f"Failed to trigger summarize_user_buffer_morning(): {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to trigger summarize_user_buffer_morning()"
+        )
+
+
+async def summarize_user_buffer_afternoon():
+    """
+    Asynchronously create an afternoon summary for the current date.
+    
+    This function generates a summary for the afternoon period using the current date.
+    It calls the create_summary function with a SummaryCreateRequest for the afternoon period.
+    Logs a debug message and handles any exceptions by logging an error and 
+    raising an HTTP 500 Internal Server Error if the summary creation fails.
+    """
+    payload = SummaryCreateRequest(
+        period="afternoon",
+        date=datetime.now().strftime("%Y-%m-%d")
+    )
+
+    try: 
+      await create_summary(payload)
+      logger.debug(f"Creating afternoon summary for date: {payload.date}")
+
+    except Exception as e:
+        logger.error(f"Failed to trigger summarize_user_buffer_afternoon(): {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to trigger summarize_user_buffer_afternoon()"
+        )
+
+
+async def summarize_user_buffer_evening():
+    """
+    Asynchronously create an evening summary and daily summary for the previous day.
+    
+    This function performs two key tasks:
+    1. Generates an evening summary for the previous day using the create_summary function.
+    2. Creates a daily summary for the previous day using the create_daily_summary function.
+    
+    The function handles potential exceptions for both summary creation processes by logging errors
+    and raising an HTTP 500 Internal Server Error if either summary fails to generate.
+    
+    Note: The function is designed to run at the end of the day, creating summaries for the previous day.
+    Additional logic for weekly and monthly summary creation is planned but not yet implemented.
+    """
+    payload = SummaryCreateRequest(
+        period="evening",
+        date=(datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+    )
+
+    try: 
+      await create_summary(payload)
+      logger.debug(f"Creating evening summary for date: {payload.date}")
+
+    except Exception as e:
+        logger.error(f"Failed to trigger summarize_user_buffer_evening(): {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to trigger summarize_user_buffer_evening()"
+        )
+    
+    # next, create the summary for the day
+    try:
+       payload = SummaryCreateRequest(
+            period="daily",
+            date=(datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+        )
+       await create_daily_summary(payload)
+       logger.debug(f"Creating daily summary for date: {payload.date}")
+
+    except Exception as e:
+        logger.error(f"Failed to trigger summarize_user_buffer_evening(): {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to trigger summarize_user_buffer_evening()"
+        )
+    
+    # check to see if the day of the week is currently monday. this means a new week has started.
+    # if it has, create the weekly summary.
+
+    # check to see if the date of the month is the 1st. this means a new month has started.
+
 
 
 """
@@ -53,18 +164,45 @@ create this job with:
 
 import httpx
 
-job_request = {
-  "external_url": "http://brain:4207/scheduler/callback",
-  "trigger": "interval",
-  "interval_minutes": 1,
-  "metadata": {
-    "function": "summarize_user_buffers"
-  }
+night_job_request = {
+    "external_url": "http://brain:4207/scheduler/callback",
+    "trigger": "cron",
+    "hour": 6,
+    "minute": 0,
+    "metadata": {
+        "function": "summarize_user_buffer_night"
+    }
 }
 
-brain_address, brain_port = shared.consul.get_service_address('brain')
-url = f"http://{brain_address}:{brain_port}/scheduler/job"
+morning_job_request = {
+    "external_url": "http://brain:4207/scheduler/callback",
+    "trigger": "cron",
+    "hour": 12,
+    "minute": 0,
+    "metadata": {
+        "function": "summarize_user_buffer_morning"
+    }
+}
 
-response = httpx.post(url, json=job_request, timeout=60)
-print(response.json())
+afternoon_job_request = {
+    "external_url": "http://brain:4207/scheduler/callback",
+    "trigger": "cron",
+    "hour": 18,
+    "minute": 0,
+    "metadata": {
+        "function": "summarize_user_buffer_afternoon"
+    }
+}
+
+evening_job_request = {
+    "external_url": "http://brain:4207/scheduler/callback",
+    "trigger": "cron",
+    "hour": 0,
+    "minute": 0,
+    "metadata": {
+        "function": "summarize_user_buffer_evening"
+    }
+}
+
+response = await httpx.post("http://brain:4207/scheduler/job", json=job_request)
 """

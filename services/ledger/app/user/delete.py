@@ -1,10 +1,18 @@
-"""user_sync.py — 1‑on‑1 user buffer endpoints.
+"""
+This module provides an API endpoint for deleting user messages from the ledger buffer database.
+It allows deletion of all messages for a specific user, or only those within a specified time period and date.
 
-Endpoints:
-    POST /ledger/user/{user_id}/sync              — existing sync w/ refresh+edit rules
-    GET  /ledger/user/{user_id}/messages          — fetch all messages for user
-    DELETE /ledger/user/{user_id}/before/{id}     — prune <= id (summarizer)
-    DELETE /ledger/user/{user_id}                 — delete all for user
+Functions:
+    _open_conn(): Opens a SQLite connection to the buffer database with WAL journal mode.
+    get_period_range(period: str, date_str: Optional[str] = None): 
+        Returns the start and end datetime objects for a given period and optional date.
+    delete_user_buffer(user_id: str, period: Optional[str], date: Optional[str]) -> DeleteSummary:
+        FastAPI route handler to delete user messages, filtered by period and date if provided.
+
+Routes:
+    DELETE /ledger/user/{user_id}:
+        Deletes all messages for the specified user, or only those in a given period and date.
+        Returns a summary of the number of deleted messages.
 """
 
 from app.config import BUFFER_DB
@@ -14,9 +22,9 @@ from shared.log_config import get_logger
 logger = get_logger(f"ledger{__name__}")
 
 import sqlite3
-from typing import List
-
-from fastapi import APIRouter, Path, Body
+from typing import Optional
+from fastapi import APIRouter, Path, Query
+from datetime import datetime, time, timedelta
 
 router = APIRouter()
 
@@ -29,71 +37,66 @@ def _open_conn() -> sqlite3.Connection:
     return conn
 
 
-@router.delete("/ledger/user/{user_id}/before/{message_id}", response_model=DeleteSummary)
-def prune_user_messages(
+def get_period_range(period: str, date_str: Optional[str] = None):
+    # Determine default date based on period if not provided
+    if date_str is None:
+        now = datetime.now()
+        if period in ("evening", "day"):
+            date = (now - timedelta(days=1)).date()
+        else:
+            date = now.date()
+    else:
+        date = datetime.strptime(date_str, "%Y-%m-%d").date()
+    if period == "night":
+        start = datetime.combine(date, time(0, 0))
+        end = datetime.combine(date, time(5, 59, 59, 999999))
+    elif period == "morning":
+        start = datetime.combine(date, time(6, 0))
+        end = datetime.combine(date, time(11, 59, 59, 999999))
+    elif period == "afternoon":
+        start = datetime.combine(date, time(12, 0))
+        end = datetime.combine(date, time(17, 59, 59, 999999))
+    elif period == "evening":
+        start = datetime.combine(date, time(18, 0))
+        end = datetime.combine(date, time(23, 59, 59, 999999))
+    elif period == "day":
+        start = datetime.combine(date, time(0, 0))
+        end = datetime.combine(date, time(23, 59, 59, 999999))
+    else:
+        raise ValueError("Invalid period")
+    return start, end
+
+
+@router.delete("/user/{user_id}", response_model=DeleteSummary)
+def delete_user_buffer(
     user_id: str = Path(...),
-    message_id: int = Path(..., description="Prune EVERYTHING ≤ this id for the user"),
-    noop: bool = False,  # If True, log what would be deleted but do not delete
+    period: Optional[str] = Query(None, description="Time period to filter messages (e.g., 'morning', 'afternoon', etc.)"),
+    date: Optional[str] = Query(None, description="Date in YYYY-MM-DD format. Defaults to today."),
 ) -> DeleteSummary:
     """
-    Delete messages for a specific user up to a given message ID.
-
-    Removes all messages for the specified user with an ID less than or equal to the provided message ID.
-    This allows for selective pruning of a user's message history.
-
-    Args:
-        user_id (str): The unique identifier of the user whose messages will be pruned.
-        message_id (int): The maximum message ID to delete (inclusive).
-        noop (bool): If True, only log what would be deleted, do not delete.
-
-    Returns:
-        DeleteSummary: An object containing the count of deleted messages.
-    """
-
-    logger.debug(f"Deleting messages for user {user_id} up to message ID {message_id} (noop={noop})")
-
-    with _open_conn() as conn:
-        cur = conn.cursor()
-        if noop:
-            cur.execute(
-                f"SELECT id FROM {TABLE} WHERE user_id = ? AND id <= ?",
-                (user_id, message_id),
-            )
-            ids = [row[0] for row in cur.fetchall()]
-            logger.debug(f"NOOP: Would delete {len(ids)} messages: {ids}")
-            return DeleteSummary(deleted=len(ids))
-        else:
-            cur.execute(
-                f"DELETE FROM {TABLE} WHERE user_id = ? AND id <= ?",
-                (user_id, message_id),
-            )
-            deleted = cur.rowcount
-            conn.commit()
-            return DeleteSummary(deleted=deleted)
-
-
-@router.delete("/ledger/user/{user_id}", response_model=DeleteSummary)
-def delete_user_buffer(user_id: str = Path(...)) -> DeleteSummary:
-    """
-    Delete all messages for a specific user from the buffer database.
-
-    Performs a hard reset by removing all messages associated with the given user ID.
-    Returns a summary of the number of messages deleted.
+    Delete all messages for a specific user, or only those in a given period and date.
 
     Args:
         user_id (str): The unique identifier of the user whose messages will be deleted.
+        period (Optional[str]): Time period to filter messages.
+        date (Optional[str]): Date in YYYY-MM-DD format.
 
     Returns:
         DeleteSummary: An object containing the count of deleted messages.
     """
 
-    """Delete ALL messages for the user (hard reset)."""
-
-    logger.debug(f"Deleting all messages for user {user_id}")
+    logger.debug(f"Deleting messages for user {user_id} (period={period}, date={date})")
 
     with _open_conn() as conn:
         cur = conn.cursor()
-        cur.execute(f"DELETE FROM {TABLE} WHERE user_id = ?", (user_id,))
+        if period:
+            start, end = get_period_range(period, date)
+            cur.execute(
+                f"DELETE FROM {TABLE} WHERE user_id = ? AND created_at >= ? AND created_at <= ?",
+                (user_id, start.strftime("%Y-%m-%d %H:%M:%S.%f"), end.strftime("%Y-%m-%d %H:%M:%S.%f")),
+            )
+        else:
+            cur.execute(f"DELETE FROM {TABLE} WHERE user_id = ?", (user_id,))
         deleted = cur.rowcount
         conn.commit()
         return DeleteSummary(deleted=deleted)

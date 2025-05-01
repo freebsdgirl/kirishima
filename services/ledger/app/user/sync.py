@@ -27,10 +27,10 @@ from shared.log_config import get_logger
 logger = get_logger(f"ledger.{__name__}")
 
 import sqlite3
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Path, Body, BackgroundTasks
-from app.user.summary import create_summaries
+#from app.user.summary import create_summaries
 
 router = APIRouter()
 
@@ -47,36 +47,36 @@ def _open_conn() -> sqlite3.Connection:
 def sync_user_buffer(
     user_id: str = Path(..., description="Unique user identifier"),
     snapshot: List[RawUserMessage] = Body(..., embed=True),
-    background_tasks: BackgroundTasks = None
+    background_tasks: BackgroundTasks = None,
+    limit: Optional[int] = 30
 ) -> List[CanonicalUserMessage]:
     """
-    Synchronizes the user's message buffer with the server-side ledger.
+    Synchronizes the user's message buffer with the database, handling deduplication, edits, and appends.
 
-    This endpoint receives a snapshot of user and assistant messages and applies synchronization logic to ensure the server's message buffer reflects the latest state.
+    This endpoint receives a snapshot of user and assistant messages and ensures the database reflects the latest state,
+    handling various edge cases such as consecutive user messages, deduplication, and assistant message edits.
 
     Args:
         user_id (str): Unique user identifier, provided as a path parameter.
         snapshot (List[RawUserMessage]): List of incoming user and assistant messages, provided in the request body.
+        background_tasks (BackgroundTasks, optional): FastAPI background task manager for deferred processing.
+        limit (Optional[int], default=30): Maximum number of messages to return in the response.
 
     Returns:
-        List[CanonicalUserMessage]: The updated list of canonical user messages after synchronization.
+        List[CanonicalUserMessage]: The updated list of canonical user messages, up to the specified limit.
 
-    Logic:
-        - If the snapshot is empty, returns an empty list.
-        - If the last message is not from the "api" platform, inserts it directly and returns the updated buffer.
-        - If the buffer is empty, seeds it with the last incoming message.
-        - If the last incoming user message matches the last user message in the database, deletes the last assistant message (refresh assistant).
-        - If the second-to-last incoming user message matches the last user message in the database and there is an incoming assistant message, updates the last assistant message (edit assistant).
-        - Otherwise, appends the last incoming message to the buffer (fallback append).
-
-    Note:
-        The function uses a database connection to persist and retrieve messages, and applies different synchronization rules based on the state of the incoming snapshot and the existing buffer.
+    Behavior:
+        - If the snapshot is empty, triggers background summary creation and returns an empty list.
+        - Handles edge cases such as consecutive user messages (e.g., after a server error) by removing duplicates.
+        - For non-API platforms, appends the last message directly to the database.
+        - For API-originated messages, performs deduplication, assistant message edits, and appends as needed.
+        - Always returns the latest buffer of messages, limited by the `limit` parameter.
     """
     logger.debug(f"Syncing user buffer for {user_id}: {snapshot}")
 
-    if not snapshot:
-        background_tasks.add_task(create_summaries, user_id)
-        return []
+    #if not snapshot:
+    #    background_tasks.add_task(create_summaries, user_id)
+    #    return []
 
     last_msg = snapshot[-1]
 
@@ -94,9 +94,12 @@ def sync_user_buffer(
             # After deletion, return the updated buffer
             cur.execute(f"SELECT * FROM {TABLE} WHERE user_id = ? ORDER BY id", (user_id,))
             result = [CanonicalUserMessage(**dict(zip([col[0] for col in cur.description], row))) for row in cur.fetchall()]
-            if last_msg.role == "assistant":
-                background_tasks.add_task(create_summaries, user_id)
-            return result
+            #if last_msg.role == "assistant":
+                #background_tasks.add_task(create_summaries, user_id)
+            if limit is not None:
+                return result[-limit:]
+            else:
+                return result
 
     # ----------------- Non‑API fast path -----------------
     if last_msg.platform != "api":
@@ -109,9 +112,12 @@ def sync_user_buffer(
             conn.commit()
             cur.execute(f"SELECT * FROM {TABLE} WHERE user_id = ? ORDER BY id", (user_id,))
             result = [CanonicalUserMessage(**dict(zip([col[0] for col in cur.description], row))) for row in cur.fetchall()]
-            if last_msg.role == "assistant":
-                background_tasks.add_task(create_summaries, user_id)
-            return result
+            #if last_msg.role == "assistant":
+                #background_tasks.add_task(create_summaries, user_id)
+            if limit is not None:
+                return result[-limit:]
+            else:
+                return result
 
     # ----------------- API logic -----------------
     with _open_conn() as conn:
@@ -137,9 +143,12 @@ def sync_user_buffer(
             conn.commit()
             cur.execute(f"SELECT * FROM {TABLE} WHERE user_id = ? ORDER BY id", (user_id,))
             result = [CanonicalUserMessage(**dict(zip([col[0] for col in cur.description], row))) for row in cur.fetchall()]
-            if last_msg.role == "assistant":
-                background_tasks.add_task(create_summaries, user_id)
-            return result
+            #if last_msg.role == "assistant":
+                #background_tasks.add_task(create_summaries, user_id)
+            if limit is not None:
+                return result[-limit:]
+            else:
+                return result
 
         last_db_user = user_rows[-1][1] if user_rows else None
         last_incoming_user = incoming_user[-1] if incoming_user else None
@@ -156,9 +165,12 @@ def sync_user_buffer(
                 # Always return the full buffer
                 cur.execute(f"SELECT * FROM {TABLE} WHERE user_id = ? ORDER BY id", (user_id,))
                 result = [CanonicalUserMessage(**dict(zip([col[0] for col in cur.description], row))) for row in cur.fetchall()]
-                if last_msg.role == "assistant":
-                    background_tasks.add_task(create_summaries, user_id)
-                return result
+                #if last_msg.role == "assistant":
+                    #background_tasks.add_task(create_summaries, user_id)
+                if limit is not None:
+                    return result[-limit:]
+                else:
+                    return result
             # --- Check for assistant edit before appending user ---
             if (
                 len(snapshot) >= 2 and
@@ -181,9 +193,12 @@ def sync_user_buffer(
             conn.commit()
             cur.execute(f"SELECT * FROM {TABLE} WHERE user_id = ? ORDER BY id", (user_id,))
             result = [CanonicalUserMessage(**dict(zip([col[0] for col in cur.description], row))) for row in cur.fetchall()]
-            if last_msg.role == "assistant":
-                background_tasks.add_task(create_summaries, user_id)
-            return result
+            #if last_msg.role == "assistant":
+                #background_tasks.add_task(create_summaries, user_id)
+            if limit is not None:
+                return result[-limit:]
+            else:
+                return result
 
         # Rule 2 – edit assistant
         if (
@@ -204,9 +219,12 @@ def sync_user_buffer(
             # Always return the full buffer
             cur.execute(f"SELECT * FROM {TABLE} WHERE user_id = ? ORDER BY id", (user_id,))
             result = [CanonicalUserMessage(**dict(zip([col[0] for col in cur.description], row))) for row in cur.fetchall()]
-            if last_msg.role == "assistant":
-                background_tasks.add_task(create_summaries, user_id)
-            return result
+            #if last_msg.role == "assistant":
+                #background_tasks.add_task(create_summaries, user_id)
+            if limit is not None:
+                return result[-limit:]
+            else:
+                return result
 
         # Rule 3 – fallback append
         cur.execute(
@@ -216,6 +234,9 @@ def sync_user_buffer(
         conn.commit()
         cur.execute(f"SELECT * FROM {TABLE} WHERE user_id = ? ORDER BY id", (user_id,))
         result = [CanonicalUserMessage(**dict(zip([col[0] for col in cur.description], row))) for row in cur.fetchall()]
-        if last_msg.role == "assistant":
-            background_tasks.add_task(create_summaries, user_id)
-        return result
+        #if last_msg.role == "assistant":
+            #background_tasks.add_task(create_summaries, user_id)
+        if limit is not None:
+            return result[-limit:]
+        else:
+            return result

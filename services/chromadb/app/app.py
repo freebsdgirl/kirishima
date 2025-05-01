@@ -33,8 +33,7 @@ from app.memory.post import router as memory_post_router
 from app.memory.put import router as memory_put_router
 
 from app.summary.delete import router as summary_delete_router
-from app.summary.get_by_type import router as summary_get_by_type_router
-from app.summary.get_by_user_id import router as summary_get_by_user_id_router
+from app.summary.get import router as summary_get_router
 from app.summary.post import router as summary_post_router
 
 from shared.docs_exporter import router as docs_router
@@ -61,8 +60,7 @@ app.include_router(memory_post_router, tags=["memory"])
 app.include_router(memory_put_router, tags=["memory"])
 
 app.include_router(summary_delete_router, tags=["summary"])
-app.include_router(summary_get_by_type_router, tags=["summary"])
-app.include_router(summary_get_by_user_id_router, tags=["summary"])
+app.include_router(summary_get_router, tags=["summary"])
 app.include_router(summary_post_router, tags=["summary"])
 
 register_list_routes(app)

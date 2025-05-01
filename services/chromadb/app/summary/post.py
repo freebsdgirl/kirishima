@@ -53,18 +53,19 @@ async def summary_add(request: Summary, collection = Depends(get_collection)) ->
             detail="User ID is required"
         )
 
+    if request.metadata.summary_type in ["night", "morning", "afternoon", "evening"]:
     # Find existing summaries for this user and summary_type
-    existing = collection.get(
-        where={
-            "$and": [
-                {"user_id": {"$eq": request.metadata.user_id}},
-                {"summary_type": {"$eq": request.metadata.summary_type.value}},
-            ]
-        }
-    )
-    # Delete existing summaries if any
-    if existing and existing.get("ids"):
-        collection.delete(ids=existing["ids"])
+        existing = collection.get(
+            where={
+                "$and": [
+                    {"user_id": {"$eq": request.metadata.user_id}},
+                    {"summary_type": {"$eq": request.metadata.summary_type.value}},
+                ]
+            }
+        )
+        # Delete existing summaries if any
+        if existing and existing.get("ids"):
+            collection.delete(ids=existing["ids"])
 
     # Create the embedding for the summary
     embedding_request = EmbeddingRequest(

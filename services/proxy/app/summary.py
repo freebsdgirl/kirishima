@@ -1,6 +1,7 @@
 import httpx
 
-from shared.models.ledger import SummaryRequest, CombinedSummaryRequest
+from shared.models.summary import CombinedSummaryRequest, Summary, SummaryMetadata
+from shared.models.ledger import SummaryRequest
 from shared.models.proxy import OllamaRequest, OllamaResponse
 
 from shared.log_config import get_logger
@@ -91,23 +92,20 @@ async def summary_user(request: SummaryRequest):
 async def summary_user_combined(request: CombinedSummaryRequest):
     logger.debug(f"Received combined summary request: {request}")
 
-    lines = []
+    prompt = f"""[INST]<<SYS>>### Task: Using the given list of exising summaries, combine them into a single summary in a clear and concise manner.
 
+### Summaries
+"""
+    
     for summary in request.summaries:
-        lines.append(f"{summary.content}")
-    conversation_str = "\n".join(lines)
+        prompt += f"[{summary.metadata.summary_type.value}] {summary.content}\n"
 
-    logger.debug(f"Conversation string for combined summary: {conversation_str}")
-
-    prompt = f"""[INST]<<SYS>>### Task: Summarize the following paraphrased conversation between two people in a clear and concise manner.
-
-### Conversation
-{conversation_str}
+    prompt += """
 
 ### Instructions
 - Focus on the key facts, decisions, or shifts in topic and tone that occurred.
 - If the conversation involved high emotion (e.g., distress, anger), and the topic moved on, reflect that shift with neutral phrasing.
-- The summary should be a single paragraph of no more than 128 tokens.<</SYS>>[/INST] """
+- The summary should be a single paragraph of no more than {request.max_tokens} tokens.<</SYS>>[/INST] """
 
     payload = OllamaRequest(
         prompt=prompt

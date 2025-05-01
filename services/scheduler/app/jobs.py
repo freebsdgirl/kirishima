@@ -40,24 +40,24 @@ router = APIRouter()
 @router.post("/jobs", response_model=JobResponse)
 def add_job(job_request: SchedulerJobRequest) -> JobResponse:
     """
-    Create a new scheduled job with either a one-time or recurring trigger.
+    Add a new scheduled job to the scheduler.
 
     Args:
-        job_request (JobRequest): Details for the job to be scheduled, including:
-            - external_url: The endpoint to call when the job runs
-            - trigger: Type of job scheduling ('date' or 'interval')
-            - run_date: Specific datetime for one-time jobs
-            - interval_minutes: Frequency for recurring jobs
-            - metadata: Optional additional job information
+        job_request (SchedulerJobRequest): Details of the job to be scheduled, including 
+        trigger type ('date', 'interval', or 'cron'), execution parameters, and metadata.
 
     Returns:
-        JobResponse: Details of the created job, including job ID, next run time, 
-        trigger type, and metadata.
+        JobResponse: Details of the successfully added job, including job ID, 
+        next run time, trigger type, and metadata.
 
     Raises:
-        HTTPException: If invalid job parameters are provided or scheduling fails.
+        HTTPException: 
+        - 400 Bad Request if trigger parameters are invalid or missing
+        - 409 Conflict if a job with the same ID already exists
+        - 500 Internal Server Error for unexpected scheduling errors
     """
-    logger.debug(f"Adding job with request: {job_request.json()}")
+    logger.debug(f"Adding job with request: {job_request.model_dump_json(indent=4)}")
+
     try:
         job_id = job_request.id or str(uuid.uuid4())
 
@@ -105,11 +105,36 @@ def add_job(job_request: SchedulerJobRequest) -> JobResponse:
                 id=job_id
             )
 
+        elif job_request.trigger == "cron":
+            if job_request.hour is None or job_request.minute is None:
+                logger.error("hour and minute must be provided for 'cron' trigger")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="hour and minute must be provided for 'cron' trigger"
+                )
+
+            cron_kwargs = {
+                "hour": job_request.hour,
+                "minute": job_request.minute,
+            }
+            if job_request.day_of_week is not None:
+                cron_kwargs["day_of_week"] = job_request.day_of_week
+            if job_request.day is not None:
+                cron_kwargs["day"] = job_request.day
+
+            job = scheduler.add_job(
+                func=execute_job,
+                trigger='cron',
+                kwargs=job_kwargs,
+                id=job_id,
+                **cron_kwargs
+            )
+
         else:
             logger.error("Unsupported trigger type")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Unsupported trigger type. Use 'date' or 'interval'."
+                detail="Unsupported trigger type. Use 'date', 'interval', or 'cron'."
             )
         
         response = JobResponse(
@@ -175,7 +200,7 @@ def list_jobs() -> List[JobResponse]:
     Returns:
         List[JobResponse]: A list of job details including job ID, next run time, 
         trigger type, and associated metadata. Trigger types are identified as 
-        'date', 'interval', or 'unknown'.
+        'date', 'interval', or 'cron'.
     """
     logger.debug("/jobs Request")
     jobs = scheduler.get_jobs()
@@ -185,10 +210,13 @@ def list_jobs() -> List[JobResponse]:
         trigger_type = "unknown"
 
         # Identify the trigger type by the trigger's class name.
-        if job.trigger.__class__.__name__ == "DateTrigger":
+        trigger_class = job.trigger.__class__.__name__
+        if trigger_class == "DateTrigger":
             trigger_type = "date"
-        elif job.trigger.__class__.__name__ == "IntervalTrigger":
+        elif trigger_class == "IntervalTrigger":
             trigger_type = "interval"
+        elif trigger_class == "CronTrigger":
+            trigger_type = "cron"
 
         response.append(JobResponse(
             job_id=job.id,

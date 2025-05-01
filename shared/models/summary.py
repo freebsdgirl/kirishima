@@ -64,8 +64,8 @@ class SummaryMetadata(BaseModel):
                     "user_id": "123e4567-e89b-12d3-a456-426614174000"
                 },
                 {
-                    "timestamp_begin": "2023-10-01T08:00:00Z",
-                    "timestamp_end": "2023-10-01T12:00:00Z",
+                    "timestamp_begin": "2023-10-01 08:00:00Z",
+                    "timestamp_end": "2023-10-01 12:00:00Z",
                     "summary_type": SummaryType.MORNING,
                     "keywords": ["morning", "daily"],
                     "user_id": "123e4567-e89b-12d3-a456-426614174001"
@@ -99,8 +99,8 @@ class Summary(BaseModel):
                     "id": "123e4567-e89b-12d3-a456-426614174000",
                     "content": "This is a summary of the events that occurred in October 2023.",
                     "metadata": {
-                        "timestamp_begin": "2023-10-01T00:00:00Z",
-                        "timestamp_end": "2023-10-31T23:59:59Z",
+                        "timestamp_begin": "2023-10-01 00:00:00Z",
+                        "timestamp_end": "2023-10-31 23:59:59Z",
                         "summary_type": SummaryType.MONTHLY,
                         "keywords": ["October", "2023", "monthly summary"],
                         "user_id": "123e4567-e89b-12d3-a456-426614174000"
@@ -110,8 +110,8 @@ class Summary(BaseModel):
                     "id": "123e4567-e89b-12d3-a456-426614174001",
                     "content": "This is a summary of the morning events on October 1, 2023.",
                     "metadata": {
-                        "timestamp_begin": "2023-10-01T08:00:00Z",
-                        "timestamp_end": "2023-10-01T12:00:00Z",
+                        "timestamp_begin": "2023-10-01 08:00:00Z",
+                        "timestamp_end": "2023-10-01 12:00:00Z",
                         "summary_type": SummaryType.MORNING,
                         "keywords": ["morning", "daily"],
                         "user_id": "123e4567-e89b-12d3-a456-426614174001"

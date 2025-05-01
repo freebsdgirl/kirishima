@@ -1,4 +1,22 @@
-from app.config import SUMMARY_DAILY_MAX_TOKENS, SUMMARY_WEEKLY_MAX_TOKENS, SUMMARY_MONTHLY_MAX_TOKENS
+"""
+This module provides an API endpoint for creating daily summaries by aggregating period-specific summaries
+(night, morning, afternoon, evening) for each user on a given date.
+Main Features:
+- Fetches individual period summaries from ChromaDB for a specified date.
+- Groups summaries by user and generates a consolidated daily summary using a proxy service.
+- Stores the generated daily summary in ChromaDB.
+- Deletes the original period-specific summaries after successful aggregation.
+Dependencies:
+- FastAPI for API routing and HTTP exception handling.
+- httpx for asynchronous HTTP requests.
+- Shared configuration and models for summary data structures and service discovery.
+- Logging for debugging and error tracking.
+Endpoint:
+- POST /summary/combined/daily: Aggregates and creates daily summaries for users.
+- HTTPException for invalid input, missing summaries, or errors during summary generation, storage, or deletion.
+"""
+
+from app.config import SUMMARY_DAILY_MAX_TOKENS
 
 from shared.config import TIMEOUT
 
@@ -19,6 +37,24 @@ router = APIRouter()
 
 @router.post("/summary/combined/daily", status_code=status.HTTP_201_CREATED)
 async def create_daily_summary(request: SummaryCreateRequest):
+    """
+    Create a daily summary by aggregating summaries from different periods of the day for a specific user.
+
+    This endpoint retrieves summaries for night, morning, afternoon, and evening periods for a given date,
+    combines them for each unique user, and generates a consolidated daily summary. The process involves:
+    1. Fetching individual summaries from ChromaDB
+    2. Grouping summaries by user
+    3. Generating a combined summary using the proxy service
+    4. Storing the daily summary in ChromaDB
+    5. Deleting the original period-specific summaries
+
+    Args:
+        request (SummaryCreateRequest): Request containing the date for daily summary generation
+
+    Raises:
+        HTTPException: For various error scenarios such as invalid period, no summaries found,
+        or issues with summary generation and storage
+    """
     # although period is passed as part of the request, we'll ignore it and just use daily.
     # get all summaries that match night, morning, afternoon, evening
     if request.period != "daily":
@@ -166,3 +202,5 @@ async def create_daily_summary(request: SummaryCreateRequest):
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail=f"Failed to delete summary: {e}"
                 )
+
+    return {"message": "Daily summary created successfully."}

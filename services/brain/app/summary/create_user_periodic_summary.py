@@ -31,14 +31,15 @@ logger = get_logger(f"brain.{__name__}")
 
 from app.util import get_user_alias
 
+from typing import List
 import httpx
 
 from fastapi import HTTPException, status, APIRouter
 router = APIRouter()
 
 
-@router.post("/summary/create", status_code=status.HTTP_201_CREATED)
-async def create_summary(request: SummaryCreateRequest):
+@router.post("/summary/create", status_code=status.HTTP_201_CREATED, response_model=List[Summary])
+async def create_summary(request: SummaryCreateRequest) -> List[Summary]:
     """
     Create periodic user summaries by fetching active users, retrieving their messages, and generating summaries.
 
@@ -74,6 +75,8 @@ async def create_summary(request: SummaryCreateRequest):
     # if nothing is returned, there's no one to summarize.
     if not user_ids:
         return {"message": "No active users found."}
+
+    summaries_created = []
     
     # for each user_id, get the buffer
     for user_id in user_ids:
@@ -151,7 +154,8 @@ async def create_summary(request: SummaryCreateRequest):
             async with httpx.AsyncClient(timeout=TIMEOUT) as client:
                 response = await client.post(f"http://{chromadb_address}:{chromadb_port}/summary", json=summary.model_dump())
                 response.raise_for_status()
-                return response.json()
+            
+            summaries_created.append(response.json())
 
         except httpx.HTTPStatusError as e:
             logger.error(f"HTTP error occurred: {e.response.status_code} - {e.response.text}")
@@ -166,3 +170,7 @@ async def create_summary(request: SummaryCreateRequest):
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to create summary: {e}"
             )
+    
+
+    return summaries_created
+

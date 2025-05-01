@@ -14,18 +14,70 @@ Each function:
 The module is intended to be used with a scheduler that triggers these jobs at specific times of day,
 as described in the example job request payloads at the end of the file.
 """
+from shared.config import TIMEOUT
+
 from app.summary.create_user_periodic_summary import create_summary
 from app.summary.daily import create_daily_summary
+from app.summary.weekly import create_weekly_summary
+from app.summary.monthly import create_monthly_summary
 
-from shared.models.summary import SummaryCreateRequest
+from shared.models.summary import SummaryCreateRequest, Summary
 
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
 
+from typing import List
 from datetime import datetime, timedelta
+import shared.consul
+import httpx
 
 from fastapi import HTTPException, status
 
+
+async def delete_user_buffer_from_summaries(request: List[Summary]):
+    """
+    Delete user buffers from summaries across multiple users.
+    
+    This function takes a list of summaries, extracts unique user IDs, and then
+    deletes the corresponding user buffers via the ledger service's delete endpoint.
+    
+    Args:
+        request (List[Summary]): A list of summary objects containing user metadata.
+    
+    Raises:
+        HTTPException: If there are errors during the buffer deletion process,
+        with specific error details and appropriate HTTP status codes.
+    """
+    user_ids = set()
+    for summary in request:
+        user_ids.add(summary.metadata.user_id)
+
+    # step through each user id and delete the buffer for that user id
+    for user_id in user_ids:
+        logger.debug(f"Deleting buffer for user {user_id}")
+        # call ledger's delete /user/{user_id} endpoint
+        
+        ledger_address, ledger_port = shared.consul.get_service_address('ledger')
+
+        try:
+            async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+                response = await client.delete(f"http://{ledger_address}:{ledger_port}/user/{user_id}")
+                response.raise_for_status()
+                logger.debug(f"Buffer deleted for user {user_id}")
+
+        except httpx.HTTPStatusError as e:
+            logger.error(f"HTTP error occurred: {e.response.status_code} - {e.response.text}")
+            raise HTTPException(
+                status_code=e.response.status_code,
+                detail=f"Error deleting buffer for user {user_id}: {e.response.text}"
+            )
+
+        except Exception as e:
+            logger.error(f"An error occurred while deleting buffer for user {user_id}: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to delete buffer for user {user_id}: {e}"
+            )
 
 
 async def summarize_user_buffer_night():
@@ -43,8 +95,10 @@ async def summarize_user_buffer_night():
     )
 
     try: 
-      logger.debug(f"Creating night summary for date: {payload.date}")
-      await create_summary(payload)
+        logger.debug(f"Creating night summary for date: {payload.date}")
+        summaries = await create_summary(payload)
+        logger.debug(f"Deleting user buffer for night summary for date: {payload.date}")
+        await delete_user_buffer_from_summaries(summaries)
 
     except Exception as e:
         logger.error(f"Failed to trigger summarize_user_buffer_night(): {e}")
@@ -69,8 +123,10 @@ async def summarize_user_buffer_morning():
     )
 
     try: 
-      logger.debug(f"Creating morning summary for date: {payload.date}")
-      await create_summary(payload)
+        logger.debug(f"Creating morning summary for date: {payload.date}")
+        summaries = await create_summary(payload)
+        logger.debug(f"Deleting user buffer for morning summary for date: {payload.date}")
+        await delete_user_buffer_from_summaries(summaries)
 
     except Exception as e:
         logger.error(f"Failed to trigger summarize_user_buffer_morning(): {e}")
@@ -95,8 +151,10 @@ async def summarize_user_buffer_afternoon():
     )
 
     try: 
-      await create_summary(payload)
-      logger.debug(f"Creating afternoon summary for date: {payload.date}")
+        logger.debug(f"Creating afternoon summary for date: {payload.date}")
+        summaries = await create_summary(payload)
+        logger.debug(f"Deleting user buffer for afternoon summary for date: {payload.date}")
+        await delete_user_buffer_from_summaries(summaries)
 
     except Exception as e:
         logger.error(f"Failed to trigger summarize_user_buffer_afternoon(): {e}")
@@ -126,8 +184,10 @@ async def summarize_user_buffer_evening():
     )
 
     try: 
-      await create_summary(payload)
-      logger.debug(f"Creating evening summary for date: {payload.date}")
+        logger.debug(f"Creating evening summary for date: {payload.date}")
+        summaries = await create_summary(payload)
+        logger.debug(f"Deleting user buffer for evening summary for date: {payload.date}")
+        await delete_user_buffer_from_summaries(summaries)
 
     except Exception as e:
         logger.error(f"Failed to trigger summarize_user_buffer_evening(): {e}")
@@ -154,8 +214,38 @@ async def summarize_user_buffer_evening():
     
     # check to see if the day of the week is currently monday. this means a new week has started.
     # if it has, create the weekly summary.
+    if datetime.now().weekday() == 0:
+        try:
+            payload = SummaryCreateRequest(
+                period="weekly",
+                date=(datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
+            )
+            await create_weekly_summary(payload)
+            logger.debug(f"Creating weekly summary for date: {payload.date}")
+
+        except Exception as e:
+            logger.error(f"Failed to trigger summarize_user_buffer_evening(): {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to trigger summarize_user_buffer_evening()"
+            )
 
     # check to see if the date of the month is the 1st. this means a new month has started.
+    if datetime.now().day == 1:
+        try:
+            payload = SummaryCreateRequest(
+                period="monthly",
+                date=(datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+            )
+            await create_monthly_summary(payload)
+            logger.debug(f"Creating monthly summary for date: {payload.date}")
+
+        except Exception as e:
+            logger.error(f"Failed to trigger summarize_user_buffer_evening(): {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to trigger summarize_user_buffer_evening()"
+            )
 
 
 

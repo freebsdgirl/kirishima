@@ -48,7 +48,7 @@ def sync_user_buffer(
     user_id: str = Path(..., description="Unique user identifier"),
     snapshot: List[RawUserMessage] = Body(..., embed=True),
     background_tasks: BackgroundTasks = None,
-    limit: Optional[int] = 30
+    limit: Optional[int] = 15
 ) -> List[CanonicalUserMessage]:
     """
     Synchronizes the user's message buffer with the database, handling deduplication, edits, and appends.

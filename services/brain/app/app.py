@@ -34,6 +34,8 @@ from app.message.multiturn import router as message_multiturn_router
 from app.message.singleturn import router as message_singleturn_router
 from app.summary.create_user_periodic_summary import router as create_user_periodic_summary_router
 from app.summary.daily import router as daily_summary_router
+from app.summary.weekly import router as weekly_summary_router
+from app.summary.monthly import router as monthly_summary_router
 from app.summary.user import router as user_summary_router
 from app.models import router as models_router
 from app.embedding import router as embedding_router
@@ -61,6 +63,8 @@ app.include_router(models_router, tags=["models"])
 app.include_router(embedding_router, tags=["embedding"])
 app.include_router(discord_dm_router, tags=["discord"])
 app.include_router(daily_summary_router, tags=["summary"])
+app.include_router(weekly_summary_router, tags=["summary"])
+app.include_router(monthly_summary_router, tags=["summary"])
 app.include_router(user_summary_router, tags=["summary"])
 app.include_router(create_user_periodic_summary_router, tags=["summary"])
 

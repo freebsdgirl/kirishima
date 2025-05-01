@@ -23,6 +23,7 @@ import shared.consul
 from shared.models.proxy import ProxyMultiTurnRequest, ProxyResponse, ChatMessage
 from shared.models.intents import IntentRequest
 from shared.models.memory import MemoryListQuery
+from shared.models.summary import Summary
 
 from app.memory.list import list_memory
 from app.modes import mode_get
@@ -128,43 +129,55 @@ async def outgoing_multiturn_message(message: ProxyMultiTurnRequest) -> ProxyRes
             detail="Failed to sync messages with ledger service."
         )
 
-    # get a list of summaries - this returns a List[UserSummary]
-    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-        address, port = shared.consul.get_service_address('ledger')
-        if not address or not port:
-            logger.error(f"ledger service address or port is not available.")
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=f"ledger service is unavailable."
-            )
+    # get a list of the last 4 summaries - this returns a List[Summary]
+    payload["summaries"] = ""
 
-        try:
-            summary_response = await client.get(f"http://{address}:{port}/summaries/user/{user_id}?limit=4")
-            summary_response.raise_for_status()
-            summaries = summary_response.json().get("summaries", [])
-            combined_content = "\n".join(s["content"] for s in summaries)
-        
-            payload["summaries"] = combined_content
+    try:
+        chromadb_address, chromadb_port = shared.consul.get_service_address('chromadb')
 
-        except httpx.HTTPStatusError as http_err:
-            logger.error(f"HTTP error from ledger service: {http_err.response.status_code} - {http_err.response.text}")
-            raise HTTPException(
-                status_code=http_err.response.status_code,
-                detail=f"ledger: {http_err.response.text}"
-            )
-        except httpx.RequestError as req_err:
-            logger.error(f"Request error forwarding to ledger service: {req_err}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Connection error to ledger service: {req_err}"
-            )
-        except Exception as e:
-            logger.error(f"Unexpected error in ledger service: {e}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Unexpected error in ledger service: {e}"
-            )
-    
+        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+            response = await client.get(f"http://{chromadb_address}:{chromadb_port}/summary?user_id={user_id}&limit=4")
+            response.raise_for_status()
+            summaries = response.json()
+
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == status.HTTP_404_NOT_FOUND:
+            logger.info(f"No summaries found for {user_id}, skipping.")
+        else:
+            logger.error(f"HTTP error from chromadb: {e.response.status_code} - {e.response.text}")
+            raise
+
+    except Exception as e:
+        logger.error(f"Failed to contact chromadb to get a list of summaries: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve summaries: {e}")
+
+    if not summaries:
+        logger.warning("No summaries found for the specified period.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No summaries found for the specified period."
+        )
+
+    # construct summary string here
+    summary_lines = []
+    for s in summaries:
+        summary = Summary.model_validate(s) if not isinstance(s, Summary) else s
+        meta = summary.metadata
+        if meta is not None:
+            if meta.summary_type.value == "daily":
+                # Split on space to get the date part
+                date_str = meta.timestamp_begin.split(" ")[0]
+                label = date_str
+            else:
+                label = meta.summary_type.value
+        else:
+            label = "summary"
+        summary_lines.append(f"[{label}] {summary.content}")
+
+    payload["summaries"] = "\n".join(summary_lines)
+
     # send the payload to the proxy service
     response = await post_to_service(
         'proxy', '/api/multiturn', payload,

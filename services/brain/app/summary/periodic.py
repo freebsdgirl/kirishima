@@ -21,8 +21,7 @@ from app.config import SUMMARY_PERIODIC_MAX_TOKENS
 
 from shared.config import TIMEOUT
 
-from shared.models.summary import SummaryCreateRequest, SummaryMetadata, Summary
-from shared.models.ledger import SummaryRequest
+from shared.models.summary import SummaryCreateRequest, SummaryMetadata, Summary, SummaryRequest
 
 import shared.consul
 

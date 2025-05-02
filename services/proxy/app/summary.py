@@ -1,7 +1,6 @@
 import httpx
 
-from shared.models.summary import CombinedSummaryRequest, Summary, SummaryMetadata
-from shared.models.ledger import SummaryRequest
+from shared.models.summary import CombinedSummaryRequest, SummaryRequest
 from shared.models.proxy import OllamaRequest, OllamaResponse
 
 from shared.log_config import get_logger

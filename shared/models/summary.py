@@ -11,6 +11,8 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 from enum import Enum
 
+from shared.models.ledger import CanonicalUserMessage
+
 from uuid import uuid4
 
 
@@ -176,8 +178,8 @@ class CombinedSummaryRequest(BaseModel):
                             "id": "123e4567-e89b-12d3-a456-426614174000",
                             "content": "This is a summary of the events that occurred in October 2023.",
                             "metadata": {
-                                "timestamp_begin": "2023-10-01T00:00:00Z",
-                                "timestamp_end": "2023-10-31T23:59:59Z",
+                                "timestamp_begin": "2023-10-01 00:00:00Z",
+                                "timestamp_end": "2023-10-31 23:59:59Z",
                                 "summary_type": SummaryType.MONTHLY,
                                 "keywords": ["October", "2023", "monthly summary"],
                                 "user_id": "123e4567-e89b-12d3-a456-426614174000"
@@ -187,8 +189,8 @@ class CombinedSummaryRequest(BaseModel):
                             "id": "123e4567-e89b-12d3-a456-426614174001",
                             "content": "This is a summary of the morning events on October 1, 2023.",
                             "metadata": {
-                                "timestamp_begin": "2023-10-01T08:00:00Z",
-                                "timestamp_end": "2023-10-01T12:00:00Z",
+                                "timestamp_begin": "2023-10-01 08:00:00Z",
+                                "timestamp_end": "2023-10-01 12:00:00Z",
                                 "summary_type": SummaryType.MORNING,
                                 "keywords": ["morning", "daily"],
                                 "user_id": "123e4567-e89b-12d3-a456-426614174001"
@@ -201,3 +203,43 @@ class CombinedSummaryRequest(BaseModel):
             ]
         }
     }
+
+
+class SummaryRequest(BaseModel):
+    """
+    Represents a request to generate a summary of user messages.
+    
+    Attributes:
+        messages (List[CanonicalUserMessage]): A list of user messages to be summarized.
+        user_alias (Optional[str]): An optional alias for the user in the conversation.
+        max_tokens (int): The maximum number of tokens allowed for the generated summary.
+    """
+    messages: List[CanonicalUserMessage]        = Field(..., description="List of user messages to summarize")
+    user_alias: Optional[str]                   = Field(None, description="Alias for the user in the conversation")
+    max_tokens: int                             = Field(..., description="Maximum number of tokens for the summary")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "messages": [
+                        {
+                            "id": "123e4567-e89b-12d3-a456-426614174000",
+                            "content": "This is a user message.",
+                            "created_at": "2023-10-01 00:00:00Z",
+                            "user_id": "123e4567-e89b-12d3-a456-426614174000"
+                        },
+                        {
+                            "id": "123e4567-e89b-12d3-a456-426614174001",
+                            "content": "This is another user message.",
+                            "created_at": "2023-10-01 01:00:00Z",
+                            "user_id": "123e4567-e89b-12d3-a456-426614174001"
+                        }
+                    ],
+                    "user_alias": "User123",
+                    "max_tokens": 100
+                }
+            ]
+        }
+    }
+

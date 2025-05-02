@@ -166,20 +166,29 @@ async def post_to_service(service_name, endpoint, payload, error_prefix, timeout
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail=f"{service_name.capitalize()} service is unavailable."
             )
-        url = f"http://{address}:{port}{endpoint}"
+
         try:
-            response = await client.post(url, json=payload)
+            response = await client.post(f"http://{address}:{port}{endpoint}", json=payload)
             response.raise_for_status()
             return response
+
         except httpx.HTTPStatusError as http_err:
             logger.error(f"HTTP error from {service_name} service: {http_err.response.status_code} - {http_err.response.text}")
             raise HTTPException(
                 status_code=http_err.response.status_code,
                 detail=f"{error_prefix}: {http_err.response.text}"
             )
+
         except httpx.RequestError as req_err:
             logger.error(f"Request error forwarding to {service_name} service: {req_err}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Connection error to {service_name} service: {req_err}"
+            )
+
+        except Exception as e:
+            logger.error(f"Unexpected error while posting to {service_name} service: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"An unexpected error occurred while posting to {service_name} service."
             )

@@ -1,42 +1,45 @@
 """
 This module initializes and configures the FastAPI application for the "brain" service.
 
-It includes:
-- Middleware for caching request bodies.
-- Routers for various functionalities such as modes, scheduler, memory, messaging, models, embedding, Discord DM, and user summaries.
-- System and documentation routes.
-- Dynamic route registration.
-- Optional tracing setup if enabled in the shared configuration.
+It includes the following functionalities:
+- Middleware setup:
+    - `CacheRequestBodyMiddleware` for caching request bodies.
+- Router inclusion:
+    - System routes for internal operations.
+    - Documentation routes for API documentation.
+    - Mode-related routes for handling application modes.
+    - Scheduler routes for task scheduling.
+    - Memory-related routes for managing memory functions and lists.
+    - Message-related routes for single-turn and multi-turn message handling.
+    - Model routes for managing AI models.
+    - Embedding routes for embedding-related operations.
+    - Discord DM routes for handling Discord direct messages.
+    - Summary routes for daily, weekly, monthly, user-specific, and periodic summaries.
+- Dynamic route registration using `register_list_routes`.
+- Optional tracing setup if tracing is enabled in the shared configuration.
 
-Modules and functionalities:
-- `app.modes`: Handles mode-related operations.
-- `app.scheduler.scheduler`: Manages scheduling tasks.
-- `app.memory.functions` and `app.memory.list`: Provide memory-related functionalities.
-- `app.message.multiturn` and `app.message.singleturn`: Handle multi-turn and single-turn messaging, respectively.
-- `app.summary.user`: Manages user summary operations.
-- `app.models`: Handles model-related operations.
-- `app.embedding`: Manages embedding-related functionalities.
-- `app.discord.dm`: Handles Discord direct messaging.
-- `shared.docs_exporter`: Exports API documentation.
-- `shared.routes`: Manages system routes and dynamic route registration.
-- `shared.models.middleware.CacheRequestBodyMiddleware`: Middleware for caching request bodies.
-- `shared.tracing`: Optional tracing setup for monitoring and debugging.
+Dependencies:
+- `shared.config` for configuration management.
+- `shared.tracing` for tracing setup when enabled.
 
-Environment-specific behavior:
-- If `TRACING_ENABLED` is set in the shared configuration, tracing is initialized for the application.
+The application is designed to be modular and extensible, allowing for easy integration of additional features or services.
 """
 
 from app.modes import router as modes_router
 from app.scheduler.scheduler import router as scheduler_router
+
 from app.memory.functions import router as memory_functions_router
 from app.memory.list import router as memory_list_router
+
 from app.message.multiturn import router as message_multiturn_router
 from app.message.singleturn import router as message_singleturn_router
-from app.summary.create_user_periodic_summary import router as create_user_periodic_summary_router
+
+from app.summary.periodic import router as periodic_summary_router
 from app.summary.daily import router as daily_summary_router
 from app.summary.weekly import router as weekly_summary_router
 from app.summary.monthly import router as monthly_summary_router
 from app.summary.user import router as user_summary_router
+
 from app.models import router as models_router
 from app.embedding import router as embedding_router
 from app.discord.dm import router as discord_dm_router
@@ -66,7 +69,7 @@ app.include_router(daily_summary_router, tags=["summary"])
 app.include_router(weekly_summary_router, tags=["summary"])
 app.include_router(monthly_summary_router, tags=["summary"])
 app.include_router(user_summary_router, tags=["summary"])
-app.include_router(create_user_periodic_summary_router, tags=["summary"])
+app.include_router(periodic_summary_router, tags=["summary"])
 
 register_list_routes(app)
 

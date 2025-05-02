@@ -1,22 +1,26 @@
 """
-This module defines asynchronous job functions for generating user summary reports
-for different periods of the day (night, morning, afternoon, evening) and for the daily summary.
+This module provides scheduled jobs for summarizing user buffers at different times of the day (night, morning, afternoon, evening)
+and for generating daily, weekly, and monthly summaries. It includes logic to delete user buffers after summarization and to trigger
+additional summary jobs based on the current date and time.
 Functions:
-    - summarize_user_buffer_night: Creates a night summary for the current date.
-    - summarize_user_buffer_morning: Creates a morning summary for the current date.
-    - summarize_user_buffer_afternoon: Creates an afternoon summary for the current date.
-    - summarize_user_buffer_evening: Creates an evening summary and a daily summary for the previous day.
-Each function:
-    - Constructs a SummaryCreateRequest payload for the appropriate period and date.
-    - Calls the relevant summary creation function (create_summary or create_daily_summary).
-    - Logs the summary creation process.
-    - Handles exceptions by logging errors and raising HTTP 500 Internal Server Error responses.
-The module is intended to be used with a scheduler that triggers these jobs at specific times of day,
-as described in the example job request payloads at the end of the file.
+    - delete_user_buffer_from_summaries(request: List[Summary]):
+        Deletes user buffers for a list of summaries by calling the ledger service.
+    - summarize_user_buffer_night():
+        Creates a night summary for the current day and deletes associated user buffers.
+    - summarize_user_buffer_morning():
+        Creates a morning summary for the current day and deletes associated user buffers.
+    - summarize_user_buffer_afternoon():
+        Creates an afternoon summary for the current day and deletes associated user buffers.
+    - summarize_user_buffer_evening():
+        Creates an evening summary for the previous day, deletes associated user buffers, and triggers daily, weekly, and monthly
+        summaries as appropriate.
+Usage:
+    These functions are intended to be scheduled as jobs using a scheduler service, with example job requests provided at the end
+    of the module.
 """
 from shared.config import TIMEOUT
 
-from app.summary.create_user_periodic_summary import create_summary
+from app.summary.periodic import create_summary
 from app.summary.daily import create_daily_summary
 from app.summary.weekly import create_weekly_summary
 from app.summary.monthly import create_monthly_summary
@@ -82,12 +86,13 @@ async def delete_user_buffer_from_summaries(request: List[Summary]):
 
 async def summarize_user_buffer_night():
     """
-    Asynchronously create a night summary for the current date.
-    
-    This function generates a summary for the night period using the current date.
-    It calls the create_summary function with a SummaryCreateRequest for the night period.
-    Logs a debug message and handles any exceptions by logging an error and 
-    raising an HTTP 500 Internal Server Error if the summary creation fails.
+    Summarizes user buffers and generates a night summary.
+        
+    This function performs the following tasks:
+    - Creates a night summary for the current day
+    - Deletes user buffers associated with the night summary
+        
+    Raises an HTTPException if summary creation or buffer deletion fails.
     """
     payload = SummaryCreateRequest(
         period="night",
@@ -110,12 +115,13 @@ async def summarize_user_buffer_night():
 
 async def summarize_user_buffer_morning():
     """
-    Asynchronously create a morning summary for the current date.
-    
-    This function generates a summary for the morning period using the current date.
-    It calls the create_summary function with a SummaryCreateRequest for the morning period.
-    Logs a debug message and handles any exceptions by logging an error and 
-    raising an HTTP 500 Internal Server Error if the summary creation fails.
+    Summarizes user buffers and generates a morning summary.
+        
+    This function performs the following tasks:
+    - Creates a morning summary for the current day
+    - Deletes user buffers associated with the morning summary
+        
+    Raises an HTTPException if summary creation or buffer deletion fails.
     """
     payload = SummaryCreateRequest(
         period="morning",
@@ -138,12 +144,13 @@ async def summarize_user_buffer_morning():
 
 async def summarize_user_buffer_afternoon():
     """
-    Asynchronously create an afternoon summary for the current date.
+    Summarizes user buffers and generates an afternoon summary.
     
-    This function generates a summary for the afternoon period using the current date.
-    It calls the create_summary function with a SummaryCreateRequest for the afternoon period.
-    Logs a debug message and handles any exceptions by logging an error and 
-    raising an HTTP 500 Internal Server Error if the summary creation fails.
+    This function performs the following tasks:
+    - Creates an afternoon summary for the current day
+    - Deletes user buffers associated with the afternoon summary
+    
+    Raises an HTTPException if summary creation or buffer deletion fails.
     """
     payload = SummaryCreateRequest(
         period="afternoon",
@@ -166,17 +173,16 @@ async def summarize_user_buffer_afternoon():
 
 async def summarize_user_buffer_evening():
     """
-    Asynchronously create an evening summary and daily summary for the previous day.
+    Summarizes user buffers and generates various summaries at the end of the evening.
     
-    This function performs two key tasks:
-    1. Generates an evening summary for the previous day using the create_summary function.
-    2. Creates a daily summary for the previous day using the create_daily_summary function.
+    This function performs the following tasks:
+    - Creates an evening summary for the previous day
+    - Deletes user buffers associated with the evening summary
+    - Creates a daily summary for the previous day
+    - Optionally creates a weekly summary if it's Monday
+    - Optionally creates a monthly summary if it's the first day of the month
     
-    The function handles potential exceptions for both summary creation processes by logging errors
-    and raising an HTTP 500 Internal Server Error if either summary fails to generate.
-    
-    Note: The function is designed to run at the end of the day, creating summaries for the previous day.
-    Additional logic for weekly and monthly summary creation is planned but not yet implemented.
+    Raises an HTTPException if any summary creation or buffer deletion fails.
     """
     payload = SummaryCreateRequest(
         period="evening",

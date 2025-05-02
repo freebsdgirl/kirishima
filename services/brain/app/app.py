@@ -42,6 +42,7 @@ from app.summary.monthly import router as monthly_summary_router
 from app.models import router as models_router
 from app.embedding import router as embedding_router
 from app.discord.dm import router as discord_dm_router
+from app.imessage import router as imessage_router
 
 from shared.docs_exporter import router as docs_router
 from shared.routes import router as routes_router, register_list_routes
@@ -66,6 +67,7 @@ app.include_router(message_singleturn_router, tags=["message"])
 app.include_router(models_router, tags=["models"])
 app.include_router(embedding_router, tags=["embedding"])
 app.include_router(discord_dm_router, tags=["discord"])
+app.include_router(imessage_router, tags=["imessage"])
 
 app.include_router(daily_summary_router, tags=["summary"])
 app.include_router(weekly_summary_router, tags=["summary"])

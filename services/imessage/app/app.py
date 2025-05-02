@@ -1,22 +1,28 @@
 """
-This module provides a FastAPI application for handling iMessage interactions via the BlueBubbles server. 
-It includes endpoints for health checks, listing routes, sending messages, and receiving webhooks. 
-The application integrates with a Brain service for processing incoming messages and generating replies.
+This module provides a FastAPI application for handling iMessage integration via the BlueBubbles server.
+Features:
+- Sends iMessages to specified recipients using BlueBubbles API.
+- Receives and processes incoming iMessage webhooks from BlueBubbles.
+- Forwards incoming messages to the Brain service for further processing and automated replies.
+- Handles chat creation if a chat does not exist when sending a message.
+- Includes system and documentation routes, logging, tracing, and request body caching middleware.
 Classes:
-    BlueBubblesClient: A client for interacting with the BlueBubbles server to send iMessages.
-    OutgoingMessage: A Pydantic model representing an outgoing iMessage.
+    BlueBubblesClient: Client for interacting with the BlueBubbles server to send and receive iMessages.
+    OutgoingMessage: Pydantic model representing an outgoing iMessage payload.
 Endpoints:
-    /ping (GET): Health check endpoint that returns the service status.
-    /__list_routes__ (GET): Lists all registered API routes in the application.
-    /imessage/send (POST): Sends an iMessage to a specified recipient via the BlueBubbles server.
-    /imessage/recv (POST): Handles incoming iMessage webhooks, processes the message, and forwards it to Brain.
+    POST /imessage/send: Sends an iMessage to a specified recipient.
+    POST /imessage/recv: Receives and processes incoming iMessage webhooks from BlueBubbles.
 Environment Variables:
-    BRAIN_HOST: Hostname or IP address of the Brain service (default: 'localhost').
-    BRAIN_PORT: Port number of the Brain service (default: '4207').
-    BLUEBUBBLES_HOST: Hostname or IP address of the BlueBubbles server (default: 'localhost').
-    BLUEBUBBLES_PORT: Port number of the BlueBubbles server (default: '3000').
-    BLUEBUBBLES_PASSWORD: Authentication password for the BlueBubbles server (default: 'bluebubbles').
+    BLUEBUBBLES_HOST: Hostname of the BlueBubbles server (default: 'localhost').
+    BLUEBUBBLES_PORT: Port of the BlueBubbles server (default: '3000').
+    BLUEBUBBLES_PASSWORD: Password for authenticating with BlueBubbles (default: 'bluebubbles').
 """
+
+from shared.config import TIMEOUT
+
+from shared.models.imessage import iMessage
+
+import shared.consul
 
 from shared.docs_exporter import router as docs_router
 from shared.routes import router as routes_router, register_list_routes
@@ -30,8 +36,6 @@ import httpx
 from datetime import datetime
 
 import os
-brain_host = os.getenv('BRAIN_HOST', 'localhost')
-brain_port = os.getenv('BRAIN_PORT', '4207')
 bluebubbles_host = os.getenv('BLUEBUBBLES_HOST', 'localhost')
 bluebubbles_port = os.getenv('BLUEBUBBLES_PORT', '3000')
 bluebubbles_password = os.getenv('BLUEBUBBLES_PASSWORD', 'bluebubbles')
@@ -172,20 +176,20 @@ def send_message(payload: OutgoingMessage):
 @app.post("/imessage/recv")
 async def receive_webhook(request: Request):
     """
-    Handle incoming iMessage webhook, process the message, and forward it to Brain for potential response.
+    Handle incoming iMessage webhook from BlueBubbles server.
 
-    Receives a webhook payload from BlueBubbles, validates the message, extracts relevant details,
-    and forwards the standardized message to Brain's incoming message endpoint. If Brain provides
-    a reply, the message is sent back to the original sender via BlueBubbles.
+    This asynchronous endpoint processes incoming webhook payloads from BlueBubbles,
+    filtering and transforming new messages before forwarding them to the Brain service.
+    Supports automatic reply generation and message forwarding.
 
     Args:
-        request (Request): The incoming webhook request containing the iMessage payload.
+        request (Request): The incoming HTTP request containing the webhook payload.
 
     Returns:
-        dict: A status response indicating the message was processed and forwarded.
+        dict: A status response indicating message processing result.
 
     Raises:
-        HTTPException: If the payload is invalid or cannot be processed.
+        HTTPException: If payload processing fails or is invalid.
     """
     try:
         payload = await request.json()
@@ -231,33 +235,32 @@ async def receive_webhook(request: Request):
         else:
             chat_id = data.get("guid", "")
 
-        # Build the standardized payload for Brain
-        incoming_message_payload = {
-            "platform": "imessage",
-            "sender_id": sender_id,
-            "text": text,
-            "timestamp": timestamp,
-            "metadata": {"chat_id": chat_id}
-        }
+        payload = iMessage(
+            id=chat_id,
+            author_id=sender_id,
+            timestamp=str(timestamp),
+            content=text
+        )
 
         # Forward the standardized payload to Brain's /message/incoming endpoint
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+            brain_address, brain_port = shared.consul.get_service_address('brain')
+
             brain_response = await client.post(
-                f"http://{brain_host}:{brain_port}/message/incoming",
-                json=incoming_message_payload
+                f"http://{brain_address}:{brain_port}/imessage/incoming",
+                json=payload.model_dump()
             )
 
         logger.debug(
-            f"Forwarded payload to Brain: {incoming_message_payload} "
+            f"Forwarded payload to Brain: {payload} "
             f"with response: {brain_response.status_code} {brain_response.text}"
         )
-
 
         # Send the reply back via BlueBubbles
         if brain_response.status_code == status.HTTP_200_OK:
             try:
                 reply_payload = brain_response.json()
-                kirishima_reply = reply_payload.get("reply", {}).get("reply")
+                kirishima_reply = reply_payload.get("response", {})
 
                 if kirishima_reply:
                     bb_client.send_message(sender_id, kirishima_reply)
@@ -266,7 +269,7 @@ async def receive_webhook(request: Request):
             except Exception as e:
                 logger.exception("⚠️ Failed to extract or send reply from Brain")
 
-        return {"status": "received and forwarded"}
+        logger.debug("Forwarded payload to Brain successfully")
 
     except Exception as e:
         logger.exception("Failed to process webhook payload")

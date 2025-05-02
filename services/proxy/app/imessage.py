@@ -1,63 +1,48 @@
 """
-This module defines the iMessage proxy endpoint for handling multi-turn chat requests via FastAPI.
+This module provides an API endpoint for handling Discord direct message (DM) proxy requests.
 
-It processes incoming iMessage requests, constructs system prompts and full instruct-style prompts,
-and dispatches them to an LLM (Ollama) through a queue-based task system. The endpoint supports
-timeout handling and returns structured responses.
+It defines a FastAPI router with a single POST endpoint `/discord/dm` that processes incoming Discord DM requests by:
+1. Constructing a minimal ProxyRequest from the incoming Discord message.
+2. Generating a dynamic system prompt based on the request context.
+3. Building a multi-turn prompt for the language model.
+4. Enqueuing the request as a blocking task in the task queue.
+5. Awaiting and returning the response from the Ollama API.
 
-Endpoints:
-    - POST /from/imessage: Accepts a ProxyMultiTurnRequest, builds prompts, enqueues a task, and returns an OllamaResponse.
+Modules and Classes:
+- Imports shared configuration, models, and logging utilities.
+- Utilizes utility functions for prompt construction and system prompt dispatching.
+- Integrates with a task queue for asynchronous processing.
 
-Dependencies:
-    - shared.config.TIMEOUT: Timeout for LLM responses.
-    - shared.models.proxy: Data models for proxy requests and responses.
-    - shared.models.prompt: System prompt builder.
-    - app.util.build_multiturn_prompt: Utility to build chat prompts.
-    - app.prompts.dispatcher.get_system_prompt: Retrieves dynamic system prompts.
-    - app.queue.router.queue: Task queue for LLM requests.
-    - shared.models.queue.ProxyTask: Task model for queueing.
-    - shared.log_config.get_logger: Logger configuration.
-    - fastapi: Web framework for API routing.
+- HTTPException with status 504 if the task times out.
 
-Logging:
-    - Logs incoming requests and errors.
-
-Raises:
-    - HTTPException 504 if the LLM task times out.
+- OllamaResponse: The generated response from the language model.
 """
-from shared.config import TIMEOUT
-from shared.models.proxy import ProxyMultiTurnRequest, ChatMessages, OllamaRequest, OllamaResponse
+
+from shared.config import TIMEOUT, LLM_DEFAULTS
+from shared.models.proxy import ProxyResponse, ChatMessages, OllamaResponse, OllamaRequest
 from shared.models.prompt import BuildSystemPrompt
+from shared.models.imessage import ProxyiMessageRequest, iMessage
+
+from shared.log_config import get_logger
+logger = get_logger(f"proxy.{__name__}")
 
 from app.util import build_multiturn_prompt
 from app.prompts.dispatcher import get_system_prompt
 
 from app.queue.router import queue
 from shared.models.queue import ProxyTask
+
 import uuid
 import asyncio
-
 from datetime import datetime
-
-from shared.log_config import get_logger
-logger = get_logger(f"proxy.{__name__}")
 
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
 
 
-@router.post("/from/imessage", response_model=OllamaResponse)
-async def from_imessage(request: ProxyMultiTurnRequest) -> OllamaResponse:
-    """
-    Handle incoming iMessage requests by processing the message through a prompt builder and sending it to an LLM.
-
-    Args:
-        message (ProxyRequest): The incoming iMessage request containing mode and memories.
-
-    Returns:
-        dict: A response containing the status, LLM reply, and raw response data.
-    """
-    logger.debug(f"/from/imessage request: {request}")
+@router.post("/imessage")
+async def imessage(request: ProxyiMessageRequest) -> ProxyResponse:
+    logger.debug(f"/imessage Request: {request}")
 
     # now get your dynamic system prompt
     system_prompt = get_system_prompt(
@@ -66,7 +51,7 @@ async def from_imessage(request: ProxyMultiTurnRequest) -> OllamaResponse:
             mode=request.mode or 'work',
             platform=request.platform or 'imessage',
             summaries=request.summaries,
-            username=request.username or 'Randi',
+            username=request.contact.aliases[0] if request.contact.aliases else None,
             timestamp=datetime.now().isoformat(timespec="seconds")
         )
     )
@@ -76,10 +61,10 @@ async def from_imessage(request: ProxyMultiTurnRequest) -> OllamaResponse:
 
     # Construct the payload for the Ollama API call
     payload = OllamaRequest(
-        model=request.model,
+        model=LLM_DEFAULTS['model'],
         prompt=full_prompt,
-        temperature=request.temperature,
-        max_tokens=request.max_tokens,
+        temperature=LLM_DEFAULTS['temperature'],
+        max_tokens=LLM_DEFAULTS['max_tokens'],
         stream=False,
         raw=True
     )
@@ -88,7 +73,7 @@ async def from_imessage(request: ProxyMultiTurnRequest) -> OllamaResponse:
     task_id = str(uuid.uuid4())
     future = asyncio.Future()
     task = ProxyTask(
-        priority=0,
+        priority=2,
         task_id=task_id,
         payload=payload,
         blocking=True,
@@ -107,6 +92,14 @@ async def from_imessage(request: ProxyMultiTurnRequest) -> OllamaResponse:
             detail="Task timed out"
         )
 
+    # result is an OllamaResponse
+    proxy_response = ProxyResponse(
+        response=result.response,
+        eval_count=result.eval_count,
+        prompt_eval_count=result.prompt_eval_count,
+        timestamp=datetime.now().isoformat()
+    )
+
     queue.remove_task(task_id)
 
-    return result
+    return proxy_response

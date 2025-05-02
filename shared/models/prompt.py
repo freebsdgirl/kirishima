@@ -1,13 +1,7 @@
 """
-This module defines the BuildPrompt Pydantic model, which encapsulates the configuration required for constructing a prompt in a conversational system.
+This module defines the BuildSystemPrompt Pydantic model, which encapsulates the configuration required for constructing a prompt in a conversational system.
 Classes:
-    BuildPrompt: Represents the parameters for building a prompt, including optional memory entries, conversation mode, platform, summaries, and username.
-    memories (Optional[List[MemoryEntryFull]]): An optional list of memory entries to be used in the prompt.
-    mode (str): The mode of the conversation (required).
-    platform (str): The platform on which the conversation takes place (required).
-    summaries (Optional[str]): An optional list of summaries to include in the prompt.
-    username (Optional[str]): The username associated with the prompt (optional).
-    timestamp (str): An optional timestamp for the request.
+    BuildSystemPrompt: Represents the parameters for building a prompt, including optional memory entries, conversation mode, platform, summaries, and username.
 """
 
 from pydantic import BaseModel, Field
@@ -33,4 +27,22 @@ class BuildSystemPrompt(BaseModel):
     summaries: Optional[str]                    = Field(None, description="List of summaries")
     username: Optional[str]                     = Field(None, description="Username of the user")
     timestamp: str                              = Field(None, description="Timestamp of the request")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "memories": [
+                    {
+                        "id": "memory_id_1",
+                        "content": "This is a memory entry."
+                    }
+                ],
+                "mode": "chat",
+                "platform": "web",
+                "summaries": ["summary1", "summary2"],
+                "username": "user123",
+                "timestamp": "2023-10-01T12:00:00Z"
+            }
+        }
+    }
     

@@ -1,21 +1,24 @@
 """
 This module defines Pydantic models for managing contact data.
 The models include:
-    - `ContactCreate`: Represents the data required to create a new contact.
-    - `Contact`: Represents a contact entry with all its details, including a unique identifier.
-    - `ContactUpdate`: Represents partial updates for a contact, allowing PATCH operations.
-Each model includes attributes for aliases, additional fields as key-value pairs, and optional notes.
-The `Contact` model also includes a unique identifier. Example data is provided in the `Config` class
-for each model to illustrate the expected structure.
+- `ContactCreate`: Represents the data required to create a new contact.
+- `Contact`: Represents a contact entry with all its details, including a unique identifier.
+- `ContactUpdate`: Represents a partial update for a contact entry, allowing modifications to specific fields.
+Each model includes attributes with detailed descriptions and example data for better understanding and usage.
 Classes:
-    - ContactCreate: Used for creating new contact entries.
-    - Contact: Used for returning contact data to the client.
-    - ContactUpdate: Used for updating existing contact entries.
+    - ContactCreate: Captures the necessary details for creating a contact entry.
+    - Contact: Represents a complete contact entry with all its details.
+    - ContactUpdate: Allows partial updates to a contact entry.
     - aliases (List[str]): A list of alternative names or identifiers for the contact.
     - fields (List[Dict[str, Any]]): A list of key-value pairs containing additional contact information.
     - notes (Optional[str]): Optional notes or comments about the contact.
-    - id (str): The unique identifier for the contact (only in `Contact` model).
+    - id (str): The unique identifier for the contact (specific to the `Contact` model).
+Example Usage:
+    - Creating a new contact using `ContactCreate`.
+    - Retrieving a contact entry using `Contact`.
+    - Updating specific fields of a contact using `ContactUpdate`.
 """
+
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
 
@@ -36,17 +39,19 @@ class ContactCreate(BaseModel):
     aliases: List[str]                      = Field(..., description="A list of alternative names or identifiers for the contact.")
     fields: List[Dict[str, Any]]            = Field(..., description="A list of key-value pairs containing additional contact information.")
     notes: Optional[str]                    = Field(None, description="Optional notes or comments about the contact.")
-    class Config:
-        json_schema_extra = {
+
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "aliases": ["John Doe", "JD"],
                 "fields": [
-                    {"key": "email", "value": "john@example.com"},
+                    {"key": "email", "value": "john@doe.com"},
                     {"key": "phone", "value": "+1234567890"}
                 ],
                 "notes": "Preferred contact during business hours."
             }
         }
+    }
 
 
 class Contact(BaseModel):
@@ -67,36 +72,47 @@ class Contact(BaseModel):
     aliases: List[str]                      = Field(..., description="A list of alternative names or identifiers for the contact.")
     fields: List[Dict[str, Any]]            = Field(..., description="A list of key-value pairs containing additional contact information.")
     notes: Optional[str]                    = Field(None, description="Optional notes or comments about the contact.")
-    class Config:
-        json_schema_extra = {
+
+    model_config = {
+        "json_schema_extra": {
             "example": {
-                "id": "550e8400-e29b-41d4-a716-446655440000",
+                "id": "1234567890",
                 "aliases": ["John Doe", "JD"],
                 "fields": [
-                    {"key": "email", "value": "john@example.com"},
+                    {"key": "email", "value": "john@doe.com"},
                     {"key": "phone", "value": "+1234567890"}
                 ],
                 "notes": "Preferred contact during business hours."
             }
         }
+    }
 
 
 class ContactUpdate(BaseModel):
     """
-    Represents partial updates for a contact.
-    All fields are optional for PATCH operations.
+    Represents a partial update for a contact entry.
+    
+    This model allows updating specific fields of a contact without requiring all fields to be present.
+    Useful for partial updates where only certain contact details need to be modified.
+    
+    Attributes:
+        aliases (Optional[List[str]]): Optional list of alternative names or identifiers to update.
+        fields (Optional[List[Dict[str, Any]]]): Optional list of key-value pairs to update contact information.
+        notes (Optional[str]): Optional notes or comments to update for the contact.
     """
     aliases: Optional[List[str]]            = Field(None, description="A list of alternative names or identifiers for the contact.")
     fields: Optional[List[Dict[str, Any]]]  = Field(None, description="A list of key-value pairs containing additional contact information.")
     notes: Optional[str]                    = Field(None, description="Optional notes or comments about the contact.")
-    class Config:
-        json_schema_extra = {
+
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "aliases": ["John Doe", "JD"],
                 "fields": [
-                    {"key": "email", "value": "john@example.com"},
+                    {"key": "email", "value": "john@doe.com"},
                     {"key": "phone", "value": "+1234567890"}
                 ],
                 "notes": "Preferred contact during business hours."
             }
         }
+    }

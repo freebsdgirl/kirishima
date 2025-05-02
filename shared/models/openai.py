@@ -33,6 +33,19 @@ class OpenAICompletionRequest(BaseModel):
     max_tokens: Optional[int]           = Field(LLM_DEFAULTS['max_tokens'], description="Maximum tokens to generate.")
     n: Optional[int]                    = Field(default=1, description="Number of completions to generate.")
 
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "prompt": "What is the weather like today?",
+                "model": "nemo",
+                "temperature": 0.7,
+                "max_tokens": 256,
+                "n": 1
+            }
+        },
+        "extra": "allow"
+    }
+
 
 class OpenAICompletionChoice(BaseModel):
     """
@@ -50,6 +63,17 @@ class OpenAICompletionChoice(BaseModel):
     # Note: logprobs is not used in the current implementation, but included for completeness.
     finish_reason: Optional[str]        = Field("stop", description="Reason for finishing the completion.")
 
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "text": "The weather is sunny and warm.",
+                "index": 0,
+                "logprobs": None,
+                "finish_reason": "stop"
+            }
+        }
+    }
+
 
 class OpenAIUsage(BaseModel):
     """
@@ -63,6 +87,16 @@ class OpenAIUsage(BaseModel):
     prompt_tokens: int                  = Field(..., description="Tokens in the prompt.")
     completion_tokens: int              = Field(..., description="Tokens in the completion.")
     total_tokens: int                   = Field(..., description="Total tokens used.")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "prompt_tokens": 10,
+                "completion_tokens": 20,
+                "total_tokens": 30
+            }
+        }
+    }
 
 
 class OpenAICompletionResponse(BaseModel):
@@ -85,6 +119,31 @@ class OpenAICompletionResponse(BaseModel):
     choices: List[OpenAICompletionChoice]   = Field(..., description="List of completion choices.")
     usage: OpenAIUsage                      = Field(..., description="Token usage details.")
     system_fingerprint: str                 = Field(..., description="System fingerprint for tracking.")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "id": "cmpl-1234567890",
+                "object": "text_completion",
+                "created": 1696147200,
+                "model": "nemo",
+                "choices": [
+                    {
+                        "text": "The weather is sunny and warm.",
+                        "index": 0,
+                        "logprobs": None,
+                        "finish_reason": "stop"
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": 10,
+                    "completion_tokens": 20,
+                    "total_tokens": 30
+                },
+                "system_fingerprint": "fingerprint_string"
+            }
+        }
+    }
 
 
 class ChatCompletionRequest(BaseModel):
@@ -131,6 +190,19 @@ class ChatCompletionChoice(BaseModel):
     message: ChatMessage                = Field(..., description="Generated message.")
     finish_reason: Optional[str]        = Field("stop", description="Reason for finishing the completion.")
 
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": "The weather is sunny and warm."
+                },
+                "finish_reason": "stop"
+            }
+        }
+    }
+
 
 class ChatUsage(BaseModel):
     """
@@ -144,6 +216,16 @@ class ChatUsage(BaseModel):
     prompt_tokens: int                  = Field(..., description="Tokens in the prompt.")
     completion_tokens: int              = Field(..., description="Tokens in the completion.")
     total_tokens: int                   = Field(..., description="Total tokens used.")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "prompt_tokens": 10,
+                "completion_tokens": 20,
+                "total_tokens": 30
+            }
+        }
+    }
 
 
 class ChatCompletionResponse(BaseModel):
@@ -164,3 +246,29 @@ class ChatCompletionResponse(BaseModel):
     model: str                          = Field(..., description="The model used.")
     choices: List[ChatCompletionChoice] = Field(..., description="List of completion choices.")
     usage: ChatUsage                    = Field(..., description="Token usage details.")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "id": "chatcmpl-1234567890",
+                "object": "chat.completion",
+                "created": 1696147200,
+                "model": "nemo",
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": "The weather is sunny and warm."
+                        },
+                        "finish_reason": "stop"
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": 10,
+                    "completion_tokens": 20,
+                    "total_tokens": 30
+                }
+            }
+        }
+    }

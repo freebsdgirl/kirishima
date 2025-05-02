@@ -50,18 +50,19 @@ class IncomingMessage(BaseModel):
     timestamp: str              = Field(..., description="ISO 8601 formatted timestamp of when the message was sent.")
     metadata: Dict[str, Any]    = Field(default_factory=dict, description="Additional platform-specific metadata, e.g., chat IDs.")
 
-    class Config:
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "platform": "imessage",
                 "sender_id": "+15555555555",
-                "text": "Don’t forget your meds",
+                "text": "Don't forget your meds",
                 "timestamp": "2025-04-09T04:00:00Z",
                 "metadata": {
                     "chat_id": "BBUUID-ABC123"
                 }
             }
         }
+    }
 
 
 class ProxyRequest(BaseModel):
@@ -83,8 +84,8 @@ class ProxyRequest(BaseModel):
     memories: Optional[List[MemoryEntryFull]]       = Field(None, description="An optional list of memory references.")
     summaries: Optional[str]                        = Field(None, description="An optional list of user summaries.")
 
-    class Config:
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "message": {
                     "platform": "imessage",
@@ -95,20 +96,21 @@ class ProxyRequest(BaseModel):
                         "chat_id": "BBUUID-ABC123"
                     }
                 },
-                "user_id": "8a03289a-3b28-4c84-a04e-a5429db91ec1",
-                "context": "health",
+                "user_id": "1234567890",
+                "context": "Reminder to take meds",
                 "mode": None,
                 "memories": [
                     {
                         "memory": "Reminder to take meds",
                         "component": "proxy",
                         "priority": 1.0,
-                        "mode": "default"
+                        "mode": None
                     }
                 ],
                 "summaries": None
             }
         }
+    }
 
 
 class ProxyOneShotRequest(BaseModel):
@@ -149,13 +151,14 @@ class ChatMessage(BaseModel):
     role: Literal["user", "assistant", "system"]    = Field(..., description="The role of the message sender (e.g., 'user', 'assistant').")
     content: str                                    = Field(..., description="The content of the message.")
 
-    class Config:
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "role": "user",
                 "content": "Don't forget your meds"
             }
         }
+    }
 
 
 class ChatMessages(BaseModel):
@@ -292,15 +295,17 @@ class ProxyDiscordDMRequest(BaseModel):
     memories: Optional[List[MemoryEntryFull]]   = Field(None, description="An optional list of memory references.")
     summaries: Optional[str]                    = Field(None, description="An optional list of user summaries.")
 
-    class Config:
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "message": {
-                    "message_id": "1234567890",
-                    "author_id": "1234567890",
-                    "display_name": "KJ",
-                    "content": "Don't forget your meds",
-                    "timestamp": "2025-04-09T04:00:00Z"
+                    "platform": "discord",
+                    "sender_id": "1234567890",
+                    "text": "Don't forget your meds",
+                    "timestamp": "2025-04-09T04:00:00Z",
+                    "metadata": {
+                        "chat_id": "BBUUID-ABC123"
+                    }
                 },
                 "messages": [
                     {
@@ -313,27 +318,28 @@ class ProxyDiscordDMRequest(BaseModel):
                     }
                 ],
                 "contact": {
-                    "id": "1234567890",
-                    "aliases": ["KJ", "@ADMIN"]
+                    "id": 1,
+                    "aliases": ["John Doe", "+15555555555"],
+                    "fields": [
+                        {"key": "email", "value": "john@doe.com"},
+                        {"key": "phone", "value": "+1234567890"}
+                    ],
+                    "notes": "Preferred contact during business hours."
                 },
-                "is_admin": True,
-                "mode": "work",
+                "is_admin": False,
+                "mode": "guest",
                 "memories": [
                     {
-                        "id": "memory_uuid_string_here",
                         "memory": "Reminder to take meds",
-                        "embedding": [0.1, 0.2, 0.3],
-                        "metadata": {
-                            "timestamp": "2025-04-09T04:00:00",
-                            "component": "health",
-                            "priority": 1.0,
-                            "mode": "work"
-                        }
+                        "component": "proxy",
+                        "priority": 1.0,
+                        "mode": "default"
                     }
                 ],
-                "summaries": "User summary of the conversation."
+                "summaries": None
             }
         }
+    }
 
 
 class OllamaRequest(BaseModel):

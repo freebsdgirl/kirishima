@@ -1,20 +1,22 @@
 """
-This module defines Pydantic models for representing and managing user and conversation messages,
-summaries, and deletion requests within a multi-platform communication system (e.g., API, Discord).
-Models included:
-- RawUserMessage: Raw user message exchanged between a user and the system.
-- CanonicalUserMessage: Canonical form of a user message with metadata.
-- RawConversationMessage: Raw message within a conversation, for storage or processing.
-- CanonicalConversationMessage: Canonical conversation message with metadata.
-- DeleteSummary: Summary of a delete operation, tracking number of rows deleted.
-- UserSummary: Summary of messages for a specific user.
-- UserSummaryList: List of user message summaries.
-- DeleteRequest: Request to delete records by their unique identifiers.
-- ConversationSummary: Summary of messages for a specific conversation.
-- ConversationSummaryList: List of conversation summaries.
-- SummaryRequest: Request to generate a summary of user messages.
-Each model leverages Pydantic's BaseModel for data validation and serialization, and includes
-detailed field descriptions for clarity and documentation purposes.
+This module defines a set of Pydantic models for representing and processing user messages and conversation messages 
+in both raw and canonical forms, as well as a summary model for delete operations.
+Classes:
+    RawUserMessage:
+        Represents a raw user message exchanged between a user and the system. Includes attributes such as user ID, 
+        platform, role, and message content.
+    CanonicalUserMessage:
+        Represents a canonical user message exchanged between a user and an assistant. Includes additional attributes 
+        such as unique message ID, creation timestamp, and update timestamp.
+    RawConversationMessage:
+        Represents a raw message within a conversation, typically used for storing or processing messages from various 
+        platforms. Includes attributes such as conversation ID, platform, role, and message content.
+    CanonicalConversationMessage:
+        Represents a canonical message within a conversation, typically used for storing and retrieving messages from 
+        various platforms. Includes additional attributes such as unique message ID, creation timestamp, and update 
+        timestamp.
+    DeleteSummary:
+        Represents a summary of a delete operation, tracking the number of rows deleted during the operation.
 """
 
 from pydantic import BaseModel, Field
@@ -37,6 +39,18 @@ class RawUserMessage(BaseModel):
     platform_msg_id: Optional[str]              = Field(None, description="Optional platform‑specific message ID")
     role: str                                   = Field(..., description="'user' or 'assistant'")
     content: str                                = Field(..., description="Message body")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "user_id": "1234567890",
+                "platform": "discord",
+                "platform_msg_id": "9876543210",
+                "role": "user",
+                "content": "Hello, how are you?"
+            }
+        }
+    }
 
 
 class CanonicalUserMessage(BaseModel):
@@ -62,6 +76,21 @@ class CanonicalUserMessage(BaseModel):
     created_at: str                             = Field(..., description="Message creation timestamp")
     updated_at: str                             = Field(..., description="Message update timestamp")
 
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "id": 1,
+                "user_id": "1234567890",
+                "platform": "discord",
+                "platform_msg_id": "9876543210",
+                "role": "user",
+                "content": "Hello, how are you?",
+                "created_at": "2023-10-01 12:00:00Z",
+                "updated_at": "2023-10-01 12:00:00Z"
+            }
+        }
+    }
+
 
 class RawConversationMessage(BaseModel):
     """
@@ -77,6 +106,17 @@ class RawConversationMessage(BaseModel):
     platform: str                               = Field(..., description="Origin platform ('api','discord',etc)")
     role: str                                   = Field(..., description="'user' or 'assistant'")
     content: str                                = Field(..., description="Message body")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "conversation_id": "1234567890",
+                "platform": "discord",
+                "role": "user",
+                "content": "Hello, how are you?"
+            }
+        }
+    }
 
 
 class CanonicalConversationMessage(BaseModel):
@@ -101,6 +141,20 @@ class CanonicalConversationMessage(BaseModel):
     created_at: str                             = Field(..., description="Message creation timestamp")
     updated_at: str                             = Field(..., description="Message update timestamp")
 
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "id": 1,
+                "conversation_id": "1234567890",
+                "platform": "discord",
+                "role": "user",
+                "content": "Hello, how are you?",
+                "created_at": "2023-10-01T12:00:00Z",
+                "updated_at": "2023-10-01T12:00:00Z"
+            }
+        }
+    }
+
 
 class DeleteSummary(BaseModel):
     """
@@ -111,3 +165,10 @@ class DeleteSummary(BaseModel):
     """
     deleted: int                                = Field(..., description="Number of rows deleted")
 
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "deleted": 5
+            }
+        }
+    }

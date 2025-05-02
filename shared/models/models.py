@@ -28,6 +28,14 @@ class ModelInfoBase(BaseModel):
     """
     object: Literal["model"]            = Field("model", description="Type of the model")
 
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "object": "model"
+            }
+        }
+    }
+
 
 class OpenAIModel(ModelInfoBase):
     """
@@ -41,6 +49,16 @@ class OpenAIModel(ModelInfoBase):
     id: str                             = Field(..., description="Name of the model")
     created: int                        = Field(..., description="Creation time of the model")
     owned_by: str                       = Field("Randi-Lee-Harper", description="Owner of the model")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "id": "gpt-3.5-turbo",
+                "created": 1672531199,
+                "owned_by": "Randi-Lee-Harper"
+            }
+        }
+    }
 
 
 class OllamaModel(ModelInfoBase):
@@ -85,11 +103,53 @@ class OllamaModel(ModelInfoBase):
             created=created,
             owned_by="Randi-Lee-Harper"
         )
+    
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "name": "llama-2",
+                "modified_at": "2023-10-01T12:00:00Z",
+                "parameter_size": 7000000000,
+                "quantization_level": "q4_0",
+                "context_length": 2048
+            }
+        }
+    }
 
 
 class OpenAIModelList(BaseModel):
     data: List[OpenAIModel]             = Field(..., description="List of OpenAI models")
 
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "data": [
+                    {
+                        "id": "gpt-3.5-turbo",
+                        "created": 1672531199,
+                        "owned_by": "Randi-Lee-Harper"
+                    }
+                ]
+            }
+        }
+    }
+
 
 class OllamaModelList(BaseModel):
     data: List[OllamaModel]             = Field(..., description="List of Ollama models")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "data": [
+                    {
+                        "name": "llama-2",
+                        "modified_at": "2023-10-01T12:00:00Z",
+                        "parameter_size": 7000000000,
+                        "quantization_level": "q4_0",
+                        "context_length": 2048
+                    }
+                ]
+            }
+        }
+    }

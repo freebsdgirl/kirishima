@@ -1,10 +1,21 @@
 """
-This module defines data models for representing summaries and their associated metadata.
+This module defines models for handling summaries and related requests using Pydantic for data validation.
 Classes:
-    SummaryType (Enum): Enumerates standard summary categorizations, such as time of day (morning, afternoon, evening) and frequency-based intervals (daily, weekly, monthly, periodic).
-    SummaryMetadata (BaseModel): Captures metadata for a summary, including time range, summary type, and optional keywords for contextual tagging and filtering.
-    Summary (BaseModel): Represents a summary with a unique identifier, content, and optional metadata for temporal and contextual tracking.
-These models are designed for structured organization, filtering, and analysis of summary data, leveraging Pydantic for data validation and serialization.
+    SummaryType (Enum):
+        Enum representing different types of summary periods or intervals, such as morning, daily, or monthly.
+    SummaryMetadata (BaseModel):
+        Represents metadata associated with a summary, including temporal and contextual details.
+    Summary (BaseModel):
+    SummaryCreateRequest (BaseModel):
+    CombinedSummaryRequest (BaseModel):
+        Represents a request to combine multiple summaries into a single summary with a token limit.
+    SummaryRequest (BaseModel):
+        Represents a request to generate a summary of user messages, including a maximum token limit.
+Modules:
+    shared.models.ledger:
+        Contains the CanonicalUserMessage model used in the SummaryRequest class.
+    uuid4 (function):
+        Generates unique identifiers for summaries.
 """
 
 from pydantic import BaseModel, Field
@@ -169,6 +180,7 @@ class CombinedSummaryRequest(BaseModel):
     summaries: List[Summary] = Field(..., description="List of summaries to be combined")
     max_tokens: int = Field(..., description="Maximum number of tokens for the combined summary")
     user_alias: Optional[str] = Field(None, description="User alias for the summary")
+
     model_config = {
         "json_schema_extra": {
             "examples": [

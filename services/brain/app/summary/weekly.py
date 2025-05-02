@@ -67,7 +67,9 @@ async def create_weekly_summary(request: SummaryCreateRequest):
         )
     
     # request.date is a string that matches "YYYY-MM-DD".
-    if request.date != datetime.now().strftime("%Y-%m-%d"):
+    try:
+        request_date = datetime.strptime(request.date, "%Y-%m-%d")
+    except ValueError:
         logger.error(f"Invalid date specified: {request.date}. Expected 'YYYY-MM-DD' format.")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -75,8 +77,7 @@ async def create_weekly_summary(request: SummaryCreateRequest):
         )
 
     # convert request.date to a datetime object then check if it's a Monday.
-    request_date = datetime.strptime(request.date, "%Y-%m-%d")
-    if request_date.weekday() != 0:
+    if request_date.weekday != 0:
         logger.error(f"Invalid date specified: {request.date}. Expected a Monday.")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

@@ -103,7 +103,7 @@ async def summarize_user_buffer_night():
         logger.debug(f"Creating night summary for date: {payload.date}")
         summaries = await create_summary(payload)
         logger.debug(f"Deleting user buffer for night summary for date: {payload.date}")
-        await delete_user_buffer_from_summaries(summaries)
+        await delete_user_buffer_from_summaries(summaries.json())
 
     except Exception as e:
         logger.error(f"Failed to trigger summarize_user_buffer_night(): {e}")
@@ -132,7 +132,7 @@ async def summarize_user_buffer_morning():
         logger.debug(f"Creating morning summary for date: {payload.date}")
         summaries = await create_summary(payload)
         logger.debug(f"Deleting user buffer for morning summary for date: {payload.date}")
-        await delete_user_buffer_from_summaries(summaries)
+        await delete_user_buffer_from_summaries(summaries.json())
 
     except Exception as e:
         logger.error(f"Failed to trigger summarize_user_buffer_morning(): {e}")
@@ -161,7 +161,7 @@ async def summarize_user_buffer_afternoon():
         logger.debug(f"Creating afternoon summary for date: {payload.date}")
         summaries = await create_summary(payload)
         logger.debug(f"Deleting user buffer for afternoon summary for date: {payload.date}")
-        await delete_user_buffer_from_summaries(summaries)
+        await delete_user_buffer_from_summaries(summaries.json())
 
     except Exception as e:
         logger.error(f"Failed to trigger summarize_user_buffer_afternoon(): {e}")
@@ -193,7 +193,7 @@ async def summarize_user_buffer_evening():
         logger.debug(f"Creating evening summary for date: {payload.date}")
         summaries = await create_summary(payload)
         logger.debug(f"Deleting user buffer for evening summary for date: {payload.date}")
-        await delete_user_buffer_from_summaries(summaries)
+        await delete_user_buffer_from_summaries(summaries.json())
 
     except Exception as e:
         logger.error(f"Failed to trigger summarize_user_buffer_evening(): {e}")

@@ -177,6 +177,8 @@ def main():
     add_parser.add_argument("--email", type=str, help="Email address for the contact")
     add_parser.add_argument("--imessage", type=str, help="iMessage address for the contact")
     add_parser.add_argument("--notes", type=str, help="Notes for the contact")
+    add_parser.add_argument("--discord", type=str, help="Discord address for the contact")
+    add_parser.add_argument("--discord_id", type=str, help="Discord ID for the contact")
 
     # Delete
     del_parser = subparsers.add_parser("delete", help="Delete a contact")
@@ -189,6 +191,8 @@ def main():
     modify_parser.add_argument("--email", type=str, help="Email address for the contact")
     modify_parser.add_argument("--imessage", type=str, help="iMessage address for the contact")
     modify_parser.add_argument("--notes", type=str, help="New notes for the contact (replaces notes if provided)")
+    modify_parser.add_argument("--discord", type=str, help="Discord address for the contact")
+    modify_parser.add_argument("--discord_id", type=str, help="Discord ID for the contact")
 
     args = parser.parse_args()
 

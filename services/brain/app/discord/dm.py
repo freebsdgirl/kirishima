@@ -12,6 +12,7 @@ from shared.models.discord import DiscordDirectMessage
 from shared.models.proxy import ProxyDiscordDMRequest, ChatMessage, ProxyResponse
 from shared.models.intents import IntentRequest
 from shared.models.memory import MemoryListQuery
+from shared.models.summary import Summary
 
 from app.modes import mode_get
 from app.util import get_admin_user_id, sanitize_messages, post_to_service
@@ -166,49 +167,52 @@ async def discord_message_incoming(message: DiscordDirectMessage):
     # sanitize proxy messages
     messages = sanitize_messages(messages)
     
-    # get a list of summaries for the user - note that we are ONLY getting the last 4 summaries.
-    # this will be changed to more of a daily/weekly/yearly format in the future, but for now just 
-    # limit to the 4 most recent
-    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-        address, port = shared.consul.get_service_address('ledger')
-        if not address or not port:
-            logger.error(f"ledger service address or port is not available.")
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=f"ledger service is unavailable."
-            )
+    # get a list of summaries for the user 
+    try:
+        chromadb_address, chromadb_port = shared.consul.get_service_address('chromadb')
 
-        try:
-            summary_response = await client.get(f"http://{address}:{port}/summaries/user/{user_id}?limit=4")
-            summary_response.raise_for_status()
-            summaries = summary_response.json().get("summaries", [])
-            combined_content = "\n".join(s["content"] for s in summaries)
-        
-            summaries = combined_content
+        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+            response = await client.get(f"http://{chromadb_address}:{chromadb_port}/summary?user_id={user_id}&limit=4")
+            response.raise_for_status()
+            summaries = response.json()
 
-        except httpx.HTTPStatusError as http_err:
-            logger.error(f"HTTP error from ledger service: {http_err.response.status_code} - {http_err.response.text}")
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == status.HTTP_404_NOT_FOUND:
+            logger.info(f"No summaries found for {user_id}, skipping.")
+        else:
+            logger.error(f"HTTP error from chromadb: {e.response.status_code} - {e.response.text}")
+            raise
 
-            raise HTTPException(
-                status_code=http_err.response.status_code,
-                detail=f"ledger: {http_err.response.text}"
-            )
+    except Exception as e:
+        logger.error(f"Failed to contact chromadb to get a list of summaries: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve summaries: {e}")
 
-        except httpx.RequestError as req_err:
-            logger.error(f"Request error forwarding to ledger service: {req_err}")
+    if not summaries:
+        logger.warning("No summaries found for the specified period.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No summaries found for the specified period."
+        )
 
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Connection error to ledger service: {req_err}"
-            )
-        
-        except Exception as e:
-            logger.exception("Error contacting ledger ledger:", e)
+    # construct summary string here
+    summary_lines = []
+    for s in summaries:
+        summary = Summary.model_validate(s) if not isinstance(s, Summary) else s
+        meta = summary.metadata
+        if meta is not None:
+            if meta.summary_type.value == "daily":
+                # Split on space to get the date part
+                date_str = meta.timestamp_begin.split(" ")[0]
+                label = date_str
+            else:
+                label = meta.summary_type.value
+        else:
+            label = "summary"
+        summary_lines.append(f"[{label}] {summary.content}")
 
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error contacting ledger service: {e}"
-            )
+        summaries = "\n".join(summary_lines)
 
     # Start constructing our ProxyDiscordDMRequest
     proxy_request = ProxyDiscordDMRequest(

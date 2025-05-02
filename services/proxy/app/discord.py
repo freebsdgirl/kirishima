@@ -18,8 +18,9 @@ Modules and Classes:
 - OllamaResponse: The generated response from the language model.
 """
 
-from shared.config import TIMEOUT
-from shared.models.proxy import ProxyDiscordDMRequest, ProxyResponse, ProxyRequest, IncomingMessage, ChatMessages, OllamaResponse, OllamaRequest
+from shared.config import TIMEOUT, LLM_DEFAULTS
+from shared.models.proxy import ProxyDiscordDMRequest, ProxyResponse, ChatMessages, OllamaResponse, OllamaRequest
+from shared.models.prompt import BuildSystemPrompt
 
 from shared.log_config import get_logger
 logger = get_logger(f"proxy.{__name__}")
@@ -27,18 +28,19 @@ logger = get_logger(f"proxy.{__name__}")
 from app.util import build_multiturn_prompt
 from app.prompts.dispatcher import get_system_prompt
 
-
 from app.queue.router import queue
 from shared.models.queue import ProxyTask
+
 import uuid
 import asyncio
+from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
 
 
 @router.post("/discord/dm")
-async def discord_dm(request: ProxyDiscordDMRequest) -> OllamaResponse:
+async def discord_dm(request: ProxyDiscordDMRequest) -> ProxyResponse:
     """
     Handle Discord direct message (DM) proxy requests.
 
@@ -60,41 +62,36 @@ async def discord_dm(request: ProxyDiscordDMRequest) -> OllamaResponse:
     """
     logger.debug(f"/discord/dm Request: {request}")
 
-    # assemble a minimal ProxyRequest just to generate the system prompt
-    # it only needs .message, .user_id, .context, .mode, .memories
-    proxy_req = ProxyRequest(
-        message=IncomingMessage(
-            platform="discord", 
-            sender_id=request.contact.id,
-            text=request.message.content,
-            timestamp=request.message.timestamp,
-            metadata={
-                "name": request.message.display_name
-            }
-        ),
-        user_id=request.contact.id,
-        context=request.message.display_name,
-        mode=request.mode,
-        memories=request.memories,
-        summaries=request.summaries
+    # now get your dynamic system prompt
+    system_prompt = get_system_prompt(
+        BuildSystemPrompt(
+            memories=request.memories,
+            mode=request.mode or 'work',
+            platform='discord',
+            summaries=request.summaries,
+            username=request.message.display_name,
+            timestamp=datetime.now().isoformat(timespec="seconds")
+        )
     )
 
-    # now get your dynamic system prompt
-    system_prompt = get_system_prompt(proxy_req)
-
-    # 4) build the full instruct‑style prompt
+    # build the full instruct‑style prompt
     full_prompt = build_multiturn_prompt(ChatMessages(messages=request.messages), system_prompt)
 
     # Construct the payload for the Ollama API call
     payload = OllamaRequest(
-        prompt=full_prompt
+        model=LLM_DEFAULTS['model'],
+        prompt=full_prompt,
+        temperature=LLM_DEFAULTS['temperature'],
+        max_tokens=LLM_DEFAULTS['max_tokens'],
+        stream=False,
+        raw=True
     )
 
     # Create a blocking ProxyTask
     task_id = str(uuid.uuid4())
     future = asyncio.Future()
     task = ProxyTask(
-        priority=5,
+        priority=2,
         task_id=task_id,
         payload=payload,
         blocking=True,
@@ -113,6 +110,14 @@ async def discord_dm(request: ProxyDiscordDMRequest) -> OllamaResponse:
             detail="Task timed out"
         )
 
+    # result is an OllamaResponse
+    proxy_response = ProxyResponse(
+        response=result.response,
+        eval_count=result.eval_count,
+        prompt_eval_count=result.prompt_eval_count,
+        timestamp=datetime.now().isoformat()
+    )
+
     queue.remove_task(task_id)
 
-    return result
+    return proxy_response

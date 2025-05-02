@@ -95,7 +95,7 @@ async def from_api_multiturn(request: ProxyMultiTurnRequest) -> ProxyResponse:
     task_id = str(uuid.uuid4())
     future = asyncio.Future()
     task = ProxyTask(
-        priority=0,
+        priority=1,
         task_id=task_id,
         payload=payload,
         blocking=True,

@@ -63,16 +63,14 @@ def verify_database():
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Connect to (or create) the SQLite database
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
+    with sqlite3.connect(app.config.STATUS_DB) as conn:
+        cursor = conn.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL;")
+        cursor.execute("CREATE TABLE IF NOT EXISTS status (key, value)")
+        cursor.execute("INSERT OR REPLACE INTO status (key, value) VALUES (?, ?)",("mode", "default"))
 
-    # Create table
-    cursor.execute("CREATE TABLE IF NOT EXISTS status (key, value)")
-    cursor.execute("INSERT OR REPLACE INTO status (key, value) VALUES (?, ?)",("mode", "default"))
-
-    # Commit and close
-    conn.commit()
-    conn.close()
+        # Commit and close
+        conn.commit()
 
 
 @router.post("/mode/{mode}", response_model=dict)
@@ -96,6 +94,7 @@ def mode_set(mode: str) -> JSONResponse:
         verify_database()
         with sqlite3.connect(app.config.STATUS_DB) as conn:
             cursor = conn.cursor()
+            cursor.execute("PRAGMA journal_mode=WAL;")
             cursor.execute(
                 "INSERT OR REPLACE INTO status (key, value) VALUES (?, ?)",
                 ('mode', mode)
@@ -135,6 +134,7 @@ def mode_get() -> JSONResponse:
         verify_database()
         with sqlite3.connect(app.config.STATUS_DB) as conn:
             cursor = conn.cursor()
+            cursor.execute("PRAGMA journal_mode=WAL;")
             cursor.execute("SELECT value FROM status WHERE key='mode'")
             row = cursor.fetchone()
 

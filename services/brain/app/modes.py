@@ -90,6 +90,8 @@ def mode_set(mode: str) -> JSONResponse:
         HTTPException: If a database error or unexpected error occurs during mode setting.
     """
 
+    mode = mode.lower()
+
     try:
         verify_database()
         with sqlite3.connect(app.config.STATUS_DB) as conn:

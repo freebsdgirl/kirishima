@@ -19,11 +19,13 @@ Functions:
         Handles multi-turn API requests by generating prompts for language models.
 """
 from shared.config import TIMEOUT
-from shared.models.proxy import ChatMessages, ProxyMultiTurnRequest, ProxyResponse, OllamaRequest, OllamaResponse
+from shared.models.proxy import AlignmentRequest, ChatMessages, ProxyMultiTurnRequest, ProxyResponse, OllamaRequest, OllamaResponse
 from shared.models.prompt import BuildSystemPrompt
 
 from app.util import build_multiturn_prompt
 from app.prompts.dispatcher import get_system_prompt
+
+from app.config import ALIGNMENT
 
 from app.queue.router import queue
 from shared.models.queue import ProxyTask
@@ -123,5 +125,56 @@ async def from_api_multiturn(request: ProxyMultiTurnRequest) -> ProxyResponse:
     )
 
     queue.remove_task(task_id)
+
+    if ALIGNMENT:
+        alignment_payload = AlignmentRequest(
+            user=request.messages[-1].content,
+            response=proxy_response
+        )
+
+        alignment_prompt = get_system_prompt(alignment_payload)
+
+        # Construct the payload for the Ollama API call
+        payload = OllamaRequest(
+            model=request.model,
+            prompt=alignment_prompt,
+            temperature=request.temperature,
+            max_tokens=request.max_tokens,
+            stream=False,
+            raw=True
+        )
+
+        # Create a blocking ProxyTask
+        task_id = str(uuid.uuid4())
+        future = asyncio.Future()
+        task = ProxyTask(
+            priority=1,
+            task_id=task_id,
+            payload=payload,
+            blocking=True,
+            future=future,
+            callback=None
+        )
+        await queue.enqueue(task)
+
+        try:
+            result: OllamaResponse = await asyncio.wait_for(future, timeout=TIMEOUT)
+
+        except asyncio.TimeoutError:
+            queue.remove_task(task_id)
+            raise HTTPException(
+                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                detail="Task timed out"
+            )
+
+        # result is an OllamaResponse
+        proxy_response = ProxyResponse(
+            response=result.response,
+            eval_count=result.eval_count,
+            prompt_eval_count=result.prompt_eval_count,
+            timestamp=datetime.now().isoformat()
+        )
+
+        queue.remove_task(task_id)
 
     return proxy_response

@@ -15,6 +15,9 @@ Classes:
     ProxyResponse:
     ProxyDiscordDMRequest:
     OllamaResponse:
+    OllamaRequest:
+    AlignmentRequest:
+        Represents a request for alignment between user and assistant messages.
 Each model includes detailed attributes, validation rules, and example configurations 
 to facilitate consistent usage and integration across different components of the system.
 """
@@ -418,6 +421,25 @@ class OllamaResponse(BaseModel):
                 "prompt_eval_duration": 200000,
                 "eval_count": 1,
                 "eval_duration": 300000
+            }
+        }
+    }
+
+
+class AlignmentRequest(BaseModel):
+    user: str                           = Field(..., description="The message sent by the user.")
+    response: ProxyResponse             = Field(..., description="Response from the model.")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "user": "Don't forget your meds",
+                "response": {
+                    "response": "Sure, I will remind you!",
+                    "timestamp": "2025-04-09T04:00:00Z",
+                    "eval_count": 10,
+                    "prompt_eval_count": 5
+                }
             }
         }
     }

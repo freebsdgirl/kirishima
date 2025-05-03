@@ -11,6 +11,7 @@ from app.prompts.guest import build_prompt as guest_prompt
 from app.prompts.nsfw import build_prompt as nsfw_prompt
 from app.prompts.work import build_prompt as work_prompt
 from app.prompts.default import build_prompt as default_prompt
+from app.prompts.alignment import build_prompt as alignment_prompt
 
 
 def get_system_prompt(request):
@@ -26,6 +27,11 @@ def get_system_prompt(request):
     Returns:
         str: The generated system prompt corresponding to the specified mode.
     """
+    user_input = getattr(request, "user", None)
+
+    if user_input:
+        return alignment_prompt(request)
+    
     mode = getattr(request, "mode", None) or "guest"
     if mode == "nsfw":
         return nsfw_prompt(request)

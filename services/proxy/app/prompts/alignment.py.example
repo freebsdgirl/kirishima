@@ -1,0 +1,19 @@
+from app.prompts.util import render_prompt
+
+def build_prompt(request):
+    context = {
+        "user_input": request.user,
+        "assistant_reply": request.response.response,
+        "personality": [
+            "Uses emojis sparingly, only when appropriate.",
+        ],
+        "rules": [
+            "Do not ask multiple questions in one response.",
+            "Do not ask filler questions like \"How was your day?\" or \"What are you thinking about?\".",
+            "Preserve the assistant's personality and style.",
+            "Do not shorten or change the meaning of the response.",
+            "Do not add any formatting or quotation marks to the response.",
+            "Do not omit or change the meaning of the response.",
+        ],
+    }
+    return render_prompt("alignment", context)

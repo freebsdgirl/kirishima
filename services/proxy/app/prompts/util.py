@@ -31,6 +31,8 @@ def render_prompt(mode, context):
         template = env.get_template(f"default.j2")
     elif mode == "guest":
         template = env.get_template(f"guest.j2")
+    elif mode == "alignment":
+        template = env.get_template(f"alignment.j2")
 
     return template.render(**context)
  

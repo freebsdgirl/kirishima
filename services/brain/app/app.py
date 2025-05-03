@@ -28,8 +28,9 @@ The application is designed to be modular and extensible, allowing for easy inte
 from app.modes import router as modes_router
 from app.scheduler.scheduler import router as scheduler_router
 
-from app.memory.functions import router as memory_functions_router
-from app.memory.list import router as memory_list_router
+from app.memory.delete import router as memory_delete_router
+from app.memory.get import router as memory_get_router
+from app.memory.post import router as memory_post_router
 
 from app.message.multiturn import router as message_multiturn_router
 from app.message.singleturn import router as message_singleturn_router
@@ -59,8 +60,10 @@ app.include_router(docs_router, tags=["docs"])
 app.include_router(modes_router, tags=["modes"])
 app.include_router(scheduler_router, tags=["scheduler"])
 
-app.include_router(memory_functions_router, tags=["memory"])
-app.include_router(memory_list_router, tags=["memory"])
+app.include_router(memory_delete_router, tags=["memory"])
+app.include_router(memory_get_router, tags=["memory"])
+app.include_router(memory_post_router, tags=["memory"])
+
 app.include_router(message_multiturn_router, tags=["message"])
 app.include_router(message_singleturn_router, tags=["message"])
 

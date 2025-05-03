@@ -25,7 +25,7 @@ from shared.models.intents import IntentRequest
 from shared.models.memory import MemoryListQuery
 from shared.models.summary import Summary
 
-from app.memory.list import list_memory
+from app.memory.get import list_memory
 from app.modes import mode_get
 from app.util import get_admin_user_id, sanitize_messages, post_to_service, get_user_alias
 

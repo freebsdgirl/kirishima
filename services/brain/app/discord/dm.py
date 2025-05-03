@@ -37,7 +37,7 @@ logger = get_logger(f"brain.{__name__}")
 
 from app.modes import mode_get
 from app.util import get_admin_user_id, sanitize_messages, post_to_service
-from app.memory.list import list_memory
+from app.memory.get import list_memory
 
 import httpx
 import json

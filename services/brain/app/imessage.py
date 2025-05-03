@@ -16,7 +16,7 @@ from shared.models.summary import Summary
 
 from app.modes import mode_get
 from app.util import get_admin_user_id, sanitize_messages, post_to_service
-from app.memory.list import list_memory
+from app.memory.get import list_memory
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, status

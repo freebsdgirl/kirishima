@@ -28,6 +28,7 @@ from shared.models.summary import Summary
 from app.memory.get import list_memory
 from app.modes import mode_get
 from app.util import get_admin_user_id, sanitize_messages, post_to_service, get_user_alias
+from app.last_seen import update_last_seen
 
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
@@ -259,6 +260,9 @@ async def outgoing_multiturn_message(message: ProxyMultiTurnRequest) -> ProxyRes
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to sync proxy_response with ledger service: {e}"
         )
+
+    # last, update our last seen timestamp
+    update_last_seen(user_id)
 
     logger.debug(f"brain: /api/multiturn Returns:\n{proxy_response.model_dump_json(indent=4)}")
 

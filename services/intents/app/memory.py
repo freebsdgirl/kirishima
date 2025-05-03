@@ -17,6 +17,7 @@ Dependencies:
     - shared.log_config.get_logger: For logging debug information.
     - re: For regular expression operations.
 """
+from shared.config import TIMEOUT
 
 from shared.models.proxy import ChatMessage
 from shared.models.memory import MemoryEntry
@@ -34,18 +35,18 @@ from fastapi import HTTPException, status
 
 async def process_memory(message: ChatMessage, component: str) -> ChatMessage:
     """
-    Process memory-related operations within a ProxyMessage.
+    Process memory-related operations within a ChatMessage.
     
     Extracts and handles create_memory() and delete_memory() function calls from message content.
     Removes these function calls from the message while preserving other text.
     Logs debug information about detected memory operations.
     
     Args:
-        message (ProxyMessage): The input message to process.
+        message (ChatMessage): The input message to process.
         component (str): The component string from the intent request.
     
     Returns:
-        ProxyMessage: The modified message with memory function calls removed.
+        ChatMessage: The modified message with memory function calls removed.
     
     Raises:
         HTTPException: If an unexpected error occurs during memory processing.
@@ -68,22 +69,27 @@ async def process_memory(message: ChatMessage, component: str) -> ChatMessage:
             r'create_memory\(\s*["\'“”]?(.+?)["\'“”]?\s*,\s*([0-9]*\.?[0-9]+)\s*\)',
             re.IGNORECASE
         )
+
         for text, priority in create_memory_pattern.findall(original_content):
             clean_text = text.strip('"\'“”').strip()
             logger.debug(f"🗃️ function: create_memory({clean_text}, {priority})")
+
             if not component:
                 logger.error("Component is required for memory creation but was None or empty.")
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Component is required for memory creation."
                 )
+
             try:
                 brain_address, brain_port = get_service_address('brain')
                 entry = MemoryEntry(memory=clean_text, component=component, priority=float(priority), mode="default")
                 entry_dict = entry.model_dump(exclude_none=True)
-                async with httpx.AsyncClient(timeout=60) as client:
+
+                async with httpx.AsyncClient(timeout=TIMEOUT) as client:
                     response = await client.post(f"http://{brain_address}:{brain_port}/memory", json=entry_dict)
                     response.raise_for_status()
+
             except Exception as e:
                 logger.error(f"Error creating memory in brain: {e}")
                 raise HTTPException(
@@ -95,25 +101,32 @@ async def process_memory(message: ChatMessage, component: str) -> ChatMessage:
             r'delete_memory\(\s*["\'“”]?(.+?)["\'“”]?\s*\)',
             re.IGNORECASE
         )
+
         for text in delete_memory_pattern.findall(original_content):
             clean_text = text.strip('"\'“”').strip()
             logger.debug(f"🗃️ function: delete_memory({clean_text})")
+
             try:
                 brain_address, brain_port = get_service_address('brain')
-                async with httpx.AsyncClient(timeout=60) as client:
+
+                async with httpx.AsyncClient(timeout=TIMEOUT) as client:
                     response = await client.get(f"http://{brain_address}:{brain_port}/mode")
                     response.raise_for_status()
                     json_response = response.json()
                     mode = json_response.get("message", None)
+
                 entry = MemoryEntry(memory=clean_text, component=component, mode=mode, embedding=[])
+
                 async with httpx.AsyncClient(timeout=60) as client:
                     response = await client.request(
                         method="DELETE",
                         url=f"http://{brain_address}:{brain_port}/memory",
                         json=entry.model_dump()
                     )
+
                     if response.status_code == 404:
                         message._deleted_memory_id = None
+
                     elif response.status_code in (200, 204):
                         # Extract deleted memory id from response if available
                         deleted_id = None
@@ -122,9 +135,11 @@ async def process_memory(message: ChatMessage, component: str) -> ChatMessage:
                         except Exception:
                             pass
                         message._deleted_memory_id = deleted_id
+
                     else:
                         logger.error(f"Failed to delete memory: {response.status_code} {response.text}")
                         message._deleted_memory_id = None
+
             except Exception as e:
                 logger.error(f"Error deleting memory in brain: {e}")
                 message._deleted_memory_id = None
@@ -140,8 +155,10 @@ async def process_memory(message: ChatMessage, component: str) -> ChatMessage:
             text = match.group(3)
             clean_text = text.strip('"\'“”').strip()
             deleted_id = getattr(message, '_deleted_memory_id', None)
+
             if deleted_id:
                 return f"<details>\n<summary>Memory Deleted</summary>\n> {deleted_id}\n</details>"
+
             else:
                 return f"<details>\n<summary>Memory Deletion Failed.</summary>\n> Memory not found: {clean_text}\n</details>"
 
@@ -150,12 +167,16 @@ async def process_memory(message: ChatMessage, component: str) -> ChatMessage:
             r'|delete_memory\(\s*["\'“”]?(.+?)["\'“”]?\s*\)',
             re.IGNORECASE
         )
+
         def memory_replacer(match):
             if match.group(1) is not None and match.group(2) is not None:
                 return create_memory_repl(match)
+
             elif match.group(3) is not None:
                 return delete_memory_repl(match)
+
             return ''
+
         message.content = combined_sub_pattern.sub(memory_replacer, original_content)
 
     except Exception as e:

@@ -14,28 +14,31 @@ Dependencies:
     - shared.consul.get_service_address: For retrieving service addresses.
     - shared.log_config.get_logger: For logging operations.
 """
+from shared.config import TIMEOUT
 
-from fastapi import HTTPException, status
 from shared.models.proxy import ChatMessage
-import re
-import httpx
 
 from shared.consul import get_service_address
 
 from shared.log_config import get_logger
 logger = get_logger(f"intents.{__name__}")
 
+import re
+import httpx
+
+from fastapi import HTTPException, status
+
 
 async def process_mode(message: ChatMessage) -> ChatMessage:
     """
-    Processes mode-related commands extracted from a ProxyMessage.
+    Processes mode-related commands extracted from a ChatMessage.
     
     Extracts mode commands using a regex pattern, logs the arguments, and sends 
     a request to the brain service to update the mode. Handles potential errors 
     with appropriate HTTP exceptions.
     
     Args:
-        message (ProxyMessage): The message containing mode command content.
+        message (ChatMessage): The message containing mode command content.
     
     Returns:
         int: HTTP 200 OK status code if mode processing is successful.
@@ -53,7 +56,7 @@ async def process_mode(message: ChatMessage) -> ChatMessage:
             logger.debug(f"🗃️ function: mode({match})")
             
             # do the thing to change the mode
-            async with httpx.AsyncClient(timeout=60) as client:
+            async with httpx.AsyncClient(timeout=TIMEOUT) as client:
                 try:
                     brain_address, brain_port = get_service_address('brain')
 

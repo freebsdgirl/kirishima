@@ -74,6 +74,8 @@ async def send_to_ollama(payload: OllamaRequest) -> OllamaResponse:
     json_response = response.json()
     logger.debug(f"🦙 Response from Ollama API:\n{json.dumps(json_response, indent=4, ensure_ascii=False)}")
 
+    json_response['response'] = json_response['response'].strip()
+
     ollama_response = OllamaResponse(**json_response)
 
     return ollama_response

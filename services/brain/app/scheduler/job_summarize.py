@@ -102,8 +102,9 @@ async def summarize_user_buffer_night():
     try: 
         logger.debug(f"Creating night summary for date: {payload.date}")
         summaries = await create_summary(payload)
-        logger.debug(f"Deleting user buffer for night summary for date: {payload.date}")
-        await delete_user_buffer_from_summaries(summaries.json())
+        if summaries:
+            logger.debug(f"Deleting user buffer for night summary for date: {payload.date}")
+            await delete_user_buffer_from_summaries(summaries.json())
 
     except Exception as e:
         logger.error(f"Failed to trigger summarize_user_buffer_night(): {e}")
@@ -131,8 +132,9 @@ async def summarize_user_buffer_morning():
     try: 
         logger.debug(f"Creating morning summary for date: {payload.date}")
         summaries = await create_summary(payload)
-        logger.debug(f"Deleting user buffer for morning summary for date: {payload.date}")
-        await delete_user_buffer_from_summaries(summaries.json())
+        if summaries:
+            logger.debug(f"Deleting user buffer for morning summary for date: {payload.date}")
+            await delete_user_buffer_from_summaries(summaries.json())
 
     except Exception as e:
         logger.error(f"Failed to trigger summarize_user_buffer_morning(): {e}")
@@ -160,8 +162,9 @@ async def summarize_user_buffer_afternoon():
     try: 
         logger.debug(f"Creating afternoon summary for date: {payload.date}")
         summaries = await create_summary(payload)
-        logger.debug(f"Deleting user buffer for afternoon summary for date: {payload.date}")
-        await delete_user_buffer_from_summaries(summaries.json())
+        if summaries:
+            logger.debug(f"Deleting user buffer for afternoon summary for date: {payload.date}")
+            await delete_user_buffer_from_summaries(summaries.json())
 
     except Exception as e:
         logger.error(f"Failed to trigger summarize_user_buffer_afternoon(): {e}")
@@ -192,8 +195,9 @@ async def summarize_user_buffer_evening():
     try: 
         logger.debug(f"Creating evening summary for date: {payload.date}")
         summaries = await create_summary(payload)
-        logger.debug(f"Deleting user buffer for evening summary for date: {payload.date}")
-        await delete_user_buffer_from_summaries(summaries.json())
+        if summaries:
+            logger.debug(f"Deleting user buffer for evening summary for date: {payload.date}")
+            await delete_user_buffer_from_summaries(summaries.json())
 
     except Exception as e:
         logger.error(f"Failed to trigger summarize_user_buffer_evening(): {e}")
@@ -212,10 +216,10 @@ async def summarize_user_buffer_evening():
        logger.debug(f"Creating daily summary for date: {payload.date}")
 
     except Exception as e:
-        logger.error(f"Failed to trigger summarize_user_buffer_evening(): {e}")
+        logger.error(f"Failed to trigger create_daily_summary(): {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to trigger summarize_user_buffer_evening()"
+            detail="Failed to trigger create_daily_summary()"
         )
     
     # check to see if the day of the week is currently monday. this means a new week has started.
@@ -230,10 +234,10 @@ async def summarize_user_buffer_evening():
             logger.debug(f"Creating weekly summary for date: {payload.date}")
 
         except Exception as e:
-            logger.error(f"Failed to trigger summarize_user_buffer_evening(): {e}")
+            logger.error(f"Failed to trigger create_weekly_summary(): {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to trigger summarize_user_buffer_evening()"
+                detail="Failed to trigger create_weekly_summary()"
             )
 
     # check to see if the date of the month is the 1st. this means a new month has started.
@@ -247,10 +251,10 @@ async def summarize_user_buffer_evening():
             logger.debug(f"Creating monthly summary for date: {payload.date}")
 
         except Exception as e:
-            logger.error(f"Failed to trigger summarize_user_buffer_evening(): {e}")
+            logger.error(f"Failed to trigger create_monthly_summary(): {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to trigger summarize_user_buffer_evening()"
+                detail="Failed to trigger create_monthly_summary()"
             )
 
 

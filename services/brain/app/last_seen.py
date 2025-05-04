@@ -38,8 +38,8 @@ def update_last_seen(user_id: str) -> None:
             cursor = conn.cursor()
             cursor.execute("PRAGMA journal_mode=WAL;")  # Enable WAL mode
             cursor.execute(
-                "INSERT OR REPLACE INTO status (key, value) VALUES (?, ?)",
-                (f"last_seen_{user_id}", last_seen)
+                "INSERT OR REPLACE INTO last_seen (user_id, last_seen) VALUES (?, ?)",
+                (user_id, last_seen)
             )
             conn.commit()
             logger.info(f"✅ Last seen for user {user_id} updated to {last_seen}")
@@ -72,8 +72,8 @@ def get_last_seen(user_id: str) -> str:
             cursor = conn.cursor()
             cursor.execute("PRAGMA journal_mode=WAL;")  # En
             cursor.execute(
-                "SELECT value FROM status WHERE key = ?",
-                (f"last_seen_{user_id}",)
+                "SELECT last_seen FROM last_seen WHERE user_id = ?",
+                (user_id,)
             )
             result = cursor.fetchone()
             logger.info(f"✅ Last seen for user {user_id} retrieved successfully")

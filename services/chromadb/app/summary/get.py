@@ -117,7 +117,7 @@ async def get_summary(
         )
 
         if limit:
-            summaries = summaries[:limit]
+            summaries = summaries[-limit:]
 
         return summaries
 

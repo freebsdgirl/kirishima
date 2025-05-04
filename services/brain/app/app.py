@@ -50,8 +50,18 @@ from shared.routes import router as routes_router, register_list_routes
 
 from shared.models.middleware import CacheRequestBodyMiddleware
 
+
+from contextlib import asynccontextmanager
+from app.setup import verify_database
 from fastapi import FastAPI
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    verify_database()
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(CacheRequestBodyMiddleware)
 

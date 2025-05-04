@@ -1,27 +1,14 @@
 """
-This module provides FastAPI endpoints and utility functions for managing the operational mode of the application
-using a SQLite-backed status database.
-
-Key Features:
-- Ensures the existence of a status database and initializes it if missing.
-- Provides endpoints to set and retrieve the current mode.
-- Handles database creation, error logging, and HTTP error responses.
+This module provides FastAPI endpoints for setting and retrieving the current mode
+in the application's status database.
 
 Endpoints:
-- POST /mode/{mode}: Sets the current mode in the status database.
-- GET /mode: Retrieves the current mode from the status database.
+    - POST /mode/{mode}: Sets the current mode in the status database.
+    - GET /mode: Retrieves the current mode from the status database.
 
-Functions:
-- verify_database(): Ensures the status database and required table exist, initializing with a default mode if necessary.
-- mode_set(mode: str): FastAPI endpoint to set the mode.
-- mode_get(): FastAPI endpoint to get the current mode.
-
-Dependencies:
-- FastAPI for API routing and responses.
-- SQLite3 for lightweight database storage.
-- Logging for error and event reporting.
-- app.config for configuration, specifically the STATUS_DB path.
-
+The endpoints interact with a SQLite database defined by `app.config.STATUS_DB`.
+Logging is performed for key actions and error handling is implemented to return
+appropriate HTTP responses in case of database or unexpected errors.
 """
 import app.config
 
@@ -29,48 +16,10 @@ from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
 
 import sqlite3
-from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import JSONResponse
 router = APIRouter()
-
-
-def verify_database():
-    """
-    Verify the existence of the status database. If it doesn't exist, create it along with its parent directory.
-
-    This function checks if the SQLite database specified by `app.config.STATUS_DB` exists.
-    If it does not exist, it creates the necessary parent directories and establishes a new connection to the SQLite
-    database. It then creates a table named 'status' with columns for 'key' and 'value', and inserts an initial record
-    with the key 'mode' and value 'default'.
-
-    The function returns immediately if the database already exists.
-
-    Returns:
-        None
-
-    Raises:
-        None
-    """
-    # Check the database path, return if it exists
-    db_path = Path(app.config.STATUS_DB)
-
-    if db_path.exists():
-        return
-
-    # Create the directory if it doesn't exist
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-
-    # Connect to (or create) the SQLite database
-    with sqlite3.connect(app.config.STATUS_DB) as conn:
-        cursor = conn.cursor()
-        cursor.execute("PRAGMA journal_mode=WAL;")
-        cursor.execute("CREATE TABLE IF NOT EXISTS status (key, value)")
-        cursor.execute("INSERT OR REPLACE INTO status (key, value) VALUES (?, ?)",("mode", "default"))
-
-        # Commit and close
-        conn.commit()
 
 
 @router.post("/mode/{mode}", response_model=dict)
@@ -87,11 +36,9 @@ def mode_set(mode: str) -> JSONResponse:
     Raises:
         HTTPException: If a database error or unexpected error occurs during mode setting.
     """
-
     mode = mode.lower()
 
     try:
-        verify_database()
         with sqlite3.connect(app.config.STATUS_DB) as conn:
             cursor = conn.cursor()
             cursor.execute("PRAGMA journal_mode=WAL;")
@@ -131,7 +78,6 @@ def mode_get() -> JSONResponse:
     logger.debug("🤖 Attempting to retrieve the current mode.")
 
     try:
-        verify_database()
         with sqlite3.connect(app.config.STATUS_DB) as conn:
             cursor = conn.cursor()
             cursor.execute("PRAGMA journal_mode=WAL;")

@@ -87,7 +87,7 @@ def get_last_seen(user_id: str) -> str:
         )
 
 
-def is_active(user_id: str, threshold: int = 5) -> bool:
+def is_active(user_id: str, threshold: int = app.config.LAST_SEEN_THRESHOLD) -> bool:
     """
     Check if a user is considered active based on their last seen timestamp.
     

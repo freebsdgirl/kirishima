@@ -96,7 +96,19 @@ def delete_user_buffer(
                 (user_id, start.strftime("%Y-%m-%d %H:%M:%S.%f"), end.strftime("%Y-%m-%d %H:%M:%S.%f")),
             )
         else:
-            cur.execute(f"DELETE FROM {TABLE} WHERE user_id = ?", (user_id,))
+            cur.execute(
+                f"""
+                DELETE FROM {TABLE}
+                WHERE user_id = ?
+                  AND ROWID NOT IN (
+                    SELECT ROWID FROM {TABLE}
+                    WHERE user_id = ?
+                    ORDER BY created_at DESC
+                    LIMIT 10
+                  )
+                """,
+                (user_id, user_id)
+            )
         deleted = cur.rowcount
         conn.commit()
         return DeleteSummary(deleted=deleted)

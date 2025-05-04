@@ -1,23 +1,34 @@
 """
-This module provides an API endpoint and synchronization logic for user message buffers in the ledger service.
+This module provides synchronization logic for user message buffers in the ledger service.
+
+It exposes a FastAPI router with an endpoint to synchronize a user's message buffer with the server-side ledger,
+handling deduplication, message edits, and appending new messages. The synchronization process supports both API
+and non-API platforms, and ensures the server buffer accurately reflects the latest client state.
+
+Key Features:
+- Deduplication of consecutive user messages to prevent duplicates after errors or retries.
+- Handling of assistant message edits, updating the server buffer when the assistant's response changes.
+- Appending new messages to the buffer, with logic to seed new buffers and handle edge cases.
+- Optional result limiting to control the number of messages returned.
+- Integration points for background summary creation (currently commented out).
+
+Dependencies:
+- FastAPI for API routing and request handling.
+- SQLite for persistent message storage.
+- Pydantic models for message validation and serialization.
+- Logging for debug and traceability.
 
 Functions:
-    _open_conn() -> sqlite3.Connection:
-        Opens a SQLite database connection to the buffer database with WAL journal mode enabled.
+- _open_conn: Opens a SQLite connection with WAL mode enabled.
+- sync_user_buffer: FastAPI endpoint to synchronize the user's message buffer, applying deduplication,
+    edit detection, and append logic based on the incoming snapshot.
 
-    sync_user_buffer(
-        user_id: str,
-        snapshot: List[RawUserMessage]
-        FastAPI endpoint to synchronize a user's message buffer with the server-side ledger.
-        Receives a snapshot of user and assistant messages, applies synchronization rules, and updates the database accordingly.
+Table:
+- user_messages: Stores user and assistant messages with metadata for synchronization.
 
-        Synchronization Logic:
-
-Attributes:
-    BUFFER_DB (str): Path to the buffer database.
-    TABLE (str): Name of the user messages table.
-    router (APIRouter): FastAPI router for the sync endpoint.
-    logger: Logger instance for this module.
+Usage:
+Import this module and include its router in your FastAPI application to enable message buffer synchronization
+for user conversations in the ledger service.
 """
 
 from app.config import BUFFER_DB
@@ -51,26 +62,23 @@ def sync_user_buffer(
     limit: Optional[int] = 15
 ) -> List[CanonicalUserMessage]:
     """
-    Synchronizes the user's message buffer with the database, handling deduplication, edits, and appends.
+    Synchronize a user's message buffer with the server-side ledger.
 
-    This endpoint receives a snapshot of user and assistant messages and ensures the database reflects the latest state,
-    handling various edge cases such as consecutive user messages, deduplication, and assistant message edits.
+    This endpoint handles complex message buffer synchronization logic for a given user, supporting:
+    - Deduplication of messages
+    - Handling consecutive user messages
+    - Editing assistant messages
+    - Appending new messages
+    - Optional result limiting
 
     Args:
-        user_id (str): Unique user identifier, provided as a path parameter.
-        snapshot (List[RawUserMessage]): List of incoming user and assistant messages, provided in the request body.
-        background_tasks (BackgroundTasks, optional): FastAPI background task manager for deferred processing.
-        limit (Optional[int], default=30): Maximum number of messages to return in the response.
+        user_id (str): Unique identifier for the user
+        snapshot (List[RawUserMessage]): Snapshot of user and assistant messages
+        background_tasks (BackgroundTasks, optional): Background task handler
+        limit (int, optional): Maximum number of messages to return, defaults to 15
 
     Returns:
-        List[CanonicalUserMessage]: The updated list of canonical user messages, up to the specified limit.
-
-    Behavior:
-        - If the snapshot is empty, triggers background summary creation and returns an empty list.
-        - Handles edge cases such as consecutive user messages (e.g., after a server error) by removing duplicates.
-        - For non-API platforms, appends the last message directly to the database.
-        - For API-originated messages, performs deduplication, assistant message edits, and appends as needed.
-        - Always returns the latest buffer of messages, limited by the `limit` parameter.
+        List[CanonicalUserMessage]: Synchronized and processed message buffer
     """
     logger.debug(f"Syncing user buffer for {user_id}: {snapshot}")
 

@@ -38,6 +38,7 @@ logger = get_logger(f"brain.{__name__}")
 from app.modes import mode_get
 from app.util import get_admin_user_id, sanitize_messages, post_to_service
 from app.memory.get import list_memory
+from app.last_seen import update_last_seen
 
 import httpx
 import json
@@ -117,11 +118,12 @@ async def discord_message_incoming(message: DiscordDirectMessage):
 
     messages=[ChatMessage(role="user", content=message.content)]
 
-    is_admin = (await get_admin_user_id()) == contact_data.json().get("id")
+    user_id = contact_data.json().get("id")
+
+    is_admin = (await get_admin_user_id()) == user_id
 
     # if user is an admin:
     if is_admin:
-
         # check for intents on user input
         # compontent probably really doesn't even need to be a thing with intents at this point.
         # but we need to pass it in the request, so
@@ -172,15 +174,12 @@ async def discord_message_incoming(message: DiscordDirectMessage):
 
     # sync with ledger
     try:
-        user_id = contact_data.json().get("id")
-        platform = 'discord'
-        platform_msg_id = message.message_id
         messages = [m if isinstance(m, ChatMessage) else ChatMessage(**m) for m in messages]
         sync_snapshot = [
             {
                 "user_id": user_id,
-                "platform": platform,
-                "platform_msg_id": str(platform_msg_id),
+                "platform": 'discord',
+                "platform_msg_id": str(message.message_id),
                 "role": m.role,
                 "content": m.content
             }
@@ -321,11 +320,8 @@ async def discord_message_incoming(message: DiscordDirectMessage):
         # Send proxy_response to ledger as a single RawUserMessage
         # we're not sending the platform_msg_id here, because we don't have it yet. this is one of the reasons
         # we're going to use a callback for the discord microservice. soon!
-        user_id = contact_data.json().get("id")
-        platform = 'discord'
-        platform_msg_id = None
         sync_snapshot = [{
-            "user_id": contact_data.json().get("id"),
+            "user_id": user_id,
             "platform": 'discord',
             "platform_msg_id":  None,
             "role": "assistant",
@@ -346,6 +342,8 @@ async def discord_message_incoming(message: DiscordDirectMessage):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to sync proxy_response with ledger service {e}"
         )
+
+    update_last_seen(user_id)
 
     logger.debug(f"/discord/message/incoming Returns:\n{proxy_response.model_dump_json(indent=4)}")
 

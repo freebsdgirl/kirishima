@@ -17,6 +17,8 @@ from shared.models.summary import Summary
 from app.modes import mode_get
 from app.util import get_admin_user_id, sanitize_messages, post_to_service
 from app.memory.get import list_memory
+from app.last_seen import update_last_seen
+
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, status
@@ -76,7 +78,8 @@ async def imessage_incoming(message: iMessage):
 
     messages=[ChatMessage(role="user", content=message.content)]
 
-    is_admin = (await get_admin_user_id()) == contact_data.json().get("id")
+    user_id = contact_data.json().get("id")
+    is_admin = (await get_admin_user_id()) == user_id
 
     # if user is an admin:
     if is_admin:
@@ -131,14 +134,12 @@ async def imessage_incoming(message: iMessage):
 
     # sync with ledger
     try:
-        user_id = contact_data.json().get("id")
-        platform = 'imessage'
         platform_msg_id = message.id
         messages = [m if isinstance(m, ChatMessage) else ChatMessage(**m) for m in messages]
         sync_snapshot = [
             {
                 "user_id": user_id,
-                "platform": platform,
+                "platform": 'imessage',
                 "platform_msg_id": str(platform_msg_id),
                 "role": m.role,
                 "content": m.content
@@ -225,7 +226,7 @@ async def imessage_incoming(message: iMessage):
         summaries=summaries or None
     )
 
-    # send to LLM via discord endpoint in proxy service
+    # send to LLM via imessage endpoint in proxy service
     response = await post_to_service(
         'proxy', '/imessage', proxy_request.model_dump(),
         error_prefix="Error forwarding to proxy service"
@@ -280,11 +281,8 @@ async def imessage_incoming(message: iMessage):
         # Send proxy_response to ledger as a single RawUserMessage
         # we're not sending the platform_msg_id here, because we don't have it yet. this is one of the reasons
         # we're going to use a callback for the imessage microservice. soon!
-        user_id = contact_data.json().get("id")
-        platform = 'imessage'
-        platform_msg_id = None
         sync_snapshot = [{
-            "user_id": contact_data.json().get("id"),
+            "user_id": user_id,
             "platform": 'imessage',
             "platform_msg_id":  None,
             "role": "assistant",
@@ -305,6 +303,8 @@ async def imessage_incoming(message: iMessage):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to sync proxy_response with ledger service {e}"
         )
+
+    update_last_seen(user_id)
 
     logger.debug(f"/imessage/incoming Returns:\n{proxy_response.model_dump_json(indent=4)}")
 

@@ -24,6 +24,7 @@ from shared.models.proxy import ProxyMultiTurnRequest, ProxyResponse, ChatMessag
 from shared.models.intents import IntentRequest
 from shared.models.memory import MemoryListQuery
 from shared.models.summary import Summary
+from shared.models.notification import LastSeen
 
 from app.memory.get import list_memory
 from app.modes import mode_get
@@ -262,7 +263,10 @@ async def outgoing_multiturn_message(message: ProxyMultiTurnRequest) -> ProxyRes
         )
 
     # last, update our last seen timestamp
-    update_last_seen(user_id)
+    update_last_seen(LastSeen(
+        user_id=user_id,
+        platform=platform
+    ))
 
     logger.debug(f"brain: /api/multiturn Returns:\n{proxy_response.model_dump_json(indent=4)}")
 

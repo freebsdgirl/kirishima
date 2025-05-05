@@ -13,6 +13,7 @@ from shared.models.proxy import ChatMessage, ProxyResponse
 from shared.models.intents import IntentRequest
 from shared.models.memory import MemoryListQuery
 from shared.models.summary import Summary
+from shared.models.notification import LastSeen
 
 from app.modes import mode_get
 from app.util import get_admin_user_id, sanitize_messages, post_to_service
@@ -304,7 +305,11 @@ async def imessage_incoming(message: iMessage):
             detail=f"Failed to sync proxy_response with ledger service {e}"
         )
 
-    update_last_seen(user_id)
+    # update last seen
+    update_last_seen(LastSeen(
+        user_id=user_id,
+        platform="imessage"
+    ))
 
     logger.debug(f"/imessage/incoming Returns:\n{proxy_response.model_dump_json(indent=4)}")
 

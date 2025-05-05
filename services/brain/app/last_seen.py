@@ -12,6 +12,8 @@ Functions:
 
 import app.config
 
+from shared.models.notification import LastSeen
+
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
 
@@ -20,39 +22,27 @@ from datetime import datetime
 from fastapi import HTTPException, status
 
 
-def update_last_seen(user_id: str) -> None:
-    """
-    Update the last seen timestamp for a specific user in the status database.
-    
-    Args:
-        user_id (str): The unique identifier of the user whose last seen timestamp is to be updated.
-    
-    Raises:
-        HTTPException: If an unexpected database error occurs during update, 
-                       with a 500 Internal Server Error status code.
-    """
-    last_seen = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
+def update_last_seen(request: LastSeen) -> None:
     try:
         with sqlite3.connect(app.config.STATUS_DB) as conn:
             cursor = conn.cursor()
             cursor.execute("PRAGMA journal_mode=WAL;")  # Enable WAL mode
             cursor.execute(
-                "INSERT OR REPLACE INTO last_seen (user_id, last_seen) VALUES (?, ?)",
-                (user_id, last_seen)
+                "INSERT OR REPLACE INTO last_seen (user_id, platform, last_seen) VALUES (?, ?)",
+                (request.user_id, request.platform, request.timestamp)
             )
             conn.commit()
-            logger.info(f"✅ Last seen for user {user_id} updated to {last_seen}")
+            logger.info(f"✅ Last seen for user {request.user_id} on {request.platform} updated to {request.timestamp}")
 
     except sqlite3.Error as e:
-        logger.error(f"Error updating last seen for user {user_id}: {e}")
+        logger.error(f"Error updating last seen for user {request.user_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An unexpected error occurred while updating last seen: {e}"
         )
 
 
-def get_last_seen(user_id: str) -> str:
+def get_last_seen(user_id: str) -> LastSeen | None:
     """
     Retrieve the last seen timestamp for a specific user from the status database.
     
@@ -60,7 +50,7 @@ def get_last_seen(user_id: str) -> str:
         user_id (str): The unique identifier of the user whose last seen timestamp is to be retrieved.
     
     Returns:
-        str or None: The last seen timestamp in "YYYY-MM-DD HH:MM:SS" format if found, 
+        LastSeen or None: The last seen timestamp in "YYYY-MM-DD HH:MM:SS" format if found, 
                      or None if no timestamp exists for the user.
     
     Raises:
@@ -69,15 +59,16 @@ def get_last_seen(user_id: str) -> str:
     """
     try:
         with sqlite3.connect(app.config.STATUS_DB) as conn:
+            conn.row_factory = sqlite3.Row  # This makes fetchone() return a dict-like Row
             cursor = conn.cursor()
-            cursor.execute("PRAGMA journal_mode=WAL;")  # En
+            cursor.execute("PRAGMA journal_mode=WAL;")
             cursor.execute(
-                "SELECT last_seen FROM last_seen WHERE user_id = ?",
+                "SELECT user_id, timestamp, platform FROM last_seen WHERE user_id = ?",
                 (user_id,)
             )
             result = cursor.fetchone()
             logger.info(f"✅ Last seen for user {user_id} retrieved successfully")
-            return result[0] if result else None
+            return LastSeen(**dict(result)) if result else None
 
     except sqlite3.Error as e:
         logger.error(f"Error retrieving last seen for user {user_id}: {e}")
@@ -103,5 +94,5 @@ def is_active(user_id: str, threshold: int = app.config.LAST_SEEN_THRESHOLD) -> 
         return False
 
     # Convert last seen to datetime and compare with current time
-    last_seen_time = datetime.strptime(last_seen, "%Y-%m-%d %H:%M:%S")
+    last_seen_time = datetime.strptime(last_seen.timestamp, "%Y-%m-%d %H:%M:%S")
     return (datetime.now() - last_seen_time).total_seconds() / 60 < threshold

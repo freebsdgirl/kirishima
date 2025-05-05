@@ -29,6 +29,7 @@ from shared.models.proxy import ProxyDiscordDMRequest, ChatMessage, ProxyRespons
 from shared.models.intents import IntentRequest
 from shared.models.memory import MemoryListQuery
 from shared.models.summary import Summary
+from shared.models.notification import LastSeen
 
 import shared.consul
 
@@ -343,7 +344,11 @@ async def discord_message_incoming(message: DiscordDirectMessage):
             detail=f"Failed to sync proxy_response with ledger service {e}"
         )
 
-    update_last_seen(user_id)
+    # update last seen
+    update_last_seen(LastSeen(
+        user_id=user_id,
+        platform="discord"
+    ))
 
     logger.debug(f"/discord/message/incoming Returns:\n{proxy_response.model_dump_json(indent=4)}")
 

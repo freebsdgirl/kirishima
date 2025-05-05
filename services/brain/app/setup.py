@@ -45,9 +45,9 @@ def verify_database():
         cursor.execute("PRAGMA journal_mode=WAL;")
         cursor.execute("CREATE TABLE IF NOT EXISTS status (key, value)")
         cursor.execute("INSERT OR REPLACE INTO status (key, value) VALUES (?, ?)",("mode", "default"))
-        cursor.execute("CREATE TABLE IF NOT EXISTS notifications (user_id TEXT, notification TEXT, timestamp TEXT)")
+        cursor.execute("CREATE TABLE IF NOT EXISTS notifications (id, TEXT, user_id TEXT, notification TEXT, timestamp TEXT, status TEXT)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_id ON notifications (user_id)")
-        cursor.execute("CREATE TABLE IF NOT EXISTS last_seen (user_id TEXT, last_seen TEXT)")
+        cursor.execute("CREATE TABLE IF NOT EXISTS last_seen (user_id TEXT, platform TEXT, last_seen TEXT)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_id ON last_seen (user_id)")
 
         # Commit and close

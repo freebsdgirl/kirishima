@@ -41,6 +41,10 @@ from app.scheduler.job_summarize import (
     summarize_user_buffer_evening,
     summarize_user_buffer_night
 )
+
+from app.scheduler.job_notification import check_notifications
+
+globals()["check_notifications"]                = check_notifications
 globals()["summarize_user_buffer_morning"]      = summarize_user_buffer_morning
 globals()["summarize_user_buffer_afternoon"]    = summarize_user_buffer_afternoon
 globals()["summarize_user_buffer_evening"]      = summarize_user_buffer_evening

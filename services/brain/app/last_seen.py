@@ -28,7 +28,7 @@ def update_last_seen(request: LastSeen) -> None:
             cursor = conn.cursor()
             cursor.execute("PRAGMA journal_mode=WAL;")  # Enable WAL mode
             cursor.execute(
-                "INSERT OR REPLACE INTO last_seen (user_id, platform, last_seen) VALUES (?, ?)",
+                "INSERT OR REPLACE INTO last_seen (user_id, platform, timestamp) VALUES (?, ?)",
                 (request.user_id, request.platform, request.timestamp)
             )
             conn.commit()
@@ -78,7 +78,7 @@ def get_last_seen(user_id: str) -> LastSeen | None:
         )
 
 
-def is_active(user_id: str, threshold: int = app.config.LAST_SEEN_THRESHOLD) -> bool:
+def is_active(user_id: str, threshold: int = app.config.LAST_SEEN_THRESHOLD):
     """
     Check if a user is considered active based on their last seen timestamp.
     
@@ -87,12 +87,16 @@ def is_active(user_id: str, threshold: int = app.config.LAST_SEEN_THRESHOLD) -> 
         threshold (int, optional): Maximum minutes of inactivity before user is considered inactive. Defaults to 5.
     
     Returns:
-        bool: True if the user has been active within the threshold, False otherwise.
+        str: The platform the user was last seen on if they are active, otherwise None.
     """
     last_seen = get_last_seen(user_id)
     if not last_seen:
-        return False
+        return
 
     # Convert last seen to datetime and compare with current time
     last_seen_time = datetime.strptime(last_seen.timestamp, "%Y-%m-%d %H:%M:%S")
-    return (datetime.now() - last_seen_time).total_seconds() / 60 < threshold
+
+    if (datetime.now() - last_seen_time).total_seconds() / 60 < threshold:
+        return last_seen.platform
+    else:
+        return

@@ -13,11 +13,14 @@ import discord
 from discord.ext import commands
 import asyncio
 
+from app.message import router as message_router
+
 app = FastAPI()
 app.add_middleware(CacheRequestBodyMiddleware)
 
 app.include_router(routes_router, tags=["system"])
 app.include_router(docs_router, tags=["docs"])
+app.include_router(message_router, tags=["message"])
 
 register_list_routes(app)
 

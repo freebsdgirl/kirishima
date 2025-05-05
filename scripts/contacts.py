@@ -22,11 +22,10 @@ def list_contacts():
     for contact in contacts:
         user_id = contact.get("id", "")
         aliases = contact.get("aliases", [])
-        fields = {f["key"]: f["value"] for f in contact.get("fields", [])}
-        email = fields.get("email", "")
-        imessage = fields.get("imessage", "")
-        discord = fields.get("discord", "")
-        discord_id = fields.get("discord_id", "")
+        email = contact.get("email", "")
+        imessage = contact.get("imessage", "")
+        discord = contact.get("discord", "")
+        discord_id = contact.get("discord_id", "")
         notes = contact.get("notes", "")
         # Print each alias on its own row, only show other fields on first row
         for i, alias in enumerate(aliases):
@@ -41,7 +40,7 @@ def list_contacts():
             ])
         if not aliases:
             # If no aliases, still print the contact
-            table.append([user_id, "", email, imessage, notes])
+            table.append([user_id, "", email, imessage, discord, discord_id, notes])
     headers = ["user id", "aliases", "email", "imessage", "discord", "discord_id", "notes"]
     print("\n" + tabulate(table, headers, tablefmt="github") + "\n")
 
@@ -54,20 +53,16 @@ def add_contact(args):
         print("Add cancelled.")
         sys.exit(0)
     url = f"{BASE_URL}/contact"
-    fields = []
-    if args.email:
-        fields.append({"key": "email", "value": args.email})
-    if args.imessage:
-        fields.append({"key": "imessage", "value": args.imessage})
-    if args.discord:
-        fields.append({"key": "email", "value": args.discord})
-    if args.discord_id:
-        fields.append({"key": "imessage", "value": args.discord_id})
     data = {
         "aliases": args.aliases or [],
-        "fields": fields,
+        "email": args.email,
+        "imessage": args.imessage,
+        "discord": args.discord,
+        "discord_id": args.discord_id,
         "notes": args.notes or ""
     }
+    # Remove keys with None values (optional)
+    data = {k: v for k, v in data.items() if v is not None}
     resp = requests.post(url, json=data)
     if resp.status_code != 200:
         print(f"Error: {resp.status_code} {resp.text}", file=sys.stderr)
@@ -103,18 +98,14 @@ def patch_contact_cli(args):
     data = {}
     if args.aliases is not None:
         data["aliases"] = args.aliases
-    # Only include email/imessage if provided
-    fields = []
     if args.email is not None:
-        fields.append({"key": "email", "value": args.email})
+        data["email"] = args.email
     if args.imessage is not None:
-        fields.append({"key": "imessage", "value": args.imessage})
+        data["imessage"] = args.imessage
     if args.discord is not None:
-        fields.append({"key": "discord", "value": args.discord})
+        data["discord"] = args.discord
     if args.discord_id is not None:
-        fields.append({"key": "discord_id", "value": args.discord_id})
-    if fields:
-        data["fields"] = fields
+        data["discord_id"] = args.discord_id
     if args.notes is not None:
         data["notes"] = args.notes
     if not data:

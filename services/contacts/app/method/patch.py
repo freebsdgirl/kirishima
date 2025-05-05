@@ -70,25 +70,24 @@ def patch_contact(contact_id: str, contact: ContactUpdate) -> dict:
                 for alias in contact.aliases:
                     cursor.execute("INSERT INTO aliases (contact_id, alias) VALUES (?, ?)", (contact_id, alias))
 
-            # Update/add/delete fields by key if provided (empty string deletes field)
-            if contact.fields is not None:
-                for field in contact.fields:
-                    key = field.get("key")
-                    value = field.get("value")
-                    # Check if field with this key exists for this contact
-                    cursor.execute("SELECT id FROM fields WHERE contact_id = ? AND key = ?", (contact_id, key))
+            # Handle top-level fields (imessage, discord, discord_id, email)
+            for field_name in ["imessage", "discord", "discord_id", "email"]:
+                value = getattr(contact, field_name, None)
+                if value is not None:
+                    # Check if field exists
+                    cursor.execute("SELECT id FROM fields WHERE contact_id = ? AND key = ?", (contact_id, field_name))
                     row = cursor.fetchone()
                     if value == "":
                         # Delete field if value is empty string
                         if row:
                             cursor.execute("DELETE FROM fields WHERE id = ?", (row[0],))
-                            logger.info(f"Deleted field '{key}' for contact {contact_id}")
+                            logger.info(f"Deleted field '{field_name}' for contact {contact_id}")
                     elif row:
                         cursor.execute("UPDATE fields SET value = ? WHERE id = ?", (value, row[0]))
-                        logger.info(f"Updated field '{key}' for contact {contact_id}")
+                        logger.info(f"Updated field '{field_name}' for contact {contact_id}")
                     else:
-                        cursor.execute("INSERT INTO fields (contact_id, key, value) VALUES (?, ?, ?)", (contact_id, key, value))
-                        logger.info(f"Added field '{key}' for contact {contact_id}")
+                        cursor.execute("INSERT INTO fields (contact_id, key, value) VALUES (?, ?, ?)", (contact_id, field_name, value))
+                        logger.info(f"Added field '{field_name}' for contact {contact_id}")
 
             conn.commit()
 
@@ -101,12 +100,15 @@ def patch_contact(contact_id: str, contact: ContactUpdate) -> dict:
             aliases = [row[0] for row in cursor.fetchall()]
 
             cursor.execute("SELECT key, value FROM fields WHERE contact_id = ?", (contact_id,))
-            fields = [{"key": row[0], "value": row[1]} for row in cursor.fetchall()]
+            fields_dict = {row[0]: row[1] for row in cursor.fetchall()}
 
             result = {
                 "id": contact_id,
                 "aliases": aliases,
-                "fields": fields,
+                "imessage": fields_dict.get("imessage"),
+                "discord": fields_dict.get("discord"),
+                "discord_id": fields_dict.get("discord_id"),
+                "email": fields_dict.get("email"),
                 "notes": notes
             }
 

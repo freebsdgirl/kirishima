@@ -47,7 +47,7 @@ def add_contact(contact: ContactCreate) -> Contact:
     in the database. Generates a unique UUID for the contact and logs the creation process.
 
     Args:
-        contact (ContactCreate): The contact details to be created, including notes, aliases, and fields.
+        contact (ContactCreate): The contact details to be created, including notes, aliases, and top-level fields.
 
     Returns:
         Contact: The newly created contact.
@@ -67,11 +67,14 @@ def add_contact(contact: ContactCreate) -> Contact:
             for alias in contact.aliases:
                 cursor.execute("INSERT INTO aliases (contact_id, alias) VALUES (?, ?)", (contact_id, alias))
 
-            for field in contact.fields:
-                cursor.execute(
-                    "INSERT INTO fields (contact_id, key, value) VALUES (?, ?, ?)",
-                    (contact_id, field.get("key"), field.get("value"))
-                )
+            # Insert top-level fields if present
+            for field_name in ["imessage", "discord", "discord_id", "email"]:
+                value = getattr(contact, field_name, None)
+                if value is not None:
+                    cursor.execute(
+                        "INSERT INTO fields (contact_id, key, value) VALUES (?, ?, ?)",
+                        (contact_id, field_name, value)
+                    )
 
             conn.commit()
 
@@ -84,18 +87,20 @@ def add_contact(contact: ContactCreate) -> Contact:
             aliases = [row[0] for row in cursor.fetchall()]
 
             cursor.execute("SELECT key, value FROM fields WHERE contact_id = ?", (contact_id,))
-            fields = [{"key": row[0], "value": row[1]} for row in cursor.fetchall()]
+            fields_dict = {row[0]: row[1] for row in cursor.fetchall()}
 
             result = Contact(
                 id=contact_id,
                 aliases=aliases,
-                fields=fields,
+                imessage=fields_dict.get("imessage"),
+                discord=fields_dict.get("discord"),
+                discord_id=fields_dict.get("discord_id"),
+                email=fields_dict.get("email"),
                 notes=notes
             )
 
     except sqlite3.Error as e:
         logger.error(f"Error creating contact {contact_id}: {e}", exc_info=True)
-
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create contact due to a database error {e}"

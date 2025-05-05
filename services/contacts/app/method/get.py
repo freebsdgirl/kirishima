@@ -66,19 +66,24 @@ def list_contacts() -> list:
                 cursor.execute("SELECT alias FROM aliases WHERE contact_id = ?", (contact_id,))
                 aliases = [row[0] for row in cursor.fetchall()]
 
+                # Gather all fields into a dict
                 cursor.execute("SELECT key, value FROM fields WHERE contact_id = ?", (contact_id,))
-                fields = [{"key": row[0], "value": row[1]} for row in cursor.fetchall()]
+                fields = {row[0]: row[1] for row in cursor.fetchall()}
 
-                result.append({
+                # Build the contact dict using .get() for optional fields
+                contact = {
                     "id": contact_id,
                     "aliases": aliases,
-                    "fields": fields,
+                    "imessage": fields.get("imessage"),
+                    "discord": fields.get("discord"),
+                    "discord_id": fields.get("discord_id"),
+                    "email": fields.get("email"),
                     "notes": notes
-                })
+                }
+                result.append(contact)
 
     except sqlite3.Error as e:
         logger.error(f"Error listing contacts: {e}", exc_info=True)
-
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to list contacts due to a database error: {e}"
@@ -100,7 +105,7 @@ def get_contact(contact_id: str) -> dict:
         contact_id (str): The unique identifier of the contact to retrieve.
 
     Returns:
-        dict: A contact dictionary containing id, aliases, fields, and notes.
+        dict: A contact dictionary containing id, aliases, and notes.
 
     Raises:
         HTTPException: 404 if the contact is not found, 500 if a database error occurs.
@@ -129,16 +134,19 @@ def get_contact(contact_id: str) -> dict:
             )
             aliases = [r[0] for r in cursor.fetchall()]
 
-            # Fetch custom fields
+            # Fetch fields and unpack into dict
             cursor.execute(
                 "SELECT key, value FROM fields WHERE contact_id = ?", (contact_id,)
             )
-            fields = [{"key": r[0], "value": r[1]} for r in cursor.fetchall()]
+            fields = {r[0]: r[1] for r in cursor.fetchall()}
 
             result = {
                 "id": contact_id,
                 "aliases": aliases,
-                "fields": fields,
+                "imessage": fields.get("imessage"),
+                "discord": fields.get("discord"),
+                "discord_id": fields.get("discord_id"),
+                "email": fields.get("email"),
                 "notes": notes
             }
             logger.debug(f"Contact retrieved: {result}")
@@ -160,16 +168,6 @@ def search_contacts(
 ) -> dict:
     """
     Search contacts with an exact, case-insensitive match.
-    
-    If both 'key' and 'value' are provided, it searches the fields table for a record
-    where the key matches 'key' and the value matches 'value'. Otherwise, if 'q' is provided,
-    it falls back to a generic search in aliases and field values.
-    
-    Returns:
-        dict: The first matching contact.
-    
-    Raises:
-        HTTPException: 404 if no matching contact is found, 400 if missing parameters, 500 on database errors.
     """
     logger.debug(f"/search Request: q={q}, key={key}, value={value}")
 
@@ -179,16 +177,13 @@ def search_contacts(
             contact_ids = set()
 
             if key is not None and value is not None:
-                # Perform targeted search in fields table
                 cursor.execute(
                     "SELECT contact_id FROM fields WHERE key = ? COLLATE NOCASE AND value = ? COLLATE NOCASE",
                     (key, value)
                 )
-
                 contact_ids.update(row[0] for row in cursor.fetchall())
 
             elif q is not None:
-                # Fallback generic search on aliases and fields values
                 cursor.execute("SELECT contact_id FROM aliases WHERE alias = ? COLLATE NOCASE", (q,))
                 contact_ids.update(row[0] for row in cursor.fetchall())
                 cursor.execute("SELECT contact_id FROM fields WHERE value = ? COLLATE NOCASE", (q,))
@@ -196,7 +191,6 @@ def search_contacts(
 
             else:
                 logger.warning("Search parameters are missing.")
-
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Missing search parameters."
@@ -212,12 +206,15 @@ def search_contacts(
                 aliases = [row[0] for row in cursor.fetchall()] 
 
                 cursor.execute("SELECT key, value FROM fields WHERE contact_id = ?", (contact_id,))
-                fields = [{"key": row[0], "value": row[1]} for row in cursor.fetchall()]
+                fields = {row[0]: row[1] for row in cursor.fetchall()}
 
                 result = {
                     "id": contact_id,
                     "aliases": aliases,
-                    "fields": fields,
+                    "imessage": fields.get("imessage"),
+                    "discord": fields.get("discord"),
+                    "discord_id": fields.get("discord_id"),
+                    "email": fields.get("email"),
                     "notes": notes
                 }
 
@@ -227,7 +224,6 @@ def search_contacts(
 
             else:
                 logger.warning("No matching contacts found.")
-
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="No matching contact found"
@@ -235,7 +231,6 @@ def search_contacts(
 
     except sqlite3.Error as e:
         logger.error(f"Error searching contacts: {e}", exc_info=True)
-
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to search contacts due to a database error: {e}"

@@ -65,23 +65,29 @@ class Contact(BaseModel):
     Attributes:
         id (str): The unique identifier for the contact.
         aliases (List[str]): A list of alternative names or identifiers for the contact.
-        fields (List[Dict[str, Any]]): A list of key-value pairs containing additional contact information.
+        imessage (Optional[str]): Optional iMessage address for the contact.
+        discord (Optional[str]): Optional Discord address for the contact.
+        discord_id (Optional[str]): Optional Discord ID for the contact.
+        email (Optional[str]): Optional email address for the contact.
         notes (Optional[str]): Optional notes or comments about the contact.
     """
     id: str                                 = Field(..., description="The unique identifier for the contact.")
     aliases: List[str]                      = Field(..., description="A list of alternative names or identifiers for the contact.")
-    fields: List[Dict[str, Any]]            = Field(..., description="A list of key-value pairs containing additional contact information.")
+    imessage: Optional[str]                 = Field(None, description="iMessage address for the contact.")
+    discord: Optional[str]                  = Field(None, description="Discord address for the contact.")
+    discord_id: Optional[str]               = Field(None, description="Discord ID for the contact.")
+    email: Optional[str]                    = Field(None, description="Email address for the contact.")
     notes: Optional[str]                    = Field(None, description="Optional notes or comments about the contact.")
 
     model_config = {
         "json_schema_extra": {
             "example": {
-                "id": "1234567890",
+                "id": "12345",
                 "aliases": ["John Doe", "JD"],
-                "fields": [
-                    {"key": "email", "value": "john@doe.com"},
-                    {"key": "phone", "value": "+1234567890"}
-                ],
+                "imessage": "+1234567890",
+                "discord": "john_doe#1234",
+                "discord_id": "123456789012345678",
+                "email": "test@test.com",
                 "notes": "Preferred contact during business hours."
             }
         }

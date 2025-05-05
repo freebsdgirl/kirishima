@@ -28,7 +28,7 @@ def update_last_seen(request: LastSeen) -> None:
             cursor = conn.cursor()
             cursor.execute("PRAGMA journal_mode=WAL;")  # Enable WAL mode
             cursor.execute(
-                "INSERT OR REPLACE INTO last_seen (user_id, platform, timestamp) VALUES (?, ?)",
+                "INSERT OR REPLACE INTO last_seen (user_id, platform, timestamp) VALUES (?, ?, ?)",
                 (request.user_id, request.platform, request.timestamp)
             )
             conn.commit()

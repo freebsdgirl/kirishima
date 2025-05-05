@@ -35,7 +35,7 @@ from fastapi import HTTPException, status, APIRouter, Request
 router = APIRouter()
 
 
-@router.post("/discord/message/send_dm")
+@router.post("/dm")
 async def send_dm(request: Request, payload: SendDMRequest):
     """
     Send a direct message (DM) to a specified Discord user.

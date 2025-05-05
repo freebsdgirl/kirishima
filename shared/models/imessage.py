@@ -3,6 +3,7 @@ This module defines the iMessage model using Pydantic's BaseModel.
 Classes:
     iMessage: Represents an iMessage with core attributes such as id, author_id, timestamp, and content.
     ProxyiMessageRequest: Represents a request for sending an iMessage with associated metadata.
+    OutgoingiMessage: Represents an outgoing iMessage with recipient address and message content.
 """
 
 
@@ -94,6 +95,29 @@ class ProxyiMessageRequest(BaseModel):
                             # Chat message details here
                         }
                     ]
+                }
+            ]
+        }
+    }
+
+
+class OutgoingiMessage(BaseModel):
+    """
+    Represents an outgoing iMessage with recipient address and message content.
+    
+    Attributes:
+        address (str): The phone number or contact address to send the message to.
+        message (str): The text content of the message to be sent.
+    """
+    address: str                        = Field(..., description="The phone number or contact address to send the message to")
+    message: str                        = Field(..., description="The text content of the message to be sent")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "address": "+1234567890",
+                    "message": "Hello, this is a test message!"
                 }
             ]
         }

@@ -20,7 +20,7 @@ Environment Variables:
 
 from shared.config import TIMEOUT
 
-from shared.models.imessage import iMessage
+from shared.models.imessage import iMessage, OutgoingiMessage
 
 import shared.consul
 
@@ -130,20 +130,8 @@ bb_client = BlueBubblesClient(
 )
 
 
-class OutgoingMessage(BaseModel):
-    """
-    Represents an outgoing iMessage with recipient address and message content.
-    
-    Attributes:
-        address (str): The phone number or contact address to send the message to.
-        message (str): The text content of the message to be sent.
-    """
-    address: str
-    message: str
-
-
 @app.post("/imessage/send")
-def send_message(payload: OutgoingMessage):
+def send_message(payload: OutgoingiMessage):
     """
     Send an iMessage to a specified recipient via BlueBubbles server.
 

@@ -1,17 +1,98 @@
+"""
+This module provides FastAPI endpoints and Discord bot event handlers for processing and sending Discord direct messages (DMs).
+Key Components:
+---------------
+- send_dm: FastAPI POST endpoint to send a DM to a specified Discord user using the bot instance.
+- setup: Function to register Discord bot event handlers for message processing and error handling.
+Features:
+---------
+- Validates and sends DMs to users, handling errors and logging failures.
+- Processes incoming Discord messages:
+    - Ignores messages from bots and users awaiting responses.
+    - Handles commands via Discord's commands.Bot.
+    - Forwards DMs to an external "brain" service for processing and relays the response.
+    - Logs and raises HTTP exceptions for errors in communication with external services.
+- Captures and logs unhandled errors in Discord bot events.
+Dependencies:
+-------------
+- FastAPI for API routing and exception handling.
+- httpx for asynchronous HTTP requests.
+- shared modules for configuration, logging, and data models.
+- Discord.py for bot event handling.
+"""
 import shared.consul
+
 from shared.config import TIMEOUT
 
-from shared.models.discord import DiscordDirectMessage
+from shared.models.discord import DiscordDirectMessage, SendDMRequest
 
 from shared.log_config import get_logger
 logger = get_logger(f"discord.{__name__}")
 
 import httpx
 
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, APIRouter, Request
+router = APIRouter()
+
+
+@router.post("/discord/message/send_dm")
+async def send_dm(request: Request, payload: SendDMRequest):
+    """
+    Send a direct message (DM) to a specified Discord user.
+
+    Args:
+        request (Request): The FastAPI request object containing the bot state.
+        payload (SendDMRequest): A request payload containing the target user ID and message content.
+
+    Returns:
+        dict: A status response indicating successful message delivery.
+
+    Raises:
+        HTTPException: 404 if the user is not found, 500 for other sending errors.
+    """
+    bot = request.app.state.bot
+
+    try:
+        user = await bot.fetch_user(payload.user_id)
+
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, 
+                detail=f"User not found: {payload.user_id}"
+            )
+        
+        await user.send(payload.content)
+        
+        return {
+            "status": "success",
+            "message": f"DM sent to user {payload.user_id}"}
+
+    except Exception as e:
+        logger.exception(f"Failed to send DM to {payload.user_id}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
 
 
 def setup(bot):
+    """
+    Set up Discord bot event handlers for message processing and error handling.
+    
+    This function configures two primary event handlers:
+    1. on_message: Handles incoming Discord messages, processing DMs by forwarding them 
+       to a brain service and responding accordingly. Includes logic to:
+       - Ignore bot messages
+       - Skip processing for users awaiting a response
+       - Handle commands
+       - Forward DMs to a brain service
+       - Send responses back to the user
+    
+    2. on_error: Captures and logs unhandled errors in Discord bot events.
+    
+    Args:
+        bot (discord.Client): The Discord bot instance to attach event handlers to.
+    """
     @bot.event
     async def on_message(message):
         try:

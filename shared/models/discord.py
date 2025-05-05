@@ -4,6 +4,8 @@ This module defines the `DiscordDirectMessage` Pydantic model, which represents 
 Classes:
     DiscordDirectMessage: 
         A Pydantic model representing a Discord direct message, including message ID, content, author information, display name, and timestamp.
+    SendDMRequest:
+        A Pydantic model representing a request to send a Discord direct message, including user ID and content.
 """
 
 from pydantic import BaseModel
@@ -37,6 +39,27 @@ class DiscordDirectMessage(BaseModel):
                 "author_id": 9876543210,
                 "display_name": "John Doe",
                 "timestamp": "2023-10-01T12:00:00Z"
+            }
+        }
+    }
+
+
+class SendDMRequest(BaseModel):
+    """
+    A Pydantic model representing a request to send a Discord direct message.
+    
+    Attributes:
+        user_id (int): The unique identifier for the user to whom the DM is sent.
+        content (str): The content of the DM to be sent.
+    """
+    user_id: int                        = Field(..., description="The unique identifier for the user to whom the DM is sent.")
+    content: str                        = Field(..., description="The content of the DM to be sent.")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "user_id": 9876543210,
+                "content": "Hello, this is a test DM!"
             }
         }
     }

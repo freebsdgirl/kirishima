@@ -35,6 +35,8 @@ intents.dm_messages = True      # Add this if available
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
+app.state.bot = bot  # Store the bot instance in the FastAPI app state
+
 # keep track of user IDs we’re currently waiting on
 bot.awaiting_response = set()
 

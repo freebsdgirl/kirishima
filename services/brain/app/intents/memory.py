@@ -17,6 +17,10 @@ Dependencies:
     - shared.log_config.get_logger: For logging debug information.
     - re: For regular expression operations.
 """
+from app.memory.post import create_memory
+from app.memory.delete import delete_memory
+from app.modes import mode_get
+
 from shared.config import TIMEOUT
 
 from shared.models.proxy import ChatMessage
@@ -82,13 +86,8 @@ async def process_memory(message: ChatMessage, component: str) -> ChatMessage:
                 )
 
             try:
-                brain_address, brain_port = get_service_address('brain')
                 entry = MemoryEntry(memory=clean_text, component=component, priority=float(priority), mode="default")
-                entry_dict = entry.model_dump(exclude_none=True)
-
-                async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-                    response = await client.post(f"http://{brain_address}:{brain_port}/memory", json=entry_dict)
-                    response.raise_for_status()
+                await create_memory(entry)
 
             except Exception as e:
                 logger.error(f"Error creating memory in brain: {e}")
@@ -107,38 +106,27 @@ async def process_memory(message: ChatMessage, component: str) -> ChatMessage:
             logger.debug(f"🗃️ function: delete_memory({clean_text})")
 
             try:
-                brain_address, brain_port = get_service_address('brain')
-
-                async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-                    response = await client.get(f"http://{brain_address}:{brain_port}/mode")
-                    response.raise_for_status()
-                    json_response = response.json()
-                    mode = json_response.get("message", None)
+                mode = mode_get()
 
                 entry = MemoryEntry(memory=clean_text, component=component, mode=mode, embedding=[])
 
-                async with httpx.AsyncClient(timeout=60) as client:
-                    response = await client.request(
-                        method="DELETE",
-                        url=f"http://{brain_address}:{brain_port}/memory",
-                        json=entry.model_dump()
-                    )
+                response = await delete_memory(entry)
 
-                    if response.status_code == 404:
-                        message._deleted_memory_id = None
+                if response.status_code == 404:
+                    message._deleted_memory_id = None
 
-                    elif response.status_code in (200, 204):
-                        # Extract deleted memory id from response if available
-                        deleted_id = None
-                        try:
-                            deleted_id = response.json().get("id")
-                        except Exception:
-                            pass
-                        message._deleted_memory_id = deleted_id
+                elif response.status_code in (200, 204):
+                    # Extract deleted memory id from response if available
+                    deleted_id = None
+                    try:
+                        deleted_id = response.json().get("id")
+                    except Exception:
+                        pass
+                    message._deleted_memory_id = deleted_id
 
-                    else:
-                        logger.error(f"Failed to delete memory: {response.status_code} {response.text}")
-                        message._deleted_memory_id = None
+                else:
+                    logger.error(f"Failed to delete memory: {response.status_code} {response.text}")
+                    message._deleted_memory_id = None
 
             except Exception as e:
                 logger.error(f"Error deleting memory in brain: {e}")

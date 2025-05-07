@@ -14,6 +14,8 @@ Dependencies:
     - shared.consul.get_service_address: For retrieving service addresses.
     - shared.log_config.get_logger: For logging operations.
 """
+from app.modes import mode_set
+
 from shared.config import TIMEOUT
 
 from shared.models.proxy import ChatMessage
@@ -29,7 +31,7 @@ import httpx
 from fastapi import HTTPException, status
 
 
-async def process_mode(message: ChatMessage) -> ChatMessage:
+def process_mode(message: ChatMessage) -> ChatMessage:
     """
     Processes mode-related commands extracted from a ChatMessage.
     
@@ -56,19 +58,7 @@ async def process_mode(message: ChatMessage) -> ChatMessage:
             logger.debug(f"🗃️ function: mode({match})")
             
             # do the thing to change the mode
-            async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-                try:
-                    brain_address, brain_port = get_service_address('brain')
-
-                    response = await client.post(f"http://{brain_address}:{brain_port}/mode/{match}")
-                    response.raise_for_status()
-
-                except Exception as e:
-                    logger.error(f"Error setting mode with brain: {e}")
-
-                    raise HTTPException(
-                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail=f"Error fetching models from brain: {e}")
+            mode_set(match)
 
     except Exception as e:
         logger.error(f"Unexpected error in mode processing: {e}")

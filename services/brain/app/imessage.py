@@ -19,6 +19,7 @@ from app.modes import mode_get
 from app.util import get_admin_user_id, sanitize_messages, post_to_service
 from app.memory.get import list_memory
 from app.last_seen import update_last_seen
+from app.intents.intents import process_intents
 
 from datetime import datetime
 
@@ -95,11 +96,7 @@ async def imessage_incoming(message: iMessage):
             message=messages,
         )
 
-        response = await post_to_service(
-            'intents', '/intents', intentreq.model_dump(),
-            error_prefix="Error forwarding to intents service"
-        )
-
+        response = process_intents(intentreq)
         try:
             new_messages = response.json()
             # Only update messages if the response was successful and valid
@@ -259,10 +256,7 @@ async def imessage_incoming(message: iMessage):
             message=[ChatMessage(role="assistant", content=response_content)]
         )
 
-        response = await post_to_service(
-            'intents', '/intents', intentreq.model_dump(),
-            error_prefix="Error forwarding to intents service"
-        )
+        response = process_intents(intentreq)
 
         try:
             returned_messages = response.json()

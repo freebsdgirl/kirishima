@@ -189,36 +189,6 @@ services:
     networks:
       - shared-net
 
-  intents:
-    build:
-      context: ./services/intents
-      args:
-        SERVICE_PORT: ${INTENTS_PORT}
-    environment:
-      - SERVICE_PORT=${INTENTS_PORT}
-      - SERVICE_NAME=intents
-      - TZ=America/Los_Angeles
-    depends_on:
-      - consul
-      - graylog
-    ports:
-      - "${INTENTS_PORT}:${INTENTS_PORT}"
-    volumes:
-      - ./services/intents/app:/app/app
-      - ./shared:/app/shared
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:${INTENTS_PORT}/ping"]
-      interval: 60s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-    logging:
-      driver: gelf
-      options:
-        gelf-address: "tcp://localhost:12201"
-    networks:
-      - shared-net
-
   ledger:
     build:
       context: ./services/ledger

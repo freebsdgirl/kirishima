@@ -1,36 +1,34 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import HTTPException, status
 from shared.models.intents import IntentRequest
 from shared.models.proxy import ChatMessage
 
-from app.mode import process_mode
-from app.memory import process_memory
+from app.intents.mode import process_mode
+from app.intents.memory import process_memory
 
 from typing import List
 
 from shared.log_config import get_logger
 logger = get_logger(f"intents.{__name__}")
 
-router = APIRouter()
 
-
-@router.post("/intents", response_model=List[ChatMessage])
 async def process_intents(payload: IntentRequest) -> List[ChatMessage]:
     """
-    Process intents by handling mode and memory operations for the last message in a payload.
-
-    This endpoint validates the intent request, processes mode and memory flags if set,
-    and updates the last message accordingly. Raises HTTP exceptions for invalid payloads
-    or processing errors.
-
+    Process intents from an IntentRequest payload by executing mode and memory processing.
+    
+    This async function handles intent processing by:
+    1. Validating the payload has at least one intent flag set
+    2. Extracting the last message from the payload
+    3. Optionally processing mode-related intent modifications
+    4. Optionally processing memory-related intent modifications
+    
     Args:
-        payload (IntentRequest): The intent request containing mode, memory, and message flags.
-
+        payload (IntentRequest): The intent request containing mode, memory, and message flags
+    
     Returns:
-        IntentRequest: The modified payload with processed last message.
-
+        List[ChatMessage]: The processed list of messages, with potential modifications
+    
     Raises:
-        HTTPException: 400 if no intent flags are set or no messages exist,
-                    500 if errors occur during mode or memory processing.
+        HTTPException: If payload validation fails or processing encounters an error
     """
     logger.debug(f"/intents Request:\n{payload.model_dump_json(indent=4)}")
 
@@ -55,7 +53,7 @@ async def process_intents(payload: IntentRequest) -> List[ChatMessage]:
 
     if payload.mode:
         try:
-            last_message = await process_mode(last_message)
+            last_message = process_mode(last_message)
             payload.message[-1] = last_message
 
         except HTTPException:
@@ -82,4 +80,4 @@ async def process_intents(payload: IntentRequest) -> List[ChatMessage]:
                 detail=f"Error in memory: {e}"
             )
 
-    return payload.message  # Return the modified payload object
+    return payload.message

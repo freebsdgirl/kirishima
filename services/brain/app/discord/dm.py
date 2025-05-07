@@ -40,6 +40,7 @@ from app.modes import mode_get
 from app.util import get_admin_user_id, sanitize_messages, post_to_service
 from app.memory.get import list_memory
 from app.last_seen import update_last_seen
+from app.intents.intents import process_intents
 
 import httpx
 import json
@@ -135,10 +136,7 @@ async def discord_message_incoming(message: DiscordDirectMessage):
             message=messages,
         )
 
-        response = await post_to_service(
-            'intents', '/intents', intentreq.model_dump(),
-            error_prefix="Error forwarding to intents service"
-        )
+        response = await process_intents(intentreq)
 
         try:
             new_messages = response.json()
@@ -298,10 +296,7 @@ async def discord_message_incoming(message: DiscordDirectMessage):
             message=[ChatMessage(role="assistant", content=response_content)]
         )
 
-        response = await post_to_service(
-            'intents', '/intents', intentreq.model_dump(),
-            error_prefix="Error forwarding to intents service"
-        )
+        response = process_intents(intentreq)
 
         try:
             returned_messages = response.json()

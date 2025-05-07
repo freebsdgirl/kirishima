@@ -30,6 +30,7 @@ from app.memory.get import list_memory
 from app.modes import mode_get
 from app.util import get_admin_user_id, sanitize_messages, post_to_service, get_user_alias
 from app.last_seen import update_last_seen
+from app.intents.intents import process_intents
 
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
@@ -69,18 +70,9 @@ async def outgoing_multiturn_message(message: ProxyMultiTurnRequest) -> ProxyRes
         message=message.messages
     )
 
-    response = await post_to_service(
-        'intents', '/intents', intentreq.model_dump(),
-        error_prefix="Error forwarding to intents service"
-    )
-    try:
-        payload['messages'] = response.json()
-    except Exception as e:
-        logger.debug(f"Error decoding JSON from intents service response: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Invalid JSON response from intents service."
-        )
+    response = await process_intents(intentreq)
+
+    payload['messages'] = [ m.model_dump() for m in response ]
 
     # get the current mode
     mode_response = mode_get()
@@ -218,20 +210,9 @@ async def outgoing_multiturn_message(message: ProxyMultiTurnRequest) -> ProxyRes
         message=[ChatMessage(role="assistant", content=response_content)]
     )
 
-    response = await post_to_service(
-        'intents', '/intents', intentreq.model_dump(),
-        error_prefix="Error forwarding to intents service"
-    )
+    response = await process_intents(intentreq)
 
-    try:
-        returned_messages = response.json()
-
-    except Exception as e:
-        logger.debug(f"Error decoding JSON from intents service response (final): {e}")
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Invalid JSON response from intents service (final)."
-        )
+    returned_messages = [ m.model_dump() for m in response ]
 
     if isinstance(returned_messages, list) and returned_messages:
         proxy_response.response = returned_messages[0].get('content', proxy_response.response)

@@ -356,6 +356,7 @@ class OllamaRequest(BaseModel):
         max_tokens (Optional[int]): The maximum number of tokens to generate in the response.
         stream (Optional[bool]): Indicates whether to stream the response.
         raw (Optional[bool]): Indicates whether to return the raw response.
+        format (Optional[object]): The class of the response, typically a Pydantic model.
     """
     model: Optional[str]                = Field(LLM_DEFAULTS['model'], description="The name of the model to be used for generating the response.")
     prompt: str                         = Field(..., description="The input text or prompt to be processed by the model.")
@@ -363,6 +364,7 @@ class OllamaRequest(BaseModel):
     max_tokens: Optional[int]           = Field(LLM_DEFAULTS['max_tokens'], description="The maximum number of tokens to generate in the response.")
     stream: Optional[bool]              = Field(False, description="Indicates whether to stream the response.")
     raw: Optional[bool]                 = Field(True, description="Indicates whether to return the raw response.")
+    format: Optional[object]            = Field(None, description="The class of the response, typically a Pydantic model.")
 
     model_config = {
         "json_schema_extra": {
@@ -372,7 +374,8 @@ class OllamaRequest(BaseModel):
                 "temperature": 0.7,
                 "max_tokens": 256,
                 "stream": False,
-                "raw": True
+                "raw": True,
+                "format": ProxyDiscordDMRequest
             }
         }
     }
@@ -440,6 +443,36 @@ class AlignmentRequest(BaseModel):
                     "eval_count": 10,
                     "prompt_eval_count": 5
                 }
+            }
+        }
+    }
+
+
+class RespondJsonRequest(BaseModel):
+    """
+    A Pydantic model representing a JSON request for generating a model response.
+    
+    Attributes:
+        model (str): The name of the model to be used for generating the response.
+        prompt (str): The input text or prompt to be processed by the model.
+        temperature (float): Controls the randomness of the model's output. Higher values increase creativity.
+        max_tokens (int): The maximum number of tokens to generate in the response.
+        format (object): The class of the response, typically a Pydantic model.
+    """
+    model: str                          = Field(..., description="The model to be used for generating the response.")
+    prompt: str                         = Field(..., description="The prompt or input text for the model.")
+    temperature: float                  = Field(..., description="The temperature setting for randomness in the model's output.")
+    max_tokens: int                     = Field(..., description="The maximum number of tokens to generate in the response.")
+    format: object                      = Field(None, description="the class of the response, typically a Pydantic model.")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "model": "nemo:latest",
+                "prompt": "Don't forget your meds",
+                "temperature": 0.7,
+                "max_tokens": 256,
+                "format": AlignmentRequest
             }
         }
     }

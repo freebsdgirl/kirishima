@@ -23,7 +23,7 @@ import json
 from fastapi import HTTPException, status
 
 
-async def send_to_ollama(payload: OllamaRequest) -> OllamaResponse:
+async def send_to_ollama(request: OllamaRequest) -> OllamaResponse:
     """
     Send a payload to the Ollama API for generation.
     
@@ -39,12 +39,26 @@ async def send_to_ollama(payload: OllamaRequest) -> OllamaResponse:
     Raises:
         HTTPException: If there are HTTP status errors or connection issues with the Ollama API.
     """
-    logger.debug(f"🦙 Request to Ollama API:\n{json.dumps(payload.model_dump(), indent=4, ensure_ascii=False)}")
+    logger.debug(f"🦙 Request to Ollama API:\n{json.dumps(request.model_dump(), indent=4, ensure_ascii=False)}")
+
+    payload = {
+        "model": request.model,
+        "prompt": request.prompt,
+        "options": {
+            "temperature": request.temperature
+        },
+        "max_tokens": request.max_tokens,
+        "stream": False,
+        "raw": True
+    }
+
+    if request.format:
+        payload['format'] = request.format
 
     # Send the POST request using an async HTTP client
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         try:
-            response = await client.post(f"{app.config.OLLAMA_URL}/api/generate", json=payload.model_dump())
+            response = await client.post(f"{app.config.OLLAMA_URL}/api/generate", json=payload)
             response.raise_for_status()
 
         except httpx.HTTPStatusError as http_err:

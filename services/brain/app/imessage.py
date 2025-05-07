@@ -96,12 +96,12 @@ async def imessage_incoming(message: iMessage):
             message=messages,
         )
 
-        response = process_intents(intentreq)
+        response = await process_intents(intentreq)
         try:
-            new_messages = response.json()
+            returned_messages = [ m.model_dump() for m in response ]
             # Only update messages if the response was successful and valid
-            if isinstance(new_messages, list) and new_messages:
-                messages = new_messages
+            if isinstance(returned_messages, list) and returned_messages:
+                messages = returned_messages
 
         except Exception as e:
             logger.debug(f"Error decoding JSON from intents service response: {e}")
@@ -256,10 +256,10 @@ async def imessage_incoming(message: iMessage):
             message=[ChatMessage(role="assistant", content=response_content)]
         )
 
-        response = process_intents(intentreq)
+        response = await process_intents(intentreq)
 
         try:
-            returned_messages = response.json()
+            returned_messages = [ m.model_dump() for m in response ]
 
         except Exception as e:
             logger.debug(f"Error decoding JSON from intents service response (final): {e}")

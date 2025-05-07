@@ -25,6 +25,7 @@ from app.api.multiturn import router as multiturn_router
 from app.imessage import router as imessage_router
 from app.summary import router as summary_router
 from app.discord import router as discord_router
+from app.json import router as json_router
 
 from app.queue.router import router as queue_router
 from app.queue.router import queue
@@ -60,6 +61,7 @@ app.include_router(multiturn_router, tags=["api"])
 app.include_router(summary_router, tags=["summary"])
 app.include_router(imessage_router, tags=["imessage"])
 app.include_router(discord_router, tags=["discord"])
+app.include_router(json_router, tags=["json"])
 app.include_router(queue_router, tags=["queue"])
 
 register_list_routes(app)

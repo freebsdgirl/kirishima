@@ -59,7 +59,8 @@ Response:
     "intent": "mode",
     "metadata": {
         "set": true,
-        "mode": "nsfw"
+        "mode": "nsfw",
+        "response": "Setting the mode to 'nsfw'."
     }
 }
 

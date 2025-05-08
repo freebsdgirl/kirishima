@@ -31,14 +31,21 @@ logger = get_logger(f"chromadb.{__name__}")
 
 from pydantic import ValidationError
 
-from typing import List
+from typing import List, Optional
 
-from fastapi import HTTPException, status, APIRouter, Depends
+from fastapi import HTTPException, status, APIRouter, Depends, Query
 router = APIRouter()
 
 
 @router.get("/memory/semantic", response_model=List[MemoryView], summary="Semantic search memories with optional metadata filters")
-async def memory_semantic_search(request: MemorySearch, collection = Depends(get_collection)) -> List[MemoryView]:
+async def memory_semantic_search(
+    text: str = Query(...),
+    component: Optional[str] = Query(None),
+    mode: Optional[str] = Query(None),
+    priority: Optional[float] = Query(None),
+    limit: Optional[int] = Query(None),
+    collection = Depends(get_collection)
+) -> List[MemoryView]:
     """
     Perform a semantic search on memories with optional metadata filtering.
 
@@ -56,25 +63,15 @@ async def memory_semantic_search(request: MemorySearch, collection = Depends(get
         List[MemoryView]: Matching memory records, sorted and truncated as specified
     """
 
-    logger.debug(f"/memory/semantic GET Request:\n{request.model_dump_json(indent=4)}")
+    logger.debug(f"/memory/semantic GET Request:\n{text=}, {component=}, {mode=}, {priority=}, {limit=}")
 
     filters = []
-    if request.component is not None:
-        filters.append({"component": request.component})
-    if request.mode is not None:
-        filters.append({"mode": request.mode})
-    if request.priority is not None:
-        filters.append({"priority": request.priority})
-
-    # compose the 'where' clause
-    if len(filters) == 0:
-        where = None
-    elif len(filters) == 1:
-        # just one condition, no need for $and
-        where = filters[0]
-    else:
-        # multiple conditions => wrap in $and
-        where = {"$and": filters}
+    if component is not None:
+        filters.append({"component": component})
+    if mode is not None:
+        filters.append({"mode": mode})
+    if priority is not None:
+        filters.append({"priority": priority})
 
     # compose the 'where' clause
     if len(filters) == 0:
@@ -88,7 +85,7 @@ async def memory_semantic_search(request: MemorySearch, collection = Depends(get
 
     # 2) Embed the query text
     try:
-        query_emb = get_embedding(EmbeddingRequest(input=request.text))
+        query_emb = get_embedding(EmbeddingRequest(input=text))
     except Exception as e:
         logger.error(f"Error generating query embedding: {e}")
         raise HTTPException(
@@ -110,7 +107,6 @@ async def memory_semantic_search(request: MemorySearch, collection = Depends(get
                 where=where
             )
 
-    # 3) Run the ChromaDB semantic querypr
     except Exception as e:
         logger.error(f"ChromaDB semantic query failed: {e}")
 
@@ -123,7 +119,7 @@ async def memory_semantic_search(request: MemorySearch, collection = Depends(get
     try:
         ids        = results["ids"]
         docs       = results["documents"]
-        embs       = results["embeddings"]  # <-- add this line
+        embs       = results["embeddings"]
         metadatas  = results["metadatas"]
         distances  = results["distances"]
 
@@ -164,7 +160,7 @@ async def memory_semantic_search(request: MemorySearch, collection = Depends(get
     items.sort(key=sort_key)
 
     # 6) apply limit
-    if request.limit is not None:
-        items = items[:request.limit]
+    if limit is not None:
+        items = items[:limit]
 
     return items

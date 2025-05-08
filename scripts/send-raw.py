@@ -20,6 +20,7 @@ Choose from the list of intents. If nothing applies, respond with "Conversation"
 Include metadata about the intent in the response.
 If the intent is "conversation", include a "summary" in the metadata.
 This summary should be a short, one-sentence summary that will be used to lookup memories.
+Include a response in the metadata if the intent is not "conversation".
 
 
 
@@ -75,7 +76,8 @@ Response:
         "send_email": true,
         "to": "john@doe.com",
         "email": "Hey! Something has come up and I need to take a day off. Thanks for your understanding.",
-        "subject": "Day off request"
+        "subject": "Day off request",
+        "response": "Got it! I will send an email to your boss."
     }
 }
 
@@ -89,7 +91,7 @@ User: What's the current mode?
 Assistant: I think it's set to 'default'.
 User: Can you set it to 'nsfw'?
 Assistant: Sure! Setting the mode to 'nsfw' now.
-User: I'm so tired today. :(
+User: Can you email my boss and tell him I need to take a day off? His email is john@doe.com
 
 
 
@@ -100,6 +102,7 @@ Choose from the list of intents. If nothing applies, respond with "Conversation"
 Include metadata about the intent in the response.
 If the intent is "conversation", include a "summary" in the metadata.
 This summary should be a short, one-sentence summary that will be used to lookup memories.
+Include a response in the metadata if the intent is not "conversation".
 """
 
 prompt = f"""[INST]<<SYS>>{prompt_text}<<SYS>>[/INST]\n """

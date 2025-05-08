@@ -2,8 +2,28 @@ import sys
 import requests
 import json
 import re
+from pydantic import BaseModel, Field
 
-proxy_url = "http://localhost:4205/from/api/completions"
+class RespondJsonRequest(BaseModel):
+    """
+    A Pydantic model representing a JSON request for generating a model response.
+    
+    Attributes:
+        model (str): The name of the model to be used for generating the response.
+        prompt (str): The input text or prompt to be processed by the model.
+        temperature (float): Controls the randomness of the model's output. Higher values increase creativity.
+        max_tokens (int): The maximum number of tokens to generate in the response.
+        format (object): The class of the response, typically a Pydantic model.
+    """
+    model: str                          = Field(..., description="The model to be used for generating the response.")
+    prompt: str                         = Field(..., description="The prompt or input text for the model.")
+    temperature: float                  = Field(..., description="The temperature setting for randomness in the model's output.")
+    max_tokens: int                     = Field(..., description="The maximum number of tokens to generate in the response.")
+    format: object                      = Field(None, description="the class of the response, typically a Pydantic model.")
+
+
+
+proxy_url = "http://localhost:4205/json"
 
 prompt_text = """### TASK
 Determine if it is appropriate to respond to the user or if they are talking to someone else.
@@ -99,44 +119,22 @@ Respond only using JSON.
 
 system_prompt = f"""[INST]<<SYS>>{prompt_text}<<SYS>>[/INST]"""
 
-payload = {
-    "model": "nemo:latest",
-    "prompt": system_prompt,
-    "raw": True,
-    "stream": False,
-    "format": {
-        "type": "object",
-        "properties": {
-            "response": {
-                "type": "boolean"
-            },
-            "target": {
-                "type": "string"
-            },
-            "reason": {
-                "type": "string"
-            },
-            "tone": {
-                "type": "dictionary"
-            },
-            "topic": {
-                "type": "string"
-            }
-        },
-        "required": [
-            "response",
-            "target",
-            "reason",
-            "tone",
-            "topic"
-        ]
-    },
-    "options": {
-        "temperature": 0.3,
-        "stream": False,
-        "max_tokens": 512
-    }
-}
+class ChatResponse(BaseModel):
+    response: bool
+    target: str
+    reason: str
+    tone: dict
+    topic: str
+
+payload = RespondJsonRequest(
+    model="nemo:latest",
+    prompt=system_prompt,
+    temperature=0.3,
+    max_tokens=1024,
+    raw=True,
+    stream=False,
+    format=ChatResponse.model_json_schema()
+)
 
 def clean_json_string(s):
     s = s.strip()
@@ -146,7 +144,7 @@ def clean_json_string(s):
 
 for n in range(5):
     try:
-        response = requests.post(proxy_url, json=payload)
+        response = requests.post(proxy_url, json=payload.model_dump())
         response.raise_for_status()
         data = response.json()
         try:

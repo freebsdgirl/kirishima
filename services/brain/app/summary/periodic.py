@@ -21,7 +21,7 @@ from app.config import SUMMARY_PERIODIC_MAX_TOKENS
 
 from shared.config import TIMEOUT
 
-from shared.models.summary import SummaryCreateRequest, SummaryMetadata, Summary, SummaryRequest
+from shared.models.summary import SummaryCreateRequest, SummaryMetadata, Summary, SummaryRequest, CombinedSummaryRequest
 
 import shared.consul
 
@@ -35,6 +35,9 @@ import httpx
 
 from fastapi import HTTPException, status, APIRouter
 router = APIRouter()
+
+from transformers import AutoTokenizer
+from shared.models.ledger import CanonicalUserMessage
 
 
 @router.post("/summary/create", status_code=status.HTTP_201_CREATED, response_model=List[Summary])
@@ -105,55 +108,91 @@ async def create_summary(request: SummaryCreateRequest) -> List[Summary]:
         # get the alias for the user
         alias = await get_user_alias(user_id)
 
-        logger.debug(f"Creating summary for user {user_id} with alias {alias} and messages: {messages}")
-        payload = SummaryRequest(
-            messages=messages,
-            user_alias=alias,
-            max_tokens=SUMMARY_PERIODIC_MAX_TOKENS
-        )
+        # Chunk messages into 4096-token chunks using AutoTokenizer (gpt2)
+        tokenizer = AutoTokenizer.from_pretrained("gpt2")
+        max_tokens = 4096
+
+        # Ensure all messages are CanonicalUserMessage
+        canon_msgs = [CanonicalUserMessage.model_validate(m) if not isinstance(m, CanonicalUserMessage) else m for m in messages]
+
+        def chunk_messages(messages, max_tokens):
+            chunks = []
+            current_chunk = []
+            current_tokens = 0
+            for msg in messages:
+                content = msg.content
+                tokens = len(tokenizer.encode(content))
+                if current_tokens + tokens > max_tokens and current_chunk:
+                    chunks.append(current_chunk)
+                    current_chunk = []
+                    current_tokens = 0
+                current_chunk.append(msg)
+                current_tokens += tokens
+            if current_chunk:
+                chunks.append(current_chunk)
+            return chunks
+
+        message_chunks = chunk_messages(canon_msgs, max_tokens)
+        summaries = []
+
+        proxy_address, proxy_port = shared.consul.get_service_address('proxy')
+        for chunk in message_chunks:
+            payload = SummaryRequest(
+                messages=chunk,
+                user_alias=alias,
+                max_tokens=SUMMARY_PERIODIC_MAX_TOKENS
+            )
+            try:
+                async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+                    response = await client.post(f"http://{proxy_address}:{proxy_port}/summary/user", json=payload.model_dump())
+                    response.raise_for_status()
+                summary_data = response.json()
+                metadata = SummaryMetadata(
+                    user_id=user_id,
+                    summary_type=request.period,
+                    timestamp_begin=chunk[0].created_at,
+                    timestamp_end=chunk[-1].created_at
+                )
+                summaries.append(Summary(content=summary_data['summary'], metadata=metadata))
+            except Exception as e:
+                logger.error(f"Failed to summarize chunk: {e}")
+                continue
+
+        # If more than 1 Summary is created, combine them
+        if len(summaries) > 1:
+            combined_payload = CombinedSummaryRequest(
+                summaries=summaries,
+                user_alias=alias,
+                max_tokens=SUMMARY_PERIODIC_MAX_TOKENS
+            )
+            try:
+                async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+                    response = await client.post(f"http://{proxy_address}:{proxy_port}/summary/user/combined", json=combined_payload.model_dump())
+                    response.raise_for_status()
+                summary_data = response.json()
+                metadata = SummaryMetadata(
+                    user_id=user_id,
+                    summary_type=request.period,
+                    timestamp_begin=summaries[0].metadata.timestamp_begin,
+                    timestamp_end=summaries[-1].metadata.timestamp_end
+                )
+                final_summary = Summary(content=summary_data['summary'], metadata=metadata)
+            except Exception as e:
+                logger.error(f"Failed to combine summaries: {e}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Failed to combine summaries: {e}"
+                )
+        else:
+            final_summary = summaries[0]
+
+        logger.debug(f"Final summary for user {user_id}: {final_summary}")
 
         try:
-            proxy_address, proxy_port = shared.consul.get_service_address('proxy')
-            async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-                response = await client.post(f"http://{proxy_address}:{proxy_port}/summary/user", json=payload.model_dump())
-                response.raise_for_status()
-
-        except httpx.HTTPStatusError as e:
-            logger.error(f"HTTP error occurred: {e.response.status_code} - {e.response.text}")
-            raise HTTPException(
-                status_code=e.response.status_code,
-                detail=f"Error creating summary: {e.response.text}"
-            )
-        
-        except Exception as e:
-            logger.error(f"An error occurred while creating summary: {e}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to create summary: {e}"
-            )
-        
-        summary = response.json()
-        logger.debug(f"Summary created for user {user_id}: {summary}")
-
-        metadata = SummaryMetadata(
-            user_id=user_id,
-            summary_type=request.period,
-            timestamp_begin=payload.messages[0].created_at,
-            timestamp_end=payload.messages[-1].created_at
-        )
-
-        try:
-            summary = Summary(
-                content=summary['summary'],
-                metadata=metadata
-            )
-            logger.debug(f"Summary object created: {summary}")
-
             chromadb_address, chromadb_port = shared.consul.get_service_address('chromadb')
             async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-                response = await client.post(f"http://{chromadb_address}:{chromadb_port}/summary", json=summary.model_dump())
+                response = await client.post(f"http://{chromadb_address}:{chromadb_port}/summary", json=final_summary.model_dump())
                 response.raise_for_status()
-            
             summaries_created.append(response.json())
 
         except httpx.HTTPStatusError as e:

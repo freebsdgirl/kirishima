@@ -75,8 +75,7 @@ async def create_daily_summary(request: SummaryCreateRequest):
             try:
                 url = f"http://{chromadb_address}:{chromadb_port}/summary?type={summary_type}"
 
-                if summary_type != "night":
-                    url += f"&timestamp_begin={request.date}%2000:00:00&timestamp_end={request.date}%2023:59:59"
+                url += f"&timestamp_begin={request.date}%2000:00:00&timestamp_end={request.date}%2023:59:59"
 
                 async with httpx.AsyncClient(timeout=TIMEOUT) as client:
                     response = await client.get(url)

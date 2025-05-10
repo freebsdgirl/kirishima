@@ -77,7 +77,7 @@ async def create_weekly_summary(request: SummaryCreateRequest):
         )
 
     # convert request.date to a datetime object then check if it's a Monday.
-    if request_date.weekday != 0:
+    if request_date.weekday() != 0:
         logger.error(f"Invalid date specified: {request.date}. Expected a Monday.")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

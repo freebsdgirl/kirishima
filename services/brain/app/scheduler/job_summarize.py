@@ -104,7 +104,7 @@ async def summarize_user_buffer_night():
         summaries = await create_summary(payload)
         if summaries:
             logger.debug(f"Deleting user buffer for night summary for date: {payload.date}")
-            await delete_user_buffer_from_summaries(summaries.json())
+            await delete_user_buffer_from_summaries(summaries)
 
     except Exception as e:
         logger.error(f"Failed to trigger summarize_user_buffer_night(): {e}")
@@ -134,7 +134,7 @@ async def summarize_user_buffer_morning():
         summaries = await create_summary(payload)
         if summaries:
             logger.debug(f"Deleting user buffer for morning summary for date: {payload.date}")
-            await delete_user_buffer_from_summaries(summaries.json())
+            await delete_user_buffer_from_summaries(summaries)
 
     except Exception as e:
         logger.error(f"Failed to trigger summarize_user_buffer_morning(): {e}")
@@ -164,7 +164,7 @@ async def summarize_user_buffer_afternoon():
         summaries = await create_summary(payload)
         if summaries:
             logger.debug(f"Deleting user buffer for afternoon summary for date: {payload.date}")
-            await delete_user_buffer_from_summaries(summaries.json())
+            await delete_user_buffer_from_summaries(summaries)
 
     except Exception as e:
         logger.error(f"Failed to trigger summarize_user_buffer_afternoon(): {e}")
@@ -197,7 +197,7 @@ async def summarize_user_buffer_evening():
         summaries = await create_summary(payload)
         if summaries:
             logger.debug(f"Deleting user buffer for evening summary for date: {payload.date}")
-            await delete_user_buffer_from_summaries(summaries.json())
+            await delete_user_buffer_from_summaries(summaries)
 
     except Exception as e:
         logger.error(f"Failed to trigger summarize_user_buffer_evening(): {e}")

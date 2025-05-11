@@ -41,7 +41,7 @@ router = APIRouter()
 
 @router.post("/json")
 async def respond_with_json(request: RespondJsonRequest) -> ProxyResponse:
-    logger.debug(f"/discord/dm Request: {request}")
+    logger.debug(f"/json Request: {request}")
 
     # Construct the payload for the Ollama API call
     payload = OllamaRequest(

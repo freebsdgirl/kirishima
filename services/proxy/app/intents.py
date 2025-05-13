@@ -1,15 +1,25 @@
 """
+This module defines the FastAPI router and endpoint for intent detection in user conversations.
+
+The `/intents` POST endpoint receives a request containing a conversation history and determines the intent of the user's latest message. It constructs a prompt for an LLM (Ollama) to classify the intent based on predefined categories (mode, memory, anime, email, or conversation) and extract relevant metadata. The endpoint enqueues the request as a blocking task, waits for the LLM's response, and returns a structured ProxyResponse.
+
+Key functionalities:
+- Builds a prompt with instructions and examples for intent classification.
+- Supports multiple intent types with associated metadata extraction.
+- Handles asynchronous task queuing and timeout management.
+- Returns a standardized response with the detected intent and metadata.
+
+Dependencies:
+- FastAPI for API routing and exception handling.
+- Shared models and configuration for request/response schemas and settings.
+- Asynchronous task queue for managing LLM requests.
 """
 
-from shared.config import TIMEOUT, LLM_DEFAULTS
-from shared.models.proxy import RespondJsonRequest, ProxyResponse, ChatMessages, OllamaResponse, OllamaRequest
-from shared.models.prompt import BuildSystemPrompt
+from shared.config import TIMEOUT
+from shared.models.proxy import ProxyResponse, OllamaResponse, OllamaRequest
 
 from shared.log_config import get_logger
 logger = get_logger(f"proxy.{__name__}")
-
-from app.util import build_multiturn_prompt
-from app.prompts.dispatcher import get_system_prompt
 
 from app.queue.router import queue
 from shared.models.queue import ProxyTask

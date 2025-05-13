@@ -1,32 +1,30 @@
 """
-This module provides an API endpoint for handling Discord direct message (DM) proxy requests.
+This module defines a FastAPI router for handling JSON-based proxy requests.
 
-It defines a FastAPI router with a single POST endpoint `/discord/dm` that processes incoming Discord DM requests by:
-1. Constructing a minimal ProxyRequest from the incoming Discord message.
-2. Generating a dynamic system prompt based on the request context.
-3. Building a multi-turn prompt for the language model.
-4. Enqueuing the request as a blocking task in the task queue.
-5. Awaiting and returning the response from the Ollama API.
+Endpoints:
+    - POST /json: Accepts a `RespondJsonRequest` and returns a `ProxyResponse` after processing
+      the request through a task queue and awaiting a response from the Ollama API.
 
-Modules and Classes:
-- Imports shared configuration, models, and logging utilities.
-- Utilizes utility functions for prompt construction and system prompt dispatching.
-- Integrates with a task queue for asynchronous processing.
+Key Components:
+    - Constructs an `OllamaRequest` payload from the incoming request.
+    - Enqueues a blocking `ProxyTask` with a unique task ID and awaits its completion.
+    - Handles timeout scenarios by removing the task from the queue and raising an HTTP 504 error.
+    - Returns a `ProxyResponse` containing the result and relevant metadata.
 
-- HTTPException with status 504 if the task times out.
+Dependencies:
+    - shared.config.TIMEOUT: Timeout duration for task completion.
+    - shared.models.proxy: Data models for request and response handling.
+    - shared.log_config: Logger configuration.
+    - app.queue.router.queue: Task queue for proxy requests.
+    - shared.models.queue.ProxyTask: Task model for queue operations.
 
-- OllamaResponse: The generated response from the language model.
 """
 
-from shared.config import TIMEOUT, LLM_DEFAULTS
-from shared.models.proxy import RespondJsonRequest, ProxyResponse, ChatMessages, OllamaResponse, OllamaRequest
-from shared.models.prompt import BuildSystemPrompt
+from shared.config import TIMEOUT
+from shared.models.proxy import RespondJsonRequest, ProxyResponse, OllamaResponse, OllamaRequest
 
 from shared.log_config import get_logger
 logger = get_logger(f"proxy.{__name__}")
-
-from app.util import build_multiturn_prompt
-from app.prompts.dispatcher import get_system_prompt
 
 from app.queue.router import queue
 from shared.models.queue import ProxyTask

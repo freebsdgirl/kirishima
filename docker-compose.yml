@@ -61,6 +61,8 @@ services:
         gelf-address: "tcp://localhost:12201"
     networks:
       - shared-net
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   chromadb:
     build:

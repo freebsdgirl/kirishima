@@ -476,3 +476,9 @@ class RespondJsonRequest(BaseModel):
             }
         }
     }
+
+class DivoomRequest(BaseModel):
+    model: str
+    temperature: float
+    max_tokens: int
+    messages: List[ChatMessage]

@@ -140,7 +140,7 @@ Include a response in the metadata if the intent is not "conversation".<<SYS>>[/
         max_tokens=request.max_tokens,
         stream=False,
         raw=True,
-        format=request.format
+        format="json"
     )
 
     # Create a blocking ProxyTask

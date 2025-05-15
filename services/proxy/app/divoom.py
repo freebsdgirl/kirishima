@@ -25,6 +25,8 @@ async def respond_with_divoom(request: DivoomRequest) -> ProxyResponse:
 
     prompt = """[INST]<<SYS>>### TASK
 Respond to the conversation as the Assistant. Output a single emoji in response to the conversation.
+Emojis should be used to convey the sentiment or tone of the conversation from the Assistant's perspective.
+Prefer facial expression emojis (e.g. 😊, 😏, 😐, 😬, 😢, 😎) unless the tone is better captured with a symbol.
 
 
 

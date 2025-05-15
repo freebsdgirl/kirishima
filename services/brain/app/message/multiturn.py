@@ -31,6 +31,7 @@ from app.modes import mode_get
 from app.util import get_admin_user_id, sanitize_messages, post_to_service, get_user_alias
 from app.last_seen import update_last_seen
 from app.intents.intents import process_intents
+from app.divoom.update import update_divoom
 
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
@@ -248,6 +249,12 @@ async def outgoing_multiturn_message(message: ProxyMultiTurnRequest) -> ProxyRes
         user_id=user_id,
         platform=platform
     ))
+
+    # update divoom with emoji response
+    try:
+        await update_divoom(user_id)
+    except Exception as e:
+        logger.error(f"Error updating divoom with emoji response: {e}")
 
     logger.debug(f"brain: /api/multiturn Returns:\n{proxy_response.model_dump_json(indent=4)}")
 

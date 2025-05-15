@@ -1,3 +1,21 @@
+"""
+This module defines an API endpoint for updating the Divoom device with an emoji response
+based on a user's message history. It retrieves user messages from the ledger service,
+sanitizes and transforms them, sends them to a language model via a proxy service to
+generate an emoji, and then forwards the emoji to the Divoom device.
+Endpoints:
+    POST /divoom
+        - Accepts a user_id as a query parameter.
+        - Retrieves the user's message history from the ledger service.
+        - Swaps the roles in the messages for processing.
+        - Sanitizes the messages and constructs a DivoomRequest.
+        - Sends the request to the proxy service to generate an emoji response.
+        - Forwards the emoji to the Divoom device.
+        - Returns the proxy response containing the emoji.
+Raises:
+    HTTPException: If messages cannot be retrieved, parsed, or sent to the Divoom device,
+    or if no emoji is found in the response.
+"""
 import shared.consul
 from shared.config import TIMEOUT, LLM_DEFAULTS
 
@@ -5,14 +23,10 @@ from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
 
 import httpx
-import json
 
 from fastapi import APIRouter, HTTPException, status
 
-from shared.models.contacts import Contact
-from shared.models.proxy import ChatMessage, ProxyResponse, DivoomRequest
-from shared.models.intents import IntentRequest
-from shared.models.notification import LastSeen
+from shared.models.proxy import ProxyResponse, DivoomRequest
 
 from app.util import sanitize_messages, post_to_service
 

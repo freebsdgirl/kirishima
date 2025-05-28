@@ -22,14 +22,19 @@ def send_emoji(emoji):
     pixoo.draw_pic(img_path)
 
 app = FastAPI()
+last_sent_emoji = None  # Track the last sent emoji
 
 class EmojiRequest(BaseModel):
     emoji: str
 
 @app.post("/send")
 async def send_emoji_endpoint(request: EmojiRequest):
+    global last_sent_emoji
     try:
+        if request.emoji == last_sent_emoji:
+            return {"status": "skipped", "reason": "emoji already sent", "emoji": request.emoji}
         send_emoji(request.emoji)
+        last_sent_emoji = request.emoji
         return {"status": "success", "emoji": request.emoji}
     except Exception as e:
-        return
+        raise HTTPException(status_code=500, detail=str(e))

@@ -67,9 +67,9 @@ async def update_divoom(user_id: str):
 
     for m in fullmessages:
         if m.get("role") == "user":
-            m["role"] = "assistant"
-        else:
             m["role"] = "user"
+        else:
+            m["role"] = "assistant"
         m["content"] = m.get("content", "")
         messages.append(m)
 

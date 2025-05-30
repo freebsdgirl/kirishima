@@ -429,25 +429,6 @@ class OllamaResponse(BaseModel):
     }
 
 
-class AlignmentRequest(BaseModel):
-    user: str                           = Field(..., description="The message sent by the user.")
-    response: ProxyResponse             = Field(..., description="Response from the model.")
-
-    model_config = {
-        "json_schema_extra": {
-            "example": {
-                "user": "Don't forget your meds",
-                "response": {
-                    "response": "Sure, I will remind you!",
-                    "timestamp": "2025-04-09T04:00:00Z",
-                    "eval_count": 10,
-                    "prompt_eval_count": 5
-                }
-            }
-        }
-    }
-
-
 class RespondJsonRequest(BaseModel):
     """
     A Pydantic model representing a JSON request for generating a model response.
@@ -472,7 +453,7 @@ class RespondJsonRequest(BaseModel):
                 "prompt": "Don't forget your meds",
                 "temperature": 0.7,
                 "max_tokens": 256,
-                "format": AlignmentRequest
+                "format": OllamaResponse
             }
         }
     }

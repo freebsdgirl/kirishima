@@ -15,7 +15,6 @@ Dependencies:
 - fastapi: For API routing and exception handling.
 """
 
-from shared.config import TIMEOUT
 import shared.consul
 
 from shared.models.memory import MemoryEntry
@@ -24,9 +23,15 @@ from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
 
 import httpx
+import json
 
 from fastapi import APIRouter, HTTPException, status, Body
 router = APIRouter()
+
+with open('/app/shared/config.json') as f:
+    _config = json.load(f)
+
+TIMEOUT = _config["timeout"]
 
 
 @router.delete("/memory", response_model=dict, status_code=200)

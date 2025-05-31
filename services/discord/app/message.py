@@ -22,17 +22,21 @@ Dependencies:
 """
 import shared.consul
 
-from shared.config import TIMEOUT
-
 from shared.models.discord import DiscordDirectMessage, SendDMRequest
 
 from shared.log_config import get_logger
 logger = get_logger(f"discord.{__name__}")
 
 import httpx
+import json
 
 from fastapi import HTTPException, status, APIRouter, Request
 router = APIRouter()
+
+with open('/app/shared/config.json') as f:
+    _config = json.load(f)
+
+TIMEOUT = _config["timeout"]
 
 
 @router.post("/dm")

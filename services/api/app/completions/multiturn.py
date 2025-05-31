@@ -23,7 +23,6 @@ from shared.models.proxy import ProxyMultiTurnRequest, ProxyResponse, ChatMessag
 from shared.models.openai import ChatCompletionRequest, OpenAICompletionRequest, ChatCompletionResponse, ChatCompletionChoice, ChatUsage
 
 import shared.consul
-from shared.config import TIMEOUT
 
 from app.completions.singleturn import openai_v1_completions
 
@@ -38,6 +37,12 @@ from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import RedirectResponse
 router = APIRouter()
 
+import json
+
+with open('/app/shared/config.json') as f:
+    _config = json.load(f)
+
+TIMEOUT = _config["timeout"]
 
 @router.post("/chat/completions", response_model=ChatCompletionResponse)
 async def openai_completions(request: ChatCompletionRequest) -> RedirectResponse:

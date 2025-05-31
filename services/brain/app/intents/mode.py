@@ -16,8 +16,6 @@ Dependencies:
 """
 from app.modes import mode_set
 
-from shared.config import TIMEOUT
-
 from shared.models.proxy import ChatMessage
 
 from shared.consul import get_service_address
@@ -26,9 +24,14 @@ from shared.log_config import get_logger
 logger = get_logger(f"intents.{__name__}")
 
 import re
-import httpx
+import json
 
 from fastapi import HTTPException, status
+
+with open('/app/shared/config.json') as f:
+    _config = json.load(f)
+
+TIMEOUT = _config["timeout"]
 
 
 def process_mode(message: ChatMessage) -> ChatMessage:

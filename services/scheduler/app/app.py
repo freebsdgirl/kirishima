@@ -46,8 +46,10 @@ app.include_router(jobs_router, tags=["jobs"])
 
 register_list_routes(app)
 
-import shared.config
-if shared.config.TRACING_ENABLED:
+import json
+with open('/app/shared/config.json') as f:
+    _config = json.load(f)
+if _config['tracing_enabled']:
     from shared.tracing import setup_tracing
     setup_tracing(app, service_name="scheduler")
 

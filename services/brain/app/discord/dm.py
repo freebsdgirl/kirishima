@@ -21,7 +21,6 @@ Dependencies:
 Routes:
 - POST /discord/message/incoming: Main endpoint for handling incoming Discord direct messages.
 """
-from shared.config import TIMEOUT
 
 from shared.models.contacts import Contact
 from shared.models.discord import DiscordDirectMessage
@@ -48,6 +47,11 @@ from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
+
+with open('/app/shared/config.json') as f:
+    _config = json.load(f)
+
+TIMEOUT = _config["timeout"]
 
 
 @router.post("/discord/message/incoming")

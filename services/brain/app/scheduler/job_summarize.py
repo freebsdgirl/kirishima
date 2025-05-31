@@ -18,7 +18,6 @@ Usage:
     These functions are intended to be scheduled as jobs using a scheduler service, with example job requests provided at the end
     of the module.
 """
-from shared.config import TIMEOUT
 
 from app.summary.periodic import create_summary
 from app.summary.daily import create_daily_summary
@@ -34,8 +33,14 @@ from typing import List
 from datetime import datetime, timedelta
 import shared.consul
 import httpx
+import json
 
 from fastapi import HTTPException, status
+
+with open('/app/shared/config.json') as f:
+    _config = json.load(f)
+
+TIMEOUT = _config["timeout"]
 
 
 async def delete_user_buffer_from_summaries(request: List[Summary]):

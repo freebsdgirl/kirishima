@@ -9,8 +9,6 @@ Functions:
 
 from app.config import SUMMARY_MONTHLY_MAX_TOKENS
 
-from shared.config import TIMEOUT
-
 from shared.models.summary import SummaryCreateRequest, SummaryMetadata, Summary, CombinedSummaryRequest
 
 import shared.consul
@@ -23,9 +21,15 @@ from app.util import get_user_alias
 import httpx
 from datetime import datetime
 from calendar import monthrange
+import json
 
 from fastapi import HTTPException, status, APIRouter
 router = APIRouter()
+
+with open('/app/shared/config.json') as f:
+    _config = json.load(f)
+
+TIMEOUT = _config["timeout"]
 
 
 @router.post("/summary/combined/monthly", status_code=status.HTTP_201_CREATED)

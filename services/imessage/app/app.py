@@ -18,8 +18,6 @@ Environment Variables:
     BLUEBUBBLES_PASSWORD: Password for authenticating with BlueBubbles (default: 'bluebubbles').
 """
 
-from shared.config import TIMEOUT
-
 from shared.models.imessage import iMessage, OutgoingiMessage
 
 import shared.consul
@@ -33,6 +31,7 @@ logger = get_logger(__name__)
 from pydantic import BaseModel
 import requests
 import httpx
+import json
 from datetime import datetime
 
 import os
@@ -43,6 +42,12 @@ bluebubbles_password = os.getenv('BLUEBUBBLES_PASSWORD', 'bluebubbles')
 from shared.models.middleware import CacheRequestBodyMiddleware
 from fastapi import FastAPI, HTTPException, Request, status
 
+with open('/app/shared/config.json') as f:
+    _config = json.load(f)
+
+TIMEOUT = _config["timeout"]
+
+
 app = FastAPI()
 app.add_middleware(CacheRequestBodyMiddleware)
 
@@ -51,8 +56,10 @@ app.include_router(docs_router, tags=["docs"])
 
 register_list_routes(app)
 
-import shared.config
-if shared.config.TRACING_ENABLED:
+import json
+with open('/app/shared/config.json') as f:
+    _config = json.load(f)
+if _config['tracing_enabled']:
     from shared.tracing import setup_tracing
     setup_tracing(app, service_name="imessage")
 

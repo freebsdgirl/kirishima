@@ -40,7 +40,6 @@ from app.summary.daily import router as daily_summary_router
 from app.summary.weekly import router as weekly_summary_router
 from app.summary.monthly import router as monthly_summary_router
 
-from app.models import router as models_router
 from app.embedding import router as embedding_router
 from app.discord.dm import router as discord_dm_router
 from app.imessage import router as imessage_router
@@ -81,7 +80,6 @@ app.include_router(memory_post_router, tags=["memory"])
 app.include_router(message_multiturn_router, tags=["message"])
 app.include_router(message_singleturn_router, tags=["message"])
 
-app.include_router(models_router, tags=["models"])
 app.include_router(embedding_router, tags=["embedding"])
 app.include_router(discord_dm_router, tags=["discord"])
 app.include_router(imessage_router, tags=["imessage"])
@@ -98,7 +96,9 @@ app.include_router(periodic_summary_router, tags=["summary"])
 
 register_list_routes(app)
 
-import shared.config
-if shared.config.TRACING_ENABLED:
+import json
+with open('/app/shared/config.json') as f:
+    _config = json.load(f)
+if _config['tracing_enabled']:
     from shared.tracing import setup_tracing
     setup_tracing(app, service_name="brain")

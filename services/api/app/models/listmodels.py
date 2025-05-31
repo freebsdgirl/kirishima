@@ -1,40 +1,17 @@
 """
-This module defines an API endpoint for listing models in an OpenAI-style format.
-
-Modules and Imports:
-- `app.config`: Application-specific configuration.
-- `shared.models.models`: Contains the `OllamaModelList` and `OpenAIModelList` models.
-- `shared.log_config`: Provides a logger for logging messages.
-- `httpx`: Used for making asynchronous HTTP requests.
-- `fastapi`: Provides the `APIRouter`, `HTTPException`, and `status` utilities for API routing and error handling.
-
-Endpoint:
-- `/v1/models`: A GET endpoint that lists available models in an OpenAI-style format.
-
-1. Makes an HTTP GET request to the brain service at `http://brain:4207/models`.
-2. Parses the response as an `OllamaModelList` JSON object.
-3. Converts each `OllamaModel` into an `OpenAIModel` using a defined conversion method.
-4. Returns an `OpenAIModelList` containing the converted models.
-
-Error Handling:
-- Raises an `HTTPException` with a 500 status code if:
-    - The HTTP request to the brain service fails.
-    - The response from the brain service cannot be parsed.
-
-Logging:
-- Logs debug messages for incoming requests.
-- Logs errors for failed HTTP requests or response parsing issues.
+This module defines API endpoints for listing available language models in an OpenAI-compatible format.
+Endpoints:
+    - GET /models: Redirects legacy clients to the versioned '/v1/models' endpoint.
+    - GET /v1/models: Returns a list of available models based on the configuration in 'config.json'.
+The '/v1/models' endpoint reads model modes from the configuration file, constructs a list of models with their IDs,
+creation timestamps, and ownership information, and returns them in a format compatible with OpenAI's API.
+Logging is used to record errors and debug information related to the model listing process.
 """
 
-from shared.models.models import OllamaModelList, OpenAIModelList
-
-from shared.consul import get_service_address
-from shared.config import TIMEOUT
+from shared.models.models import OpenAIModelList
 
 from shared.log_config import get_logger
 logger = get_logger(f"api.{__name__}")
-
-import httpx
 
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import RedirectResponse
@@ -61,45 +38,31 @@ async def openai_completions() -> RedirectResponse:
 @router.get("/v1/models", response_model=OpenAIModelList)
 async def list_models():
     """
-    List available models from the brain service in OpenAI-compatible format.
-
-    Fetches models from the brain service, converts Ollama model format to OpenAI model format,
-    and returns a list of available models.
-
+    List available models based on modes in config.json, using mode names as model ids.
     Returns:
         OpenAIModelList: A list of models in OpenAI-compatible format.
-
-    Raises:
-        HTTPException: If there are errors fetching or parsing models from the brain service.
     """
-    logger.debug(f"/models Request.")
-
-    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-        try:
-            brain_address, brain_port = get_service_address('brain')
-
-            response = await client.get(f"http://{brain_address}:{brain_port}/models")
-            response.raise_for_status()
-
-        except Exception as e:
-            logger.error(f"Error fetching models from brain: {e}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error fetching models from brain: {e}")
-
+    import json
+    from datetime import datetime
+    
     try:
-        ollama_models = OllamaModelList.model_validate_json(response.text)
-
+        with open('/app/shared/config.json', 'r') as f:
+            config = json.load(f)
     except Exception as e:
-        logger.error(f"Failed to parse Ollama models: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-            detail=f"Failed to parse Ollama models: {e}")
+        logger.error(f"Could not read config.json: {e}")
+        raise HTTPException(status_code=500, detail=f"Could not read config.json: {e}")
 
-    # Convert each OllamaModel to an OpenAIModel
-    openai_models = [model.to_openai_model() for model in ollama_models.data]
-    openai_model_list = OpenAIModelList(data=openai_models)
-
+    modes = config.get('llm', {}).get('mode', {})
+    now = int(datetime.now().timestamp())
+    models = []
+    for mode, details in modes.items():
+        provider = details.get('provider', 'openai')
+        owned_by = "Randi-Lee-Harper" if provider == "ollama" else "OpenAI"
+        models.append({
+            "id": mode,
+            "created": now,
+            "owned_by": owned_by
+        })
+    openai_model_list = OpenAIModelList(data=models)
     logger.debug(f"/models Returns:\n{openai_model_list.model_dump_json(indent=4)}")
-
     return openai_model_list

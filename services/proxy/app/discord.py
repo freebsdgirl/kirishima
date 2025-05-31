@@ -18,7 +18,6 @@ Modules and Classes:
 - OllamaResponse: The generated response from the language model.
 """
 
-from shared.config import TIMEOUT, LLM_DEFAULTS
 from shared.models.proxy import ProxyDiscordDMRequest, ProxyResponse, ChatMessages, OllamaResponse, OllamaRequest
 from shared.models.prompt import BuildSystemPrompt
 
@@ -34,10 +33,16 @@ from shared.models.queue import ProxyTask
 import uuid
 import asyncio
 from datetime import datetime
+import json
 
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
 
+with open('/app/shared/config.json') as f:
+    _config = json.load(f)
+
+TIMEOUT = _config["timeout"]
+LLM_DEFAULTS = _config["llm"]["mode"]["discord"]
 
 @router.post("/discord/dm")
 async def discord_dm(request: ProxyDiscordDMRequest) -> ProxyResponse:
@@ -81,9 +86,9 @@ async def discord_dm(request: ProxyDiscordDMRequest) -> ProxyResponse:
     payload = OllamaRequest(
         model=LLM_DEFAULTS['model'],
         prompt=full_prompt,
-        temperature=LLM_DEFAULTS['temperature'],
-        max_tokens=LLM_DEFAULTS['max_tokens'],
-        stream=False,
+        temperature=LLM_DEFAULTS['options']['temperature'],
+        max_tokens=LLM_DEFAULTS['options']['max_tokens'],
+        stream=LLM_DEFAULTS['options']['stream'],
         raw=True
     )
 

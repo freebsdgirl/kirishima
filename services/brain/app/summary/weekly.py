@@ -18,8 +18,6 @@ Dependencies:
 
 from app.config import SUMMARY_WEEKLY_MAX_TOKENS
 
-from shared.config import TIMEOUT
-
 from shared.models.summary import SummaryCreateRequest, SummaryMetadata, Summary, CombinedSummaryRequest
 
 import shared.consul
@@ -31,9 +29,15 @@ from app.util import get_user_alias
 
 import httpx
 from datetime import datetime, timedelta
+import json
 
 from fastapi import HTTPException, status, APIRouter
 router = APIRouter()
+
+with open('/app/shared/config.json') as f:
+    _config = json.load(f)
+
+TIMEOUT = _config["timeout"]
 
 
 @router.post("/summary/combined/weekly", status_code=status.HTTP_201_CREATED)

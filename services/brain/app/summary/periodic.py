@@ -19,8 +19,6 @@ Endpoint:
 
 from app.config import SUMMARY_PERIODIC_MAX_TOKENS
 
-from shared.config import TIMEOUT
-
 from shared.models.summary import SummaryCreateRequest, SummaryMetadata, Summary, SummaryRequest, CombinedSummaryRequest
 
 import shared.consul
@@ -32,12 +30,18 @@ from app.util import get_user_alias
 
 from typing import List
 import httpx
+import json
 
 from fastapi import HTTPException, status, APIRouter
 router = APIRouter()
 
 from transformers import AutoTokenizer
 from shared.models.ledger import CanonicalUserMessage
+
+with open('/app/shared/config.json') as f:
+    _config = json.load(f)
+
+TIMEOUT = _config["timeout"]
 
 
 @router.post("/summary/create", status_code=status.HTTP_201_CREATED, response_model=List[Summary])

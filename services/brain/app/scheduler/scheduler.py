@@ -20,7 +20,6 @@ Dependencies:
     - shared.config: Configuration for TIMEOUT
     - app.scheduler.job_summarize: Function to summarize user buffers
 """
-from shared.config import TIMEOUT
 import shared.consul
 
 from shared.models.scheduler import SchedulerJobRequest, SchedulerCallbackRequest
@@ -30,9 +29,16 @@ logger = get_logger(f"brain.{__name__}")
 
 import httpx
 import inspect
+import json
 
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
+
+with open('/app/shared/config.json') as f:
+    _config = json.load(f)
+
+TIMEOUT = _config["timeout"]
+
 
 # global functions to be called by scheduler
 from app.scheduler.job_summarize import (

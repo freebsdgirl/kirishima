@@ -61,62 +61,6 @@ class OpenAIModel(ModelInfoBase):
     }
 
 
-class OllamaModel(ModelInfoBase):
-    """
-    Represents an Ollama model.
-    
-    Attributes:
-        name (str): The model name.
-        modified_at (str): Last modified time (ISO 8601 formatted).
-        parameter_size (int): Size of the model (number of parameters).
-        quantization_level (str): The quantization level of the model.
-        context_length (Optional[int]): The model's context length.
-    """
-    name: str                           = Field(..., description="Name of the model")
-    modified_at: str                    = Field(..., description="Last modified time of the model")
-    parameter_size: str                 = Field(..., description="Size of the model in parameters")
-    quantization_level: str             = Field(..., description="Quantization level of the model")
-    context_length: Optional[int]       = Field(None, description="Context length of the model")
-
-
-    def to_openai_model(self) -> OpenAIModel:
-        """
-        Converts this OllamaModel into an OpenAIModel.
-        
-        For the OpenAI model, we assign:
-          - id from self.name
-          - created from parsing the modified_at value (if possible)
-          - owned_by a default value.
-        
-        Returns:
-            OpenAIModel: A converted model object.
-        """
-        try:
-            # Try to parse modified_at (which is an ISO8601 string) into a UNIX timestamp.
-            dt = datetime.fromisoformat(self.modified_at)
-            created = int(dt.timestamp())
-        except Exception:
-            # If parsing fails, fall back to current time.
-            created = int(datetime.now().timestamp())
-        return OpenAIModel(
-            id=self.name,
-            created=created,
-            owned_by="Randi-Lee-Harper"
-        )
-    
-    model_config = {
-        "json_schema_extra": {
-            "example": {
-                "name": "llama-2",
-                "modified_at": "2023-10-01T12:00:00Z",
-                "parameter_size": 7000000000,
-                "quantization_level": "q4_0",
-                "context_length": 2048
-            }
-        }
-    }
-
-
 class OpenAIModelList(BaseModel):
     data: List[OpenAIModel]             = Field(..., description="List of OpenAI models")
 
@@ -128,26 +72,6 @@ class OpenAIModelList(BaseModel):
                         "id": "gpt-3.5-turbo",
                         "created": 1672531199,
                         "owned_by": "Randi-Lee-Harper"
-                    }
-                ]
-            }
-        }
-    }
-
-
-class OllamaModelList(BaseModel):
-    data: List[OllamaModel]             = Field(..., description="List of Ollama models")
-
-    model_config = {
-        "json_schema_extra": {
-            "example": {
-                "data": [
-                    {
-                        "name": "llama-2",
-                        "modified_at": "2023-10-01T12:00:00Z",
-                        "parameter_size": 7000000000,
-                        "quantization_level": "q4_0",
-                        "context_length": 2048
                     }
                 ]
             }

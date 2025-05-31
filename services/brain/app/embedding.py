@@ -17,8 +17,6 @@ Modules and dependencies:
     HTTPException: For invalid input, service unavailability, or processing errors.
 """
 
-from shared.config import TIMEOUT
-
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
 
@@ -26,9 +24,15 @@ from shared.models.embedding import EmbeddingRequest
 
 import httpx
 import shared.consul
+import json
 
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
+
+with open('/app/shared/config.json') as f:
+    _config = json.load(f)
+
+TIMEOUT = _config["timeout"]
 
 
 @router.post("/embedding", response_model=list)

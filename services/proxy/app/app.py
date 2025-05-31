@@ -18,7 +18,6 @@ Dependencies:
 - Shared configurations and tracing utilities are imported from the `shared` module.
 """
 
-from app.api.models import router as models_router
 from app.api.singleturn import router as singleturn_router
 from app.api.multiturn import router as multiturn_router
 
@@ -56,7 +55,6 @@ app.add_middleware(CacheRequestBodyMiddleware)
 
 app.include_router(routes_router, tags=["system"])
 app.include_router(docs_router, tags=["docs"])
-app.include_router(models_router, tags=["api", "models"])
 app.include_router(singleturn_router, tags=["api"])
 app.include_router(multiturn_router, tags=["api"])
 app.include_router(summary_router, tags=["summary"])
@@ -68,7 +66,9 @@ app.include_router(divoom_router, tags=["divoom"])
 
 register_list_routes(app)
 
-import shared.config
-if shared.config.TRACING_ENABLED:
+import json
+with open('/app/shared/config.json') as f:
+    _config = json.load(f)
+if _config['tracing_enabled']:
     from shared.tracing import setup_tracing
     setup_tracing(app, service_name="proxy")

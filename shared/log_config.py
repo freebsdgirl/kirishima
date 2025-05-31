@@ -17,8 +17,13 @@ Functions:
 
 import logging
 from pygelf import GelfUdpHandler, GelfTcpHandler
-import shared.config
 import os
+import json
+
+with open('/app/shared/config.json') as f:
+    _config = json.load(f)
+GRAYLOG = _config["graylog"]
+
 
 def get_logger(service_name: str) -> logging.Logger:
     """
@@ -40,7 +45,7 @@ def get_logger(service_name: str) -> logging.Logger:
 
     logger = logging.getLogger(service_name)
     logger.setLevel(logging.DEBUG)
-    udp_handler = GelfUdpHandler(host=shared.config.GREYLOG_HOST, port=shared.config.GREYLOG_PORT, _app_name=service_name_env, debug=True)
+    udp_handler = GelfUdpHandler(host=GRAYLOG["host"], port=GRAYLOG['port'], _app_name=service_name_env, debug=True)
 
     logger.addHandler(udp_handler)
 

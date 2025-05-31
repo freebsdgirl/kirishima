@@ -1,27 +1,21 @@
 """
-This module defines API endpoints for retrieving and redirecting model information in OpenAI-compatible format.
+This module defines FastAPI endpoints for retrieving and redirecting OpenAI model information.
+
 Endpoints:
-    - GET /models/{model_id}: Redirects to the v1 models endpoint for compatibility with OpenAI API clients.
-    - GET /v1/models/{model_id}: Fetches a model from the brain service, validates and transforms it into an OpenAIModel.
-Dependencies:
-    - shared.models.models: Contains model schemas for OpenAIModel and OllamaModel.
-    - shared.consul: Provides service discovery utilities.
-    - shared.config: Contains configuration constants such as TIMEOUT.
-    - shared.log_config: Provides logging utilities.
-    - httpx: Used for asynchronous HTTP requests.
-    - fastapi: Web framework for building API endpoints.
-    - HTTPException: If there is an error fetching or parsing model data from the brain service.
+    - GET /models/{model_id}: Redirects to the v1 models endpoint for compatibility.
+    - GET /v1/models/{model_id}: Returns model information for the specified mode from config.json.
+
+The endpoints utilize a shared OpenAIModel schema and log configuration. Model details are loaded
+from a shared configuration file, and appropriate HTTP exceptions are raised for errors.
 """
 
-from shared.models.models import OpenAIModel, OllamaModel
-
-from shared.consul import get_service_address
-from shared.config import TIMEOUT
+from shared.models.models import OpenAIModel
 
 from shared.log_config import get_logger
 logger = get_logger(f"api.{__name__}")
 
-import httpx
+import json
+from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import RedirectResponse
@@ -51,43 +45,30 @@ async def openai_completions(model_id: str) -> RedirectResponse:
 @router.get("/v1/models/{model_id}", response_model=OpenAIModel)
 async def get_model(model_id: str):
     """
-    Retrieve a specific model by its ID and convert it from Ollama to OpenAI format.
-
-    Fetches a model from the brain service using the provided model ID, validates the returned
-    model data, and transforms it into an OpenAI-compatible model representation.
+    Return model info for the requested mode (e.g., nsfw, default, summarize) from config.json.
 
     Args:
-        model_id (str): The unique identifier of the model to retrieve.
+        model_id (str): The mode to look up (e.g., 'nsfw', 'default', 'summarize').
 
     Returns:
-        OpenAIModel: The model details in OpenAI format.
+        OpenAIModel: The model info for the requested mode.
 
     Raises:
         HTTPException: If there's an error fetching or parsing the model data.
     """
-
-    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-        try:
-            brain_address, brain_port = get_service_address('brain')
-            response = await client.get(f"http://{brain_address}:{brain_port}/model/{model_id}")
-            response.raise_for_status()
-
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error fetching model from brain: {e}"
-            )
-    
     try:
-        ollama_model = OllamaModel.model_validate_json(response.text)
-
+        with open('/app/shared/config.json', 'r') as f:
+            config = json.load(f)
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to parse the returned model data: {e}"
-        )
+        raise HTTPException(status_code=500, detail=f"Could not read config.json: {e}")
 
-    # Convert the OllamaModel to an OpenAIModel
-    openai_model = ollama_model.to_openai_model()
+    modes = config.get('llm', {}).get('mode', {})
+    details = modes.get(model_id)
+    if not details:
+        raise HTTPException(status_code=404, detail=f"Mode '{model_id}' not found in config.json")
 
-    return openai_model
+    now = int(datetime.now().timestamp())
+    model_name = details.get('model', model_id)
+    provider = details.get('provider', 'openai')
+    owned_by = "Randi-Lee-Harper" if provider == "ollama" else "OpenAI"
+    return OpenAIModel(id=model_name, created=now, owned_by=owned_by)

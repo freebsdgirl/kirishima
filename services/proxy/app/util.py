@@ -30,8 +30,6 @@ Exceptions:
 """
 import app.config
 
-from shared.config import TIMEOUT
-
 from shared.models.memory import MemoryEntryFull
 from shared.models.proxy import ChatMessages
 
@@ -40,6 +38,11 @@ logger = get_logger(f"proxy.{__name__}")
 
 import httpx
 from typing import List
+import json
+
+with open('/app/shared/config.json') as f:
+    _config = json.load(f)
+TIMEOUT = _config["timeout"]
 
 
 async def send_prompt_to_llm(prompt: str) -> dict:

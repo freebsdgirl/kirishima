@@ -6,7 +6,6 @@ This module provides asynchronous helper functions to:
 - Retrieve user contact information from the contacts service (`_get_contact`)
 All services are discovered via Consul and accessed using HTTP requests. Errors are logged and appropriate exceptions are raised for HTTP and general failures.
 """
-from shared.config import TIMEOUT
 
 from shared.models.contacts import Contact
 from shared.models.imessage import OutgoingiMessage
@@ -18,9 +17,15 @@ from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
 
 import httpx
+import json
 
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
+
+with open('/app/shared/config.json') as f:
+    _config = json.load(f)
+
+TIMEOUT = _config["timeout"]
 
 
 async def _send_discord_dm(user_id: str, message: str):

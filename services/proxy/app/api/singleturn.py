@@ -5,8 +5,6 @@ payload, enqueues the request as a blocking ProxyTask, and returns the generated
 Includes error handling for timeouts and logs incoming requests for debugging purposes.
 """
 
-from shared.config import TIMEOUT
-
 from shared.models.proxy import ProxyOneShotRequest, ProxyResponse, OllamaRequest, OllamaResponse
 
 from shared.log_config import get_logger
@@ -18,9 +16,16 @@ from shared.models.queue import ProxyTask
 import uuid
 import asyncio
 from datetime import datetime
+import json
 
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
+
+with open('/app/shared/config.json') as f:
+    _config = json.load(f)
+
+TIMEOUT = _config["timeout"]
+
 
 @router.post("/api/singleturn", response_model=ProxyResponse)
 async def from_api_completions(message: ProxyOneShotRequest) -> ProxyResponse:

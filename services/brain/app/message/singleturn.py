@@ -15,11 +15,9 @@ Modules and Libraries:
 Functions:
 - `incoming_singleturn_message`: Handles POST requests to the `/api/singleturn` endpoint.
 """
-from shared.config import TIMEOUT
 import shared.consul
 
 from shared.models.proxy import ProxyOneShotRequest, ProxyResponse
-
 
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
@@ -29,6 +27,11 @@ import json
 
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
+
+with open('/app/shared/config.json') as f:
+    _config = json.load(f)
+
+TIMEOUT = _config["timeout"]
 
 
 @router.post("/api/singleturn", response_model=ProxyResponse)

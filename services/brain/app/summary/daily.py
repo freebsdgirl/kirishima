@@ -18,8 +18,6 @@ Endpoint:
 
 from app.config import SUMMARY_DAILY_MAX_TOKENS
 
-from shared.config import TIMEOUT
-
 from shared.models.summary import SummaryCreateRequest, SummaryMetadata, Summary, CombinedSummaryRequest
 
 import shared.consul
@@ -30,9 +28,15 @@ logger = get_logger(f"brain.{__name__}")
 from app.util import get_user_alias
 
 import httpx
+import json
 
 from fastapi import HTTPException, status, APIRouter
 router = APIRouter()
+
+with open('/app/shared/config.json') as f:
+    _config = json.load(f)
+
+TIMEOUT = _config["timeout"]
 
 
 @router.post("/summary/combined/daily", status_code=status.HTTP_201_CREATED)

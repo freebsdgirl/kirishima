@@ -13,7 +13,6 @@ Dependencies:
     - fastapi: For API routing and exception handling.
     HTTPException: For errors in service communication, embedding generation, or memory storage.
 """
-from shared.config import TIMEOUT
 
 import shared.consul
 
@@ -23,9 +22,15 @@ from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
 
 import httpx
+import json
 
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
+
+with open('/app/shared/config.json') as f:
+    _config = json.load(f)
+
+TIMEOUT = _config["timeout"]
 
 
 @router.post("/memory", response_model=MemoryEntryFull)

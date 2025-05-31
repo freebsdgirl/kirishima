@@ -1,5 +1,4 @@
 import shared.consul
-from shared.config import TIMEOUT
 
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
@@ -25,6 +24,11 @@ from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
+
+with open('/app/shared/config.json') as f:
+    _config = json.load(f)
+
+TIMEOUT = _config["timeout"]
 
 
 @router.post("/imessage/incoming")

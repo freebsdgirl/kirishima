@@ -17,7 +17,6 @@ Routes:
         processing. Handles intents detection, retrieves the current mode, 
         queries memory, sanitizes messages, and processes the proxy response.
 """
-from shared.config import TIMEOUT
 import shared.consul
 
 from shared.models.proxy import ProxyMultiTurnRequest, ProxyResponse, ChatMessage
@@ -41,6 +40,11 @@ import httpx
 
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
+
+with open('/app/shared/config.json') as f:
+    _config = json.load(f)
+
+TIMEOUT = _config["timeout"]
 
 
 @router.post("/api/multiturn", response_model=ProxyResponse)

@@ -18,7 +18,6 @@ Functions:
     - from_api_multiturn(request: ProxyMultiTurnRequest) -> ProxyResponse:
         Handles multi-turn API requests by generating prompts for language models.
 """
-from shared.config import TIMEOUT
 from shared.models.proxy import ChatMessages, ProxyMultiTurnRequest, ProxyResponse, OllamaRequest, OllamaResponse
 from shared.models.prompt import BuildSystemPrompt
 
@@ -43,6 +42,11 @@ ts_with_offset = datetime.now(local_tz).isoformat(timespec="seconds")
 
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
+
+with open('/app/shared/config.json') as f:
+    _config = json.load(f)
+
+TIMEOUT = _config["timeout"]
 
 
 @router.post("/api/multiturn", response_model=ProxyResponse)

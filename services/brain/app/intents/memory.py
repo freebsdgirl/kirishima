@@ -21,8 +21,6 @@ from app.memory.post import create_memory
 from app.memory.delete import delete_memory
 from app.modes import mode_get
 
-from shared.config import TIMEOUT
-
 from shared.models.proxy import ChatMessage
 from shared.models.memory import MemoryEntry
 
@@ -32,9 +30,14 @@ from shared.log_config import get_logger
 logger = get_logger(f"intents.{__name__}")
 
 import re
-import httpx
+import json
 
 from fastapi import HTTPException, status
+
+with open('/app/shared/config.json') as f:
+    _config = json.load(f)
+
+TIMEOUT = _config["timeout"]
 
 
 async def process_memory(message: ChatMessage, component: str) -> ChatMessage:

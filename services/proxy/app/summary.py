@@ -6,15 +6,18 @@ from shared.models.proxy import OllamaRequest, OllamaResponse
 from shared.log_config import get_logger
 logger = get_logger(f"proxy.{__name__}")
 
-from shared.config import TIMEOUT
-
 from app.queue.router import queue
 from shared.models.queue import ProxyTask
 import uuid
 import asyncio
+import json
 
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
+
+with open('/app/shared/config.json') as f:
+    _config = json.load(f)
+TIMEOUT = _config["timeout"]
 
 
 @router.post("/summary/user", status_code=status.HTTP_201_CREATED)
@@ -87,24 +90,34 @@ async def summary_user(request: SummaryRequest):
     return {"summary": result.response}
 
 
+from datetime import datetime
+
+def format_timestamp(ts: str) -> str:
+    dt = datetime.fromisoformat(ts.replace("Z", ""))  # handle 'Z' if it's present
+    return dt.strftime("%A, %B %d")
+
+
 @router.post("/summary/user/combined", status_code=status.HTTP_201_CREATED)
 async def summary_user_combined(request: CombinedSummaryRequest):
     logger.debug(f"Received combined summary request: {request}")
 
-    prompt = f"""[INST]<<SYS>>### Task: Using the given list of exising summaries, combine them into a single summary in a clear and concise manner.
+    prompt = f"""[INST]<<SYS>>### Task: Using the provided daily summaries, generate a weekly summary that reflects how events unfolded over time.
 
-### Summaries
+### Daily Summaries
 """
-    
     for summary in request.summaries:
-        prompt += f"[{summary.metadata.summary_type.value}] {summary.content}\n"
+        date_str = format_timestamp(summary.metadata.timestamp_begin)
+        prompt += f"[{summary.metadata.summary_type.upper()} – {date_str}] {summary.content}\n"
 
-    prompt += """
+    prompt += f"""
 
 ### Instructions
-- Focus on the key facts, decisions, or shifts in topic and tone that occurred.
-- If the conversation involved high emotion (e.g., distress, anger), and the topic moved on, reflect that shift with neutral phrasing.
-- The summary should be a single paragraph of no more than {request.max_tokens} tokens.<</SYS>>[/INST] """
+- Organize the summary chronologically. Use time indicators like “On Monday…”, "The third week…", “Later that week…”, “By Friday the 22nd…” when appropriate.
+- Emphasize key actions, decisions, emotional shifts, and recurring themes.
+- Maintain a coherent narrative flow, but don’t compress multiple days into a single moment.
+- The tone should be reflective and concise, not clinical or overly detailed.
+- Output a single paragraph not exceeding {request.max_tokens} tokens.
+<</SYS>>[/INST] """
 
     payload = OllamaRequest(
         prompt=prompt

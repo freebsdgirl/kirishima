@@ -17,20 +17,30 @@ Raises:
     or if no emoji is found in the response.
 """
 import shared.consul
-from shared.config import TIMEOUT, LLM_DEFAULTS
 
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
-
-import httpx
-
-from fastapi import APIRouter, HTTPException, status
 
 from shared.models.proxy import ProxyResponse, DivoomRequest
 
 from app.util import sanitize_messages, post_to_service
 
+import httpx
+
+from fastapi import APIRouter, HTTPException, status
+
+
+import json
+
 router = APIRouter()
+
+with open('/app/shared/config.json') as f:
+    _config = json.load(f)
+
+TIMEOUT = _config["timeout"]
+LLM_DEFAULTS = _config["llm"]["mode"]["divoom"]
+
+
 @router.post("/divoom", response_model=ProxyResponse)
 async def update_divoom(user_id: str):
     logger.debug(f"/divoom Request: {user_id}")
@@ -79,9 +89,9 @@ async def update_divoom(user_id: str):
     # Start constructing our ProxyiMessageRequest
     proxy_request = DivoomRequest(
         messages=messages,
-        model = LLM_DEFAULTS['model'],
-        temperature=LLM_DEFAULTS['temperature'],
-        max_tokens=LLM_DEFAULTS['max_tokens'],
+        model = LLM_DEFAULTS["model"],
+        temperature=LLM_DEFAULTS["options"]["temperature"],
+        max_tokens=LLM_DEFAULTS["options"]["max_completion_tokens"]
     )
 
     # send to LLM via imessage endpoint in proxy service

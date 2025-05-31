@@ -15,7 +15,6 @@ Modules:
     - httpx: Used for making asynchronous HTTP requests.
     - fastapi: Provides the APIRouter and HTTPException utilities for building API routes.
 """
-from shared.config import TIMEOUT
 
 import shared.consul
 
@@ -25,9 +24,16 @@ logger = get_logger(f"brain.{__name__}")
 from shared.models.memory import MemorySearch, MemoryEntryFull, MemoryListQuery, SemanticSearchQuery
 
 import httpx
+import json
+
 from fastapi import APIRouter, HTTPException, status, Depends
 
 router = APIRouter()
+
+with open('/app/shared/config.json') as f:
+    _config = json.load(f)
+
+TIMEOUT = _config["timeout"]
 
 
 @router.get("/memory", response_model=list[MemoryEntryFull])

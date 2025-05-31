@@ -15,8 +15,6 @@ Functions:
 
 """
 
-from shared.config import TIMEOUT
-
 import shared.consul
 
 from shared.models.contacts import Contact
@@ -26,8 +24,14 @@ logger = get_logger(f"brain.{__name__}")
 
 import httpx
 import re
+import json
 
 from fastapi import HTTPException, status
+
+with open('/app/shared/config.json') as f:
+    _config = json.load(f)
+
+TIMEOUT = _config["timeout"]
 
 
 async def get_admin_user_id() -> str:

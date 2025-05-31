@@ -13,8 +13,6 @@ Key Features:
     - Uses tiktoken for accurate prompt token counting.
 """
 
-from shared.config import TIMEOUT
-
 from shared.models.proxy import ProxyResponse, ProxyOneShotRequest
 from shared.models.openai import OpenAICompletionRequest, OpenAICompletionResponse, OpenAICompletionChoice, OpenAIUsage
 
@@ -34,6 +32,11 @@ import tiktoken
 from fastapi import APIRouter, HTTPException, status, Request
 from fastapi.responses import RedirectResponse
 router = APIRouter()
+
+with open('/app/shared/config.json') as f:
+    _config = json.load(f)
+
+TIMEOUT = _config["timeout"]
 
 
 @router.post("/completions", response_model=OpenAICompletionResponse)

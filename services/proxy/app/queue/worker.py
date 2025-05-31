@@ -9,8 +9,6 @@ Functions:
         and non-blocking tasks, and managing task results or callbacks accordingly.
 """
 import app.config
-
-from shared.config import TIMEOUT
 from shared.models.proxy import OllamaRequest, OllamaResponse
 from shared.models.queue import ProxyTaskQueue, ProxyTask
 
@@ -21,6 +19,11 @@ import httpx
 import json
 
 from fastapi import HTTPException, status
+
+with open('/app/shared/config.json') as f:
+    _config = json.load(f)
+
+TIMEOUT = _config["timeout"]
 
 
 async def send_to_ollama(request: OllamaRequest) -> OllamaResponse:

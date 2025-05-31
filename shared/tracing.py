@@ -3,9 +3,13 @@ from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
+import json
 
+with open('/app/shared/config.json') as f:
+    _config = json.load(f)
+OTLP_API_KEY = _config['otlp']['api_key']
+OTLP_URL = _config['otlp']['url']
 
-from shared.config import OTLP_API_KEY, OTLP_URL
 
 def setup_tracing(app, service_name: str):
     from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter

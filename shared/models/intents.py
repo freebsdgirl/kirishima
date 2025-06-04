@@ -10,8 +10,7 @@ Classes:
 """
 
 from pydantic import BaseModel, Field
-from typing import Optional, List
-from shared.models.proxy import ChatMessage
+from typing import Optional, List, Dict
 
 class IntentRequest(BaseModel):
     """
@@ -23,7 +22,7 @@ class IntentRequest(BaseModel):
         memory (Optional[bool]): A flag indicating whether to use memory functions. Defaults to False.
         component (Optional[str]): A string representing the component name. Defaults to None.
     """
-    message: List[ChatMessage]         = Field(..., description="List of messages in the conversation history.")
+    message: List[Dict[str, str]]      = Field(..., description="List of messages in the conversation history.")
     mode: Optional[bool]                = Field(False, description="Flag to check for a mode function.")
     memory: Optional[bool]              = Field(False, description="Flag to indicate whether to use memory functions.")
     component: str                      = Field(None, description="Component name.")

@@ -9,8 +9,6 @@ Classes:
         Represents a proxy request with message, user identification, context, and optional 
         mode and memories.
     ProxyOneShotRequest:
-    ChatMessage:
-    ChatMessages:
     ProxyMultiTurnRequest:
     ProxyResponse:
     ProxyDiscordDMRequest:
@@ -143,104 +141,42 @@ class ProxyOneShotRequest(BaseModel):
     }
 
 
-class ChatMessage(BaseModel):
-    """
-    Represents a message in a proxy conversation with a defined role and content.
-    
-    Attributes:
-        role (str): The role of the message sender, such as 'user' or 'assistant'.
-        content (str): The textual content of the message.
-    """
-    role: Literal["user", "assistant", "system"]    = Field(..., description="The role of the message sender (e.g., 'user', 'assistant').")
-    content: str                                    = Field(..., description="The content of the message.")
-
-    model_config = {
-        "json_schema_extra": {
-            "example": {
-                "role": "user",
-                "content": "Don't forget your meds"
-            }
-        }
-    }
-
-
-class ChatMessages(BaseModel):
-    """
-    Represents a collection of chat messages for a multi-turn conversation.
-    
-    Attributes:
-        messages (List[ChatMessage]): A list of chat messages representing the conversation history.
-    """
-    messages: List[ChatMessage]                     = Field(..., description="List of messages for multi-turn conversation.")
-
-    model_config = {
-        "json_schema_extra": {
-            "example": {
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": "Don't forget your meds"
-                    },
-                    {
-                        "role": "assistant",
-                        "content": "Sure, I will remind you!"
-                    }
-                ]
-            }
-        }
-    }
-
-
-class ProxyMultiTurnRequest(BaseModel):
+class MultiTurnRequest(BaseModel):
     """
     Represents a request for a multi-turn proxy interaction with a language model.
-    
     Attributes:
-        model (str): The name of the model to be used for generating the response. Defaults to 'nemo'.
-        messages (List[ChatMessage]): A list of messages representing the conversation history.
-        temperature (float): Controls the randomness of the model's output. Defaults to 0.7.
-        max_tokens (int): The maximum number of tokens to generate in the response. Defaults to 256.
+        model (str): The name of the model to be used for generating the response.
+        provider (Optional[str]): The provider for the model (e.g., 'openai', 'ollama').
+        messages (List[Dict[str, str]]): A list of messages representing the conversation history.
+        options (Optional[Dict[str, Any]]): Provider-specific options (temperature, max_tokens, etc.).
         memories (Optional[List[MemoryEntryFull]]): A list of memory entries associated with the conversation.
         summaries (Optional[str]): A list of user summaries associated with the conversation.
-        mode (Optional[str]): An optional mode specification for the request.
         platform (Optional[str]): The platform from which the request originates.
         username (Optional[str]): The username of the person making the request.
     """
-    model: Optional[str]                        = Field(LLM_DEFAULTS['model'], description="The model to be used for generating the response.")
-    messages: List[ChatMessage]                 = Field(..., description="List of messages for multi-turn conversation.")
-    temperature: Optional[float]                = Field(LLM_DEFAULTS['temperature'], description="The temperature setting for randomness in the model's output.")
-    max_tokens: Optional[int]                   = Field(LLM_DEFAULTS['max_tokens'], description="The maximum number of tokens to generate in the response.")
-    memories: Optional[List[MemoryEntryFull]]   = Field(None, description="List of memory entries associated with the conversation.")
-    summaries: Optional[str]                    = Field(None, description="List of user summaries associated with the conversation.")
-    mode: Optional[str]                         = Field(None, description="An optional mode specification for the request.")
-    platform: Optional[str]                     = Field(None, description="The platform from which the request originates.")
-    username: Optional[str]                     = Field(None, description="The username of the person making the request.")
+    model: str                                 = Field(..., description="The model to be used for generating the response.")
+    provider: Optional[str]                    = Field(None, description="The provider for the model (e.g., 'openai', 'ollama').")
+    messages: List[Dict[str, str]]             = Field(..., description="List of messages for multi-turn conversation.")
+    options: Optional[Dict[str, Any]]          = Field(None, description="Provider-specific options (temperature, max_tokens, etc.)")
+    memories: Optional[List[MemoryEntryFull]]  = Field(None, description="List of memory entries associated with the conversation.")
+    summaries: Optional[str]                   = Field(None, description="List of user summaries associated with the conversation.")
+    platform: Optional[str]                    = Field(None, description="The platform from which the request originates.")
+    username: Optional[str]                    = Field(None, description="The username of the person making the request.")
 
     model_config = {
         "json_schema_extra": {
             "example": {
-                "model": "nemo",
+                "model": "gpt-4.1",
+                "provider": "openai",
                 "messages": [
-                    {
-                        "role": "user",
-                        "content": "Don't forget your meds"
-                    },
-                    {
-                        "role": "assistant",
-                        "content": "Sure, I will remind you!"
-                    }
+                    {"role": "user", "content": "Don't forget your meds"},
+                    {"role": "assistant", "content": "Sure, I will remind you!"}
                 ],
-                "temperature": 0.7,
-                "max_tokens": 256,
-                "memories": [
-                    {
-                        "memory": "Reminder to take meds",
-                        "component": "proxy",
-                        "priority": 1.0,
-                        "mode": "default"
-                    }
-                ],
-                "summaries": None
+                "options": {"temperature": 0.7, "max_tokens": 256},
+                "memories": None,
+                "summaries": None,
+                "platform": "api",
+                "username": "randi"
             }
         }
     }
@@ -255,11 +191,15 @@ class ProxyResponse(BaseModel):
         timestamp (str): The ISO 8601 formatted timestamp of when the response was generated.
         eval_count (int): The number of tokens used in the response.
         prompt_eval_count (int): The number of tokens used in the prompt.
+        tool_calls (Optional[list]): List of tool calls returned by the model, if any.
+        function_call (Optional[dict]): Function call object returned by the model, if any.
     """
     response: str                       = Field(..., description="The generated text response from the model.")
     timestamp: str                      = Field(..., description="ISO 8601 formatted timestamp of when the response was generated.")
     eval_count: int                     = Field(None, description="The number of tokens used in the response.")
     prompt_eval_count: int              = Field(None, description="The number of tokens used in the prompt.")
+    tool_calls: Optional[list]          = Field(None, description="List of tool calls returned by the model, if any.")
+    function_call: Optional[dict]       = Field(None, description="Function call object returned by the model, if any.")
 
     model_config = {
         "json_schema_extra": {
@@ -267,7 +207,9 @@ class ProxyResponse(BaseModel):
                 "response": "Don't forget your meds",
                 "timestamp": "2025-04-09T04:00:00Z",
                 "eval_count": 10,
-                "prompt_eval_count": 5
+                "prompt_eval_count": 5,
+                "tool_calls": None,
+                "function_call": None
             }
         }
     }
@@ -283,7 +225,7 @@ class ProxyDiscordDMRequest(BaseModel):
     
     Attributes:
         message (DiscordDirectMessage): The incoming Discord direct message.
-        messages (List[ChatMessage]): Conversation history for multi-turn interactions.
+        messages (List[Dict[str, str]]): Conversation history for multi-turn interactions.
         contact (Contact): User contact information.
         is_admin (Optional[bool]): Indicates if the user is an admin (defaults to False).
         mode (Optional[str]): Specifies the interaction mode (defaults to 'guest').
@@ -291,7 +233,7 @@ class ProxyDiscordDMRequest(BaseModel):
         summaries (Optional[str]): Optional summary of the conversation.
     """
     message: DiscordDirectMessage               = Field(..., description="The incoming message associated with the proxy request.")
-    messages: List[ChatMessage]                 = Field(..., description="List of messages for multi-turn conversation.")
+    messages: List[Dict[str, str]]                 = Field(..., description="List of messages for multi-turn conversation.")
     contact: Contact                            = Field(..., description="The contact information associated with the user.")
     is_admin: Optional[bool]                    = Field(False, description="Indicates if the user is an admin.")
     mode: Optional[str]                         = Field("guest", description="An optional mode specification for the request.")
@@ -350,80 +292,59 @@ class OllamaRequest(BaseModel):
     Represents a request to the Ollama API for generating text responses.
     
     Attributes:
-        model Optional[str]: The name of the model to be used for generating the response.
+        model (str): The name of the model to be used for generating the response.
         prompt (str): The input text or prompt to be processed by the model.
-        temperature (Optional[float]): Controls the randomness of the model's output.
-        max_tokens (Optional[int]): The maximum number of tokens to generate in the response.
+        options (Optional[Dict[str, Any]]): Provider-specific options (temperature, max_tokens, etc.).
         stream (Optional[bool]): Indicates whether to stream the response.
         raw (Optional[bool]): Indicates whether to return the raw response.
         format (Optional[object]): The class of the response, typically a Pydantic model.
     """
-    model: Optional[str]                = Field(LLM_DEFAULTS['model'], description="The name of the model to be used for generating the response.")
-    prompt: str                         = Field(..., description="The input text or prompt to be processed by the model.")
-    temperature: Optional[float]        = Field(LLM_DEFAULTS['temperature'], description="Controls the randomness of the model's output.")
-    max_tokens: Optional[int]           = Field(LLM_DEFAULTS['max_tokens'], description="The maximum number of tokens to generate in the response.")
-    stream: Optional[bool]              = Field(False, description="Indicates whether to stream the response.")
-    raw: Optional[bool]                 = Field(True, description="Indicates whether to return the raw response.")
-    format: Optional[object]            = Field(None, description="The class of the response, typically a Pydantic model.")
+    model: str                                 = Field(..., description="The name of the model to be used for generating the response.")
+    prompt: str                                = Field(..., description="The input text or prompt to be processed by the model.")
+    options: Optional[Dict[str, Any]]          = Field(None, description="Provider-specific options (temperature, max_tokens, etc.)")
+    stream: Optional[bool]                     = Field(False, description="Indicates whether to stream the response.")
+    raw: Optional[bool]                        = Field(True, description="Indicates whether to return the raw response.")
+    format: Optional[object]                   = Field(None, description="The class of the response, typically a Pydantic model.")
 
     model_config = {
         "json_schema_extra": {
             "example": {
                 "model": "nemo",
                 "prompt": "Don't forget your meds",
-                "temperature": 0.7,
-                "max_tokens": 256,
+                "options": {"temperature": 0.7, "max_tokens": 256},
                 "stream": False,
                 "raw": True,
-                "format": ProxyDiscordDMRequest
+                "format": "ProxyDiscordDMRequest"
             }
         }
     }
 
 
-class OllamaResponse(BaseModel):
+class OpenAIRequest(BaseModel):
     """
-    Represents the response from the Ollama API.
+    Represents a request to the OpenAI API for generating text responses.
     
     Attributes:
-        model (str): The name of the model used for generating the response.
-        created_at (str): The timestamp when the response was created.
-        response (str): The generated text response from the model.
-        done (bool): Indicates whether the response generation is complete.
-        done_reason (str): The reason for completion of the response generation.
-        total_duration (int): Total duration of the request in nanoseconds.
-        load_duration (int): Duration of loading the model in nanoseconds.
-        prompt_eval_count (int): Number of times the prompt was evaluated.
-        prompt_eval_duration (int): Duration of prompt evaluation in nanoseconds.
-        eval_count (int): Number of evaluations performed by the model.
-        eval_duration (int): Duration of evaluations in nanoseconds.
+        model (str): The name of the model to be used for generating the response.
+        messages (List[Dict[str, str]]): List of messages for multi-turn conversation.
+        options (Optional[Dict[str, Any]]): Provider-specific options (temperature, max_tokens, etc.).
+        stream (Optional[bool]): Indicates whether to stream the response.
     """
-    model: str                          = Field(..., description="The name of the model used for generating the response.")
-    created_at: str                     = Field(..., description="The timestamp when the response was created.")
-    response: str                       = Field(..., description="The generated text response from the model.")
-    done: bool                          = Field(..., description="Indicates whether the response generation is complete.")
-    done_reason: str                    = Field(..., description="The reason for completion of the response generation.")
-    total_duration: int                 = Field(..., description="Total duration of the request in nanoseconds.")
-    load_duration: int                  = Field(..., description="Duration of loading the model in nanoseconds.")
-    prompt_eval_count: int              = Field(..., description="Number of times the prompt was evaluated.")
-    prompt_eval_duration: int           = Field(..., description="Duration of prompt evaluation in nanoseconds.")
-    eval_count: int                     = Field(..., description="Number of evaluations performed by the model.")
-    eval_duration: int                  = Field(..., description="Duration of evaluations in nanoseconds.")
+    model: str                                  = Field(..., description="The name of the model to be used for generating the response.")
+    messages: List[Dict[str, str]]              = Field(..., description="List of messages for multi-turn conversation.")
+    options: Optional[Dict[str, Any]]           = Field(None, description="Provider-specific options (temperature, max_tokens, etc.)")
+    stream: Optional[bool]                      = Field(False, description="Indicates whether to stream the response.")
 
     model_config = {
         "json_schema_extra": {
             "example": {
-                "model": "nemo",
-                "created_at": "2025-04-09T04:00:00Z",
-                "response": "Don't forget your meds",
-                "done": True,
-                "done_reason": "completed",
-                "total_duration": 1000000,
-                "load_duration": 500000,
-                "prompt_eval_count": 1,
-                "prompt_eval_duration": 200000,
-                "eval_count": 1,
-                "eval_duration": 300000
+                "model": "gpt-4.1",
+                "messages": [
+                    {"role": "user", "content": "Don't forget your meds"},
+                    {"role": "assistant", "content": "Sure, I will remind you!"}
+                ],
+                "options": {"temperature": 0.7, "max_tokens": 256},
+                "stream": False
             }
         }
     }
@@ -453,7 +374,7 @@ class RespondJsonRequest(BaseModel):
                 "prompt": "Don't forget your meds",
                 "temperature": 0.7,
                 "max_tokens": 256,
-                "format": OllamaResponse
+                "format": OllamaRequest
             }
         }
     }
@@ -462,4 +383,52 @@ class DivoomRequest(BaseModel):
     model: str
     temperature: float
     max_tokens: int
-    messages: List[ChatMessage]
+    messages: List[Dict[str, str]]
+
+class OllamaResponse(BaseModel):
+    """
+    Represents a response from the Ollama API.
+    """
+    response: str = Field(..., description="The generated text response from the model.")
+    eval_count: Optional[int] = Field(None, description="The number of tokens used in the response.")
+    prompt_eval_count: Optional[int] = Field(None, description="The number of tokens used in the prompt.")
+    # Add any other fields as needed from Ollama's API
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "response": "Don't forget your meds",
+                "eval_count": 10,
+                "prompt_eval_count": 5
+            }
+        }
+    }
+
+
+class OpenAIResponse(BaseModel):
+    """
+    Represents a response from the OpenAI API, including support for tool/function call responses.
+    """
+    response: str = Field(..., description="The generated text response from the model.")
+    eval_count: Optional[int] = Field(None, description="The number of tokens used in the response.")
+    prompt_eval_count: Optional[int] = Field(None, description="The number of tokens used in the prompt.")
+    tool_calls: Optional[list] = Field(None, description="List of tool calls returned by the model, if any.")
+    function_call: Optional[dict] = Field(None, description="Function call object returned by the model, if any.")
+    # Add any other fields as needed from OpenAI's API
+
+    @classmethod
+    def from_api(cls, api_response: dict) -> "OpenAIResponse":
+        # Parse OpenAI API response (chat/completions)
+        choices = api_response.get("choices", [])
+        message = choices[0]["message"] if choices else {}
+        content = message.get("content", "")
+        tool_calls = message.get("tool_calls")
+        function_call = message.get("function_call")
+        usage = api_response.get("usage", {})
+        return cls(
+            response=content.strip() if content else "",
+            eval_count=usage.get("completion_tokens"),
+            prompt_eval_count=usage.get("prompt_tokens"),
+            tool_calls=tool_calls,
+            function_call=function_call
+        )

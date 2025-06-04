@@ -18,17 +18,17 @@ Modules and Classes:
 - OllamaResponse: The generated response from the language model.
 """
 
-from shared.models.proxy import ProxyResponse, ChatMessages, OllamaResponse, OllamaRequest
+from shared.models.proxy import ProxyResponse, OllamaRequest
 from shared.models.prompt import BuildSystemPrompt
-from shared.models.imessage import ProxyiMessageRequest, iMessage
+from shared.models.imessage import ProxyiMessageRequest
 
 from shared.log_config import get_logger
 logger = get_logger(f"proxy.{__name__}")
 
-from app.util import build_multiturn_prompt
+from app.util import build_multiturn_prompt, resolve_model_provider_options
 from app.prompts.dispatcher import get_system_prompt
 
-from app.queue.router import queue
+from app.queue.router import ollama_queue, openai_queue
 from shared.models.queue import ProxyTask
 
 import uuid
@@ -58,21 +58,39 @@ async def imessage(request: ProxyiMessageRequest) -> ProxyResponse:
             summaries=request.summaries,
             username=request.contact.aliases[0] if request.contact.aliases else None,
             timestamp=datetime.now().isoformat(timespec="seconds")
-        )
+        ),
+        provider=provider,
+        mode=request.mode or 'default'
     )
 
     # build the full instruct‑style prompt
-    full_prompt = build_multiturn_prompt(ChatMessages(messages=request.messages), system_prompt)
+    full_prompt = build_multiturn_prompt(request.messages, system_prompt)
 
-    # Construct the payload for the Ollama API call
-    payload = OllamaRequest(
-        model=LLM_DEFAULTS['model'],
-        prompt=full_prompt,
-        temperature=LLM_DEFAULTS['options']['temperature'],
-        max_tokens=LLM_DEFAULTS['options']['max_tokens'],
-        stream=LLM_DEFAULTS['options']['stream'],
-        raw=True
-    )
+    # Resolve provider/model/options from model name (default to 'default' mode)
+    provider, model, options = resolve_model_provider_options(getattr(request, 'model', None) or 'default')
+    logger.debug(f"Resolved provider/model/options: {provider}, {model}, {options}")
+
+    # Branch on provider and construct provider-specific request
+    if provider == "ollama":
+        payload = OllamaRequest(
+            model=model,
+            prompt=full_prompt,
+            temperature=options.get('temperature'),
+            max_tokens=options.get('max_tokens'),
+            stream=options.get('stream', False),
+            raw=True
+        )
+        queue_to_use = ollama_queue
+    elif provider == "openai":
+        from shared.models.proxy import OpenAIRequest  # Local import to avoid circular
+        payload = OpenAIRequest(
+            model=model,
+            messages=request.messages,
+            options=options
+        )
+        queue_to_use = openai_queue
+    else:
+        raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}")
 
     # Create a blocking ProxyTask
     task_id = str(uuid.uuid4())
@@ -85,26 +103,26 @@ async def imessage(request: ProxyiMessageRequest) -> ProxyResponse:
         future=future,
         callback=None
     )
-    await queue.enqueue(task)
+    await queue_to_use.enqueue(task)
 
     try:
-        result: OllamaResponse = await asyncio.wait_for(future, timeout=TIMEOUT)
-
+        result = await asyncio.wait_for(future, timeout=TIMEOUT)
     except asyncio.TimeoutError:
-        queue.remove_task(task_id)
+        queue_to_use.remove_task(task_id)
         raise HTTPException(
             status_code=status.HTTP_504_GATEWAY_TIMEOUT,
             detail="Task timed out"
         )
 
-    # result is an OllamaResponse
     proxy_response = ProxyResponse(
-        response=result.response,
-        eval_count=result.eval_count,
-        prompt_eval_count=result.prompt_eval_count,
+        response=getattr(result, 'response', None),
+        eval_count=getattr(result, 'eval_count', None),
+        prompt_eval_count=getattr(result, 'prompt_eval_count', None),
+        tool_calls=getattr(result, 'tool_calls', None),
+        function_call=getattr(result, 'function_call', None),
         timestamp=datetime.now().isoformat()
     )
 
-    queue.remove_task(task_id)
+    queue_to_use.remove_task(task_id)
 
     return proxy_response

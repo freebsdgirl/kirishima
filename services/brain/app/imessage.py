@@ -8,7 +8,7 @@ import json
 
 from shared.models.contacts import Contact
 from shared.models.imessage import iMessage, ProxyiMessageRequest
-from shared.models.proxy import ChatMessage, ProxyResponse
+from shared.models.proxy import ProxyResponse
 from shared.models.intents import IntentRequest
 from shared.models.memory import MemoryListQuery
 from shared.models.summary import Summary
@@ -82,7 +82,7 @@ async def imessage_incoming(message: iMessage):
             logger.exception("Error retrieving service address for contacts:", e)
 
 
-    messages=[ChatMessage(role="user", content=message.content)]
+    messages = [{"role": "user", "content": message.content}]
 
     user_id = contact_data.json().get("id")
     is_admin = (await get_admin_user_id()) == user_id
@@ -102,7 +102,7 @@ async def imessage_incoming(message: iMessage):
 
         response = await process_intents(intentreq)
         try:
-            returned_messages = [ m.model_dump() for m in response ]
+            returned_messages = [m for m in response]
             # Only update messages if the response was successful and valid
             if isinstance(returned_messages, list) and returned_messages:
                 messages = returned_messages
@@ -137,14 +137,13 @@ async def imessage_incoming(message: iMessage):
     # sync with ledger
     try:
         platform_msg_id = message.id
-        messages = [m if isinstance(m, ChatMessage) else ChatMessage(**m) for m in messages]
         sync_snapshot = [
             {
                 "user_id": user_id,
                 "platform": 'imessage',
                 "platform_msg_id": str(platform_msg_id),
-                "role": m.role,
-                "content": m.content
+                "role": m["role"],
+                "content": m["content"]
             }
             for m in messages
         ]
@@ -158,7 +157,7 @@ async def imessage_incoming(message: iMessage):
 
         # Convert ledger buffer to ProxyMessage list
         ledger_buffer = ledger_response.json()
-        messages = [ChatMessage(role=msg["role"], content=msg["content"]).model_dump() for msg in ledger_buffer]
+        messages = [{"role": msg["role"], "content": msg["content"]} for msg in ledger_buffer]
 
     except Exception as e:
         logger.error(f"Error sending messages to ledger sync endpoint: {e}")
@@ -220,7 +219,7 @@ async def imessage_incoming(message: iMessage):
     # Start constructing our ProxyiMessageRequest
     proxy_request = ProxyiMessageRequest(
         message=message,
-        messages=messages or [ChatMessage(role="user", content=message.content)],
+        messages=messages or [{"role": "user", "content": message.content}],
         contact=Contact(**contact_data.json()),
         is_admin=is_admin,
         mode=mode or 'guest',
@@ -257,13 +256,13 @@ async def imessage_incoming(message: iMessage):
             mode=True,
             component="proxy",
             memory=True,
-            message=[ChatMessage(role="assistant", content=response_content)]
+            message=[{"role": "assistant", "content": response_content}]
         )
 
         response = await process_intents(intentreq)
 
         try:
-            returned_messages = [ m.model_dump() for m in response ]
+            returned_messages = [m for m in response]
 
         except Exception as e:
             logger.debug(f"Error decoding JSON from intents service response (final): {e}")

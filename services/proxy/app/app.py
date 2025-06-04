@@ -28,7 +28,7 @@ from app.json import router as json_router
 from app.divoom import router as divoom_router
 
 from app.queue.router import router as queue_router
-from app.queue.router import queue
+from app.queue.router import ollama_queue, openai_queue
 from app.queue.worker import queue_worker_main
 
 from shared.docs_exporter import router as docs_router
@@ -42,11 +42,18 @@ from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    worker_task = asyncio.create_task(queue_worker_main(queue))
+    # Start a worker for each provider-specific queue
+    ollama_worker = asyncio.create_task(queue_worker_main(ollama_queue))
+    openai_worker = asyncio.create_task(queue_worker_main(openai_queue))
     yield
-    worker_task.cancel()
+    ollama_worker.cancel()
+    openai_worker.cancel()
     try:
-        await worker_task
+        await ollama_worker
+    except asyncio.CancelledError:
+        pass
+    try:
+        await openai_worker
     except asyncio.CancelledError:
         pass
 

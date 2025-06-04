@@ -1,12 +1,10 @@
-import httpx
-
 from shared.models.summary import CombinedSummaryRequest, SummaryRequest
-from shared.models.proxy import OllamaRequest, OllamaResponse
 
 from shared.log_config import get_logger
 logger = get_logger(f"proxy.{__name__}")
 
-from app.queue.router import queue
+from app.util import resolve_model_provider_options
+from app.queue.router import ollama_queue, openai_queue
 from shared.models.queue import ProxyTask
 import uuid
 import asyncio
@@ -22,9 +20,6 @@ TIMEOUT = _config["timeout"]
 
 @router.post("/summary/user", status_code=status.HTTP_201_CREATED)
 async def summary_user(request: SummaryRequest):
-    """
-    Summarize the user's messages.
-    """
     logger.debug(f"Received summary request: {request}")
 
     user_label = request.user_alias or "Randi"
@@ -58,9 +53,31 @@ async def summary_user(request: SummaryRequest):
 
 <</SYS>>[/INST]"""
 
-    payload = OllamaRequest(
-        prompt=prompt
-    )
+    # Use summarize mode for provider/model/options
+    provider, model, options = resolve_model_provider_options('summarize')
+    logger.debug(f"Resolved provider/model/options: {provider}, {model}, {options}")
+
+    if provider == "ollama":
+        from shared.models.proxy import OllamaRequest
+        payload = OllamaRequest(
+            model=model,
+            prompt=prompt,
+            temperature=options.get('temperature'),
+            max_tokens=options.get('max_tokens'),
+            stream=options.get('stream', False),
+            raw=True
+        )
+        queue_to_use = ollama_queue
+    elif provider == "openai":
+        from shared.models.proxy import OpenAIRequest
+        payload = OpenAIRequest(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            options=options
+        )
+        queue_to_use = openai_queue
+    else:
+        raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}")
 
     # Create a blocking ProxyTask
     task_id = str(uuid.uuid4())
@@ -73,21 +90,21 @@ async def summary_user(request: SummaryRequest):
         future=future,
         callback=None
     )
-    await queue.enqueue(task)
+    await queue_to_use.enqueue(task)
 
     try:
-        result: OllamaResponse = await asyncio.wait_for(future, timeout=TIMEOUT)
-
+        result = await asyncio.wait_for(future, timeout=TIMEOUT)
     except asyncio.TimeoutError:
-        queue.remove_task(task_id)
+        queue_to_use.remove_task(task_id)
         raise HTTPException(
             status_code=status.HTTP_504_GATEWAY_TIMEOUT,
             detail="Task timed out"
         )
 
-    queue.remove_task(task_id)
-    
-    return {"summary": result.response}
+    queue_to_use.remove_task(task_id)
+    return {"summary": getattr(result, 'response', None),
+            "tool_calls": getattr(result, 'tool_calls', None),
+            "function_call": getattr(result, 'function_call', None)}
 
 
 from datetime import datetime
@@ -119,9 +136,31 @@ async def summary_user_combined(request: CombinedSummaryRequest):
 - Output a single paragraph not exceeding {request.max_tokens} tokens.
 <</SYS>>[/INST] """
 
-    payload = OllamaRequest(
-        prompt=prompt
-    )
+    # Use summarize mode for provider/model/options
+    provider, model, options = resolve_model_provider_options('summarize')
+    logger.debug(f"Resolved provider/model/options: {provider}, {model}, {options}")
+
+    if provider == "ollama":
+        from shared.models.proxy import OllamaRequest
+        payload = OllamaRequest(
+            model=model,
+            prompt=prompt,
+            temperature=options.get('temperature'),
+            max_tokens=options.get('max_tokens'),
+            stream=options.get('stream', False),
+            raw=True
+        )
+        queue_to_use = ollama_queue
+    elif provider == "openai":
+        from shared.models.proxy import OpenAIRequest
+        payload = OpenAIRequest(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            options=options
+        )
+        queue_to_use = openai_queue
+    else:
+        raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}")
 
     # Create a blocking ProxyTask
     task_id = str(uuid.uuid4())
@@ -134,18 +173,18 @@ async def summary_user_combined(request: CombinedSummaryRequest):
         future=future,
         callback=None
     )
-    await queue.enqueue(task)
+    await queue_to_use.enqueue(task)
 
     try:
-        result: OllamaResponse = await asyncio.wait_for(future, timeout=TIMEOUT)
-
+        result = await asyncio.wait_for(future, timeout=TIMEOUT)
     except asyncio.TimeoutError:
-        queue.remove_task(task_id)
+        queue_to_use.remove_task(task_id)
         raise HTTPException(
             status_code=status.HTTP_504_GATEWAY_TIMEOUT,
             detail="Task timed out"
         )
 
-    queue.remove_task(task_id)
-    
-    return {"summary": result.response}
+    queue_to_use.remove_task(task_id)
+    return {"summary": getattr(result, 'response', None),
+            "tool_calls": getattr(result, 'tool_calls', None),
+            "function_call": getattr(result, 'function_call', None)}

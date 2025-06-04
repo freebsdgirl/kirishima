@@ -7,32 +7,52 @@ Functions:
     get_system_prompt(request): Returns a system prompt string generated for the specified request mode.
 """
 
-from app.prompts.guest import build_prompt as guest_prompt
-from app.prompts.nsfw import build_prompt as nsfw_prompt
-from app.prompts.work import build_prompt as work_prompt
-from app.prompts.default import build_prompt as default_prompt
+import importlib
+
+# Registry of available prompt builders: (provider, mode) -> module_name
+PROMPT_REGISTRY = {
+    ("openai", "default"): "app.prompts.openai-default",
+    ("ollama", "default"): "app.prompts.ollama-default",
+    ("ollama", "nsfw"): "app.prompts.ollama-nsfw",
+    ("openai", "work"): "app.prompts.work",
+    ("ollama", "work"): "app.prompts.work",
+    ("openai", "guest"): "app.prompts.guest",
+    ("ollama", "guest"): "app.prompts.guest",
+    # Add more as needed
+}
+
+# Fallbacks
+FALLBACKS = [
+    ("{provider}", "default"),
+    (None, "default"),
+]
 
 
-def get_system_prompt(request):
+def get_system_prompt(request, provider=None, mode=None):
     """
-    Determine and generate the appropriate system prompt based on the request mode.
-    
-    Selects a system prompt generation function based on the mode attribute of the request.
-    Supports 'nsfw', 'work', 'default', and fallback 'guest' modes.
-    
+    Select and generate the appropriate system prompt based on provider and mode.
     Args:
-        request: The request object containing the mode attribute.
-    
+        request: The request object (should have .mode, etc).
+        provider: Provider string (e.g., 'openai', 'ollama').
+        mode: Mode string (e.g., 'default', 'nsfw').
     Returns:
-        str: The generated system prompt corresponding to the specified mode.
+        str: The generated system prompt.
     """
-    
-    mode = getattr(request, "mode", None) or "guest"
-    if mode == "nsfw":
-        return nsfw_prompt(request)
-    elif mode == "work":
-        return work_prompt(request)
-    elif mode == "default":
-        return default_prompt(request)
-    else:
-        return guest_prompt(request)
+    # Allow explicit override, else infer from request
+    provider = provider or getattr(request, "provider", None)
+    mode = mode or getattr(request, "mode", None) or "default"
+
+    # Try (provider, mode) first
+    key = (provider, mode)
+    module_name = PROMPT_REGISTRY.get(key)
+    if not module_name:
+        # Try fallbacks
+        for prov, mod in FALLBACKS:
+            k = ((provider if prov == "{provider}" else prov), mod)
+            module_name = PROMPT_REGISTRY.get(k)
+            if module_name:
+                break
+    if not module_name:
+        raise Exception(f"No prompt template found for provider={provider}, mode={mode}")
+    module = importlib.import_module(module_name)
+    return module.build_prompt(request)

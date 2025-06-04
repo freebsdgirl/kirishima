@@ -19,8 +19,8 @@ Dependencies:
     - Shared models and configuration for request/response validation and service discovery.
 """
 
-from shared.models.proxy import ProxyMultiTurnRequest, ProxyResponse, ChatMessage
-from shared.models.openai import ChatCompletionRequest, OpenAICompletionRequest, ChatCompletionResponse, ChatCompletionChoice, ChatUsage
+from shared.models.proxy import MultiTurnRequest, ProxyResponse
+from shared.models.api import ChatCompletionRequest, ChatCompletionResponse, ChatCompletionChoice, ChatUsage, CompletionRequest
 
 import shared.consul
 
@@ -66,7 +66,6 @@ async def openai_completions(request: ChatCompletionRequest) -> RedirectResponse
 
 
 @router.post("/v1/chat/completions")
-#async def chat_completions(request: ChatCompletionRequest, request_data: Request) -> ChatCompletionResponse:
 async def chat_completions(data: ChatCompletionRequest):
     """
     Handle OpenAI chat completions with support for special task routing and multi-turn conversations.
@@ -89,37 +88,31 @@ async def chat_completions(data: ChatCompletionRequest):
     """
     logger.debug(f"/v1/chat/completions Request:\n{data.model_dump_json(indent=4)}")
 
+    print(data.messages)
     # Check if the first user message starts with "### Task"
-    if data.messages and data.messages[0].role == "user" and data.messages[0].content.startswith("### Task"):
-
-        # Remove the prefix and trim the remaining content.
-        task_prompt = data.messages[0].content[len("### Task"):].lstrip()
+    if data.messages and data.messages[0]["role"] == "user" and data.messages[0]["content"].startswith("### Task"):
+        task_prompt = data.messages[0]["content"][len("### Task"):].lstrip()
         logger.debug("Detected special '### Task' prefix. Delegating request to the completions endpoint.")
-        
-        # Create an OpenAICompletionRequest using the shared model.
-        openai_request = OpenAICompletionRequest(
-            prompt=task_prompt,
-            model=data.model,
-            temperature=data.temperature,
-            max_tokens=data.max_tokens,
-            n=1  # Modify if you want multiple completions.
+
+        # Use new CompletionRequest (content, not prompt; no temperature/max_tokens)
+        completion_request = CompletionRequest(
+            model="default",  # Hardcoded model for single-turn completions
+            options={},
+            content=task_prompt,
+            n=1
         )
-
-        response = await openai_v1_completions(openai_request, None)
+        response = await openai_v1_completions(completion_request, None)
         completion = response.model_dump()
-
-        # Convert the completions response into a ChatCompletionResponse.
-        # This includes remapping each 'choice' to use a ChatMessage with the 'text' content.
         try:
             chat_response = ChatCompletionResponse(
                 id=completion["id"],
                 object="chat.completion",
                 created=completion["created"],
-                model=completion["model"],
+                model=data.model,  # Use the original mode here
                 choices=[
                     ChatCompletionChoice(
                         index=choice["index"],
-                        message=ChatMessage(role="assistant", content=choice["text"]),
+                        message={"role": "assistant", "content": choice["text"]},
                         finish_reason=choice.get("finish_reason", "stop")
                     )
                     for choice in completion.get("choices", [])
@@ -130,94 +123,72 @@ async def chat_completions(data: ChatCompletionRequest):
                     total_tokens=completion["usage"]["total_tokens"]
                 )
             )
-
         except Exception as e:
             logger.error(f"Error converting completions response to chat format: {e}")
-
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Error converting completions response to chat format: {e}"
+                detail=f"Error converting completions response to chat format: {e}"
             )
-
         return chat_response
 
-    # Filter messages to only include 'user' and 'assistant' roles.
-    filtered_messages = [
-        ChatMessage(role=msg.role, content=msg.content)
-        for msg in data.messages if msg.role in ["user", "assistant", "system"]
-    ]
-
-    proxy_request = ProxyMultiTurnRequest(
-        model=data.model,
-        messages=filtered_messages,
-        temperature=data.temperature,
-        max_tokens=data.max_tokens,
-        platform='api'
+    # Multi-turn: Use data.messages directly (assume already validated)
+    # Pass mode as model, do not resolve to provider/model/options here
+    multiturn_request = MultiTurnRequest(
+        model=data.model,  # This is the mode string, e.g. "default", "nsfw", etc.
+        messages=data.messages,
+        platform="api"
     )
-
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         try:
             brain_address, brain_port = shared.consul.get_service_address('brain')
-        
             response = await client.post(
                 f"http://{brain_address}:{brain_port}/api/multiturn",
-                json=proxy_request.model_dump()
+                json=multiturn_request.model_dump()
             )
             response.raise_for_status()
-
         except httpx.HTTPStatusError as http_err:
             logger.error(f"HTTP error forwarding to brain: {http_err.response.status_code} - {http_err.response.text}")
-
             raise HTTPException(
                 status_code=http_err.response.status_code,
                 detail=f"Error from multi-turn brain: {http_err.response.text}"
             )
-
         except httpx.RequestError as req_err:
             logger.error(f"Request error when forwarding to brain: {req_err}")
-
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=f"Connection error to brain: {req_err}"
             )
-
         except Exception as e:
             logger.exception(f"Error retrieving service address for brain: {e}")
-
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail=f"Error retrieving service address for brain: {e}"
             )
-
     try:
         proxy_response = ProxyResponse.model_validate(response.json())
-
     except Exception as e:
         logger.error(f"Error parsing ProxyResponse: {e}")
-
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Invalid response format from multi-turn brain endpoint: {e}"
+            detail=f"Invalid response format from multi-turn brain endpoint: {e}"
         )
-
     try:
         created_dt = datetime.fromisoformat(proxy_response.timestamp)
         created_unix = int(created_dt.timestamp())
-
     except Exception:
         created_unix = int(datetime.now().timestamp())
-
     total_tokens = proxy_response.prompt_eval_count + proxy_response.eval_count
-
+    # Note: We return the original mode string as the model for client compatibility,
+    # not the underlying provider's real model name.
     chat_response = ChatCompletionResponse(
         id=f"chatcmpl-{uuid.uuid4()}",
         object="chat.completion",
         created=created_unix,
-        model=data.model,
+        model=data.model,  # <-- This is the mode, not the real model name
         choices=[
             ChatCompletionChoice(
                 index=0,
-                message=ChatMessage(role="assistant", content=proxy_response.response),
+                message={"role": "assistant", "content": proxy_response.response},
                 finish_reason="stop"
             )
         ],
@@ -227,7 +198,5 @@ async def chat_completions(data: ChatCompletionRequest):
             total_tokens=total_tokens
         )
     )
-
     logger.debug(f"/chat/completions Returns:\n{chat_response.model_dump_json(indent=4)}")
-
     return chat_response

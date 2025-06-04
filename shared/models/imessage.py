@@ -8,10 +8,9 @@ Classes:
 
 
 from shared.models.contacts import Contact
-from shared.models.proxy import ChatMessage
 
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, Dict
 
 
 class iMessage(BaseModel):
@@ -61,7 +60,7 @@ class ProxyiMessageRequest(BaseModel):
         platform (Optional[str]): The platform from which the message is sent, defaults to "imessage".
         is_admin (Optional[bool]): Indicates if the sender is an admin, defaults to False.
         contact (Contact): The contact associated with the message.
-        messages (List[ChatMessage]): List of chat messages associated with the iMessage.
+        messages (List[Dict[str, str]]): List of chat messages associated with the iMessage.
     """
     message: iMessage                   = Field(..., description="The iMessage object to be sent")
     mode: str                           = Field(..., description="The mode in which the message is sent")
@@ -70,7 +69,7 @@ class ProxyiMessageRequest(BaseModel):
     platform: Optional[str]             = Field("imessage", description="The platform from which the message is sent")
     is_admin: Optional[bool]            = Field(False, description="Indicates if the sender is an admin")
     contact: Contact                    = Field(..., description="The contact associated with the message")
-    messages: List[ChatMessage]         = Field(..., description="List of chat messages associated with the iMessage")
+    messages: List[Dict[str, str]]     = Field(..., description="List of chat messages associated with the iMessage")
 
     model_config = {
         "json_schema_extra": {

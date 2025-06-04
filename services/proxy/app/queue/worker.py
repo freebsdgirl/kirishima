@@ -9,7 +9,7 @@ Functions:
         and non-blocking tasks, and managing task results or callbacks accordingly.
 """
 import app.config
-from shared.models.proxy import OllamaRequest, OllamaResponse
+from shared.models.proxy import OllamaRequest, OllamaResponse, OpenAIRequest, OpenAIResponse
 from shared.models.queue import ProxyTaskQueue, ProxyTask
 
 from shared.log_config import get_logger
@@ -19,6 +19,8 @@ import httpx
 import json
 
 from fastapi import HTTPException, status
+
+from app.queue.router import ollama_queue, openai_queue
 
 with open('/app/shared/config.json') as f:
     _config = json.load(f)
@@ -98,12 +100,69 @@ async def send_to_ollama(request: OllamaRequest) -> OllamaResponse:
     return ollama_response
 
 
+async def send_to_openai(request: OpenAIRequest) -> OpenAIResponse:
+    """
+    Send a payload to the OpenAI API for generation.
+    """
+    logger.debug(f"🤖 Request to OpenAI API:\n{json.dumps(request.model_dump(), indent=4, ensure_ascii=False)}")
+
+    payload = {
+        "model": request.model,
+        "messages": request.messages,
+        **(request.options or {})
+    }
+
+    # Get OpenAI API key from config.json
+    api_key = _config.get("openai", {}).get("api_key")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="Missing OpenAI API key in config.json")
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        try:
+            response = await client.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers=headers,
+                json=payload
+            )
+            response.raise_for_status()
+        except httpx.HTTPStatusError as http_err:
+            logger.error(f"HTTP error from OpenAI API: {http_err.response.status_code} - {http_err.response.text}")
+            raise HTTPException(
+                status_code=http_err.response.status_code,
+                detail=f"Error from OpenAI: {http_err.response.text}"
+            )
+        except httpx.RequestError as req_err:
+            logger.error(f"Request error connecting to OpenAI API: {req_err}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Connection error: {req_err}"
+            )
+        except Exception as e:
+            logger.error(f"Unexpected error: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error: {e}"
+            )
+
+    json_response = response.json()
+    logger.debug(f"🤖 Response from OpenAI API:\n{json.dumps(json_response, indent=4, ensure_ascii=False)}")
+
+    # Parse OpenAI response to OpenAIResponse (you may need to adjust this)
+    openai_response = OpenAIResponse.from_api(json_response)
+    return openai_response
+
+
 async def queue_worker_main(queue: ProxyTaskQueue):
     """
-    Process tasks from a ProxyTaskQueue by sending payloads to Ollama.
+    Process tasks from a ProxyTaskQueue by sending payloads to the correct provider.
     
     This async function continuously dequeues tasks from the provided queue, sends each task's 
-    payload to Ollama, and handles both blocking and non-blocking task types. For blocking tasks, 
+    payload to Ollama or OpenAI, and handles both blocking and non-blocking task types. For blocking tasks, 
     it sets the future's result or exception. For non-blocking tasks, it calls the provided callback.
     
     Args:
@@ -120,8 +179,14 @@ async def queue_worker_main(queue: ProxyTaskQueue):
         logger.debug(f"Dequeued task {task.task_id} (priority={task.priority}, blocking={task.blocking})")
 
         try:
-            result = await send_to_ollama(task.payload)
-    
+            # Dispatch based on payload type
+            if isinstance(task.payload, OllamaRequest):
+                result = await send_to_ollama(task.payload)
+            elif isinstance(task.payload, OpenAIRequest):
+                result = await send_to_openai(task.payload)
+            else:
+                raise Exception(f"Unknown payload type: {type(task.payload)}")
+
             if task.blocking and task.future:
                 task.future.set_result(result)
                 logger.debug(f"Set result for blocking task {task.task_id}")
@@ -137,3 +202,7 @@ async def queue_worker_main(queue: ProxyTaskQueue):
 
         finally:
             queue.remove_task(task.task_id)
+
+# In your main app startup, you should start a worker for each queue, e.g.:
+# asyncio.create_task(queue_worker_main(ollama_queue))
+# asyncio.create_task(queue_worker_main(openai_queue))

@@ -1,17 +1,17 @@
 from fastapi import HTTPException, status
 from shared.models.intents import IntentRequest
-from shared.models.proxy import ChatMessage
+from shared.models.proxy import ProxyResponse  # Removed ChatMessage import
 
 from app.intents.mode import process_mode
 from app.intents.memory import process_memory
 
-from typing import List
+from typing import List, Dict
 
 from shared.log_config import get_logger
 logger = get_logger(f"intents.{__name__}")
 
 
-async def process_intents(payload: IntentRequest) -> List[ChatMessage]:
+async def process_intents(payload: IntentRequest) -> List[Dict[str, str]]:
     """
     Process intents from an IntentRequest payload by executing mode and memory processing.
     
@@ -25,7 +25,7 @@ async def process_intents(payload: IntentRequest) -> List[ChatMessage]:
         payload (IntentRequest): The intent request containing mode, memory, and message flags
     
     Returns:
-        List[ChatMessage]: The processed list of messages, with potential modifications
+        List[Dict[str, str]]: The processed list of messages, with potential modifications
     
     Raises:
         HTTPException: If payload validation fails or processing encounters an error
@@ -34,33 +34,27 @@ async def process_intents(payload: IntentRequest) -> List[ChatMessage]:
 
     if not (payload.mode or payload.memory):
         logger.debug(f"IntentRequest: no payload flags set to true: {payload}")
-
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="At least one intent flag must be set to true."
         )
 
     if payload.message:
-        last_message: ChatMessage = payload.message[-1]
+        last_message = payload.message[-1]
     else:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No messages in payload.message"
         )
-     
-    # Get the last 10 messages (or fewer, if there aren’t 10 yet)
-    # last_ten: list[ProxyMessage] = payload.message[-10:]
 
     if payload.mode:
         try:
             last_message = process_mode(last_message)
             payload.message[-1] = last_message
-
         except HTTPException:
             raise
         except Exception as e:
             logger.error
-
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error in mode: {e}"
@@ -74,7 +68,6 @@ async def process_intents(payload: IntentRequest) -> List[ChatMessage]:
             raise
         except Exception as e:
             logger.error(f"Error in memory processing: {e}")
-
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error in memory: {e}"

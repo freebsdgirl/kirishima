@@ -16,8 +16,6 @@ Dependencies:
 """
 from app.modes import mode_set
 
-from shared.models.proxy import ChatMessage
-
 from shared.consul import get_service_address
 
 from shared.log_config import get_logger
@@ -34,19 +32,19 @@ with open('/app/shared/config.json') as f:
 TIMEOUT = _config["timeout"]
 
 
-def process_mode(message: ChatMessage) -> ChatMessage:
+def process_mode(message: dict) -> dict:
     """
-    Processes mode-related commands extracted from a ChatMessage.
+    Processes mode-related commands extracted from a message dict.
     
     Extracts mode commands using a regex pattern, logs the arguments, and sends 
     a request to the brain service to update the mode. Handles potential errors 
     with appropriate HTTP exceptions.
     
     Args:
-        message (ChatMessage): The message containing mode command content.
+        message (dict): The message containing mode command content.
     
     Returns:
-        int: HTTP 200 OK status code if mode processing is successful.
+        dict: The updated message dict after mode processing.
     
     Raises:
         HTTPException: If there are errors in mode processing or service communication.
@@ -57,18 +55,15 @@ def process_mode(message: ChatMessage) -> ChatMessage:
             re.IGNORECASE
         )
 
-        for match in mode_pattern.findall(message.content):
+        for match in mode_pattern.findall(message["content"]):
             logger.debug(f"🗃️ function: mode({match})")
-            
             # do the thing to change the mode
             mode_set(match)
 
     except Exception as e:
         logger.error(f"Unexpected error in mode processing: {e}")
-
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Unexpected error in mode processing: {e}"
         )
-    
     return message

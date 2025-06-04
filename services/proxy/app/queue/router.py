@@ -30,7 +30,12 @@ import asyncio
 from fastapi import APIRouter, HTTPException, status, Request
 router = APIRouter()
 
-queue = ProxyTaskQueue()
+# Provider-specific queues
+ollama_queue = ProxyTaskQueue()
+openai_queue = ProxyTaskQueue()
+
+# Default queue for legacy compatibility (Ollama)
+queue = ollama_queue
 
 
 @router.post("/queue/enqueue", response_model=EnqueueTaskResponse)

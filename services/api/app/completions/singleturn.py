@@ -75,7 +75,8 @@ async def openai_v1_completions(request: OpenAICompletionRequest, request_data: 
     Returns:
         OpenAICompletionResponse: A simulated OpenAI completions response.
     """
-    raw_body = await request_data.json()
+    # PATCH: Fix NoneType error by making request_data optional and using request only if present
+    raw_body = await request_data.json() if request_data is not None else request.model_dump()
     logger.info(f"/v1/completions Request:\n{json.dumps(raw_body, indent=4, ensure_ascii=False)}")
 
     n = request.n if request.n and request.n > 0 else 1
@@ -141,7 +142,7 @@ async def openai_v1_completions(request: OpenAICompletionRequest, request_data: 
 
             # Create an OpenAI-style choice from the proxy response
             choice = OpenAICompletionChoice(
-                text=proxy_response.response,
+                content=proxy_response.response,
                 index=i,
                 logprobs=None,
                 finish_reason="stop"

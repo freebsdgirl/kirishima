@@ -18,13 +18,13 @@ Functions:
     - from_api_multiturn(request: ProxyMultiTurnRequest) -> ProxyResponse:
         Handles multi-turn API requests by generating prompts for language models.
 """
-from shared.models.proxy import ChatMessages, ProxyMultiTurnRequest, ProxyResponse, OllamaRequest, OllamaResponse
+from shared.models.proxy import MultiTurnRequest, ProxyResponse, OllamaRequest
 from shared.models.prompt import BuildSystemPrompt
 
-from app.util import build_multiturn_prompt
+from app.util import build_multiturn_prompt, resolve_model_provider_options
 from app.prompts.dispatcher import get_system_prompt
 
-from app.queue.router import queue
+from app.queue.router import ollama_queue, openai_queue
 from shared.models.queue import ProxyTask
 import uuid
 import asyncio
@@ -50,8 +50,8 @@ TIMEOUT = _config["timeout"]
 
 
 @router.post("/api/multiturn", response_model=ProxyResponse)
-async def from_api_multiturn(request: ProxyMultiTurnRequest) -> ProxyResponse:
-    """
+async def from_api_multiturn(request: MultiTurnRequest) -> ProxyResponse:
+    """ 
     Handle multi-turn API requests by generating prompts for language models.
 
     Processes a multi-turn conversation request, validates model compatibility,
@@ -70,30 +70,50 @@ async def from_api_multiturn(request: ProxyMultiTurnRequest) -> ProxyResponse:
 
     logger.debug(f"/api/multiturn Request:\n{json.dumps(request.model_dump(), indent=4, ensure_ascii=False)}")
 
+    # resolve provider/model/options from mode
+    provider, model, options = resolve_model_provider_options(request.model)
+    logger.debug(f"Resolved provider/model/options: {provider}, {model}, {options}")
+
     # now get your dynamic system prompt
     system_prompt = get_system_prompt(
         BuildSystemPrompt(
             memories=request.memories,
-            mode=request.mode or 'work',
+            mode=request.model or 'default',
             platform=request.platform or 'api',
             summaries=request.summaries,
             username=request.username or 'Randi',
             timestamp=datetime.now().isoformat(timespec="seconds")
-        )
+        ),
+        provider=provider,
+        mode=request.model or 'default'
     )
 
     # build the full instruct‑style prompt
-    full_prompt = build_multiturn_prompt(ChatMessages(messages=request.messages), system_prompt)
+    full_prompt = build_multiturn_prompt(request.messages, system_prompt)
 
-    # Construct the payload for the Ollama API call
-    payload = OllamaRequest(
-        model=request.model,
-        prompt=full_prompt,
-        temperature=request.temperature,
-        max_tokens=request.max_tokens,
-        stream=False,
-        raw=True
-    )
+    # Branch on provider and construct provider-specific request/payload
+    if provider == "ollama":
+        payload = OllamaRequest(
+            model=model,
+            prompt=full_prompt,
+            temperature=options.get('temperature'),
+            max_tokens=options.get('max_tokens'),
+            stream=options.get('stream', False),
+            raw=True
+        )
+        queue_to_use = ollama_queue
+    elif provider == "openai":
+        from shared.models.proxy import OpenAIRequest  # Local import to avoid circular
+        # Prepend system prompt as a system message for OpenAI
+        openai_messages = ([{"role": "system", "content": system_prompt}] if system_prompt else []) + request.messages
+        payload = OpenAIRequest(
+            model=model,
+            messages=openai_messages,
+            options=options
+        )
+        queue_to_use = openai_queue
+    else:
+        raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}")
 
     # Create a blocking ProxyTask
     task_id = str(uuid.uuid4())
@@ -106,26 +126,27 @@ async def from_api_multiturn(request: ProxyMultiTurnRequest) -> ProxyResponse:
         future=future,
         callback=None
     )
-    await queue.enqueue(task)
+    await queue_to_use.enqueue(task)
 
     try:
-        result: OllamaResponse = await asyncio.wait_for(future, timeout=TIMEOUT)
-
+        result = await asyncio.wait_for(future, timeout=TIMEOUT)
     except asyncio.TimeoutError:
-        queue.remove_task(task_id)
+        queue_to_use.remove_task(task_id)
         raise HTTPException(
             status_code=status.HTTP_504_GATEWAY_TIMEOUT,
             detail="Task timed out"
         )
 
-    # result is an OllamaResponse
+    # result is a provider-specific response; normalize to ProxyResponse
     proxy_response = ProxyResponse(
-        response=result.response,
-        eval_count=result.eval_count,
-        prompt_eval_count=result.prompt_eval_count,
+        response=getattr(result, 'response', None),
+        eval_count=getattr(result, 'eval_count', None),
+        prompt_eval_count=getattr(result, 'prompt_eval_count', None),
+        tool_calls=getattr(result, 'tool_calls', None),
+        function_call=getattr(result, 'function_call', None),
         timestamp=datetime.now().isoformat()
     )
 
-    queue.remove_task(task_id)
+    queue_to_use.remove_task(task_id)
 
     return proxy_response

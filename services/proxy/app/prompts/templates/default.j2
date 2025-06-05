@@ -9,7 +9,17 @@
 
 
 
-{% endif %}### MEMORIES
+{% endif %}
+{% if user_info %}
+### USER PROFILE
+{% for item in user_info %}
+{{ item }}
+{% endfor %}
+
+
+
+{% endif %}
+### MEMORIES
 {{ memories }}
 
 

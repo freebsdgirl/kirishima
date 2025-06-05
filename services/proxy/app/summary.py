@@ -35,7 +35,7 @@ async def summary_user(request: SummaryRequest):
 
     logger.debug(f"Conversation string for summary: {conversation_str}")
 
-    prompt = f"""[INST]<<SYS>>### Task: Summarize the following conversation between two people in a clear and concise manner.
+    prompt = f"""### Task: Summarize the following conversation between two people in a clear and concise manner.
 
 
 
@@ -50,8 +50,8 @@ async def summary_user(request: SummaryRequest):
 - The summary should capture the main points and tone of the conversation.
 - The summary should be no more than 64 tokens in length.
 - The summary should be a single paragraph.
-
-<</SYS>>[/INST]"""
+- Prioritize outcomes, decisions, or action items over small talk.
+- If you ever need to summarize especially emotional or charged conversations, add: “If the conversation is emotionally charged, briefly note the prevailing mood.”"""
 
     # Use summarize mode for provider/model/options
     provider, model, options = resolve_model_provider_options('summarize')
@@ -68,6 +68,7 @@ async def summary_user(request: SummaryRequest):
             raw=True
         )
         queue_to_use = ollama_queue
+        prompt = "[INST]<<SYS>>" + prompt + "<</SYS>>[/INST]"
     elif provider == "openai":
         from shared.models.proxy import OpenAIRequest
         payload = OpenAIRequest(
@@ -118,7 +119,7 @@ def format_timestamp(ts: str) -> str:
 async def summary_user_combined(request: CombinedSummaryRequest):
     logger.debug(f"Received combined summary request: {request}")
 
-    prompt = f"""[INST]<<SYS>>### Task: Using the provided daily summaries, generate a weekly summary that reflects how events unfolded over time.
+    prompt = f"""### Task: Using the provided summaries, generate a single summary that reflects how events unfolded over time.
 
 ### Daily Summaries
 """
@@ -134,7 +135,7 @@ async def summary_user_combined(request: CombinedSummaryRequest):
 - Maintain a coherent narrative flow, but don’t compress multiple days into a single moment.
 - The tone should be reflective and concise, not clinical or overly detailed.
 - Output a single paragraph not exceeding {request.max_tokens} tokens.
-<</SYS>>[/INST] """
+- Prioritize outcomes, decisions, or action items over small talk."""
 
     # Use summarize mode for provider/model/options
     provider, model, options = resolve_model_provider_options('summarize')
@@ -151,6 +152,7 @@ async def summary_user_combined(request: CombinedSummaryRequest):
             raw=True
         )
         queue_to_use = ollama_queue
+        prompt = "[INST]<<SYS>>" + prompt + "<</SYS>>[/INST]"
     elif provider == "openai":
         from shared.models.proxy import OpenAIRequest
         payload = OpenAIRequest(

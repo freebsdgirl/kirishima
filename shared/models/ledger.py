@@ -39,6 +39,9 @@ class RawUserMessage(BaseModel):
     platform_msg_id: Optional[str]              = Field(None, description="Optional platform‑specific message ID")
     role: str                                   = Field(..., description="'user' or 'assistant'")
     content: str                                = Field(..., description="Message body")
+    model: Optional[str]                        = Field(None, description="Model/mode used for this message (e.g., 'default', 'nsfw')")
+    tool_calls: Optional[dict]                  = Field(None, description="Tool call requests as dict/JSON")
+    function_call: Optional[dict]               = Field(None, description="Function call content as dict/JSON")
 
     model_config = {
         "json_schema_extra": {
@@ -73,6 +76,9 @@ class CanonicalUserMessage(BaseModel):
     platform_msg_id: Optional[str]              = Field(None, description="Optional platform‑specific message ID")
     role: str                                   = Field(..., description="'user' or 'assistant'")
     content: str                                = Field(..., description="Message body")
+    model: Optional[str]                        = Field(None, description="Model/mode used for this message (e.g., 'default', 'nsfw')")
+    tool_calls: Optional[dict]                  = Field(None, description="Tool call requests as dict/JSON")
+    function_call: Optional[dict]               = Field(None, description="Function call content as dict/JSON")
     created_at: str                             = Field(..., description="Message creation timestamp")
     updated_at: str                             = Field(..., description="Message update timestamp")
 

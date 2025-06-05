@@ -15,6 +15,9 @@ CREATE TABLE IF NOT EXISTS user_messages (
     platform_msg_id TEXT,
     role            TEXT    NOT NULL CHECK (role IN ('user','assistant','system')),
     content         TEXT    NOT NULL,
+    model           TEXT,
+    tool_calls      TEXT,
+    function_call   TEXT,
     created_at      DATETIME NOT NULL DEFAULT (STRFTIME('%Y-%m-%d %H:%M:%f','now','localtime')),
     updated_at      DATETIME NOT NULL DEFAULT (STRFTIME('%Y-%m-%d %H:%M:%f','now','localtime'))
 );

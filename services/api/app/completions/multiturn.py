@@ -88,7 +88,6 @@ async def chat_completions(data: ChatCompletionRequest):
     """
     logger.debug(f"/v1/chat/completions Request:\n{data.model_dump_json(indent=4)}")
 
-    print(data.messages)
     # Check if the first user message starts with "### Task"
     if data.messages and data.messages[0]["role"] == "user" and data.messages[0]["content"].startswith("### Task"):
         task_prompt = data.messages[0]["content"][len("### Task"):].lstrip()

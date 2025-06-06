@@ -1,23 +1,22 @@
 """
-This module defines a set of Pydantic models for handling structured data in a proxy system. 
-The models are designed to standardize and validate incoming and outgoing data for various 
-interactions, including single-turn and multi-turn conversations, as well as specific 
-platform integrations like Discord.
-Classes:
-    IncomingMessage:
-    ProxyRequest:
-        Represents a proxy request with message, user identification, context, and optional 
-        mode and memories.
-    ProxyOneShotRequest:
-    ProxyMultiTurnRequest:
-    ProxyResponse:
-    ProxyDiscordDMRequest:
-    OllamaResponse:
-    OllamaRequest:
-    AlignmentRequest:
-        Represents a request for alignment between user and assistant messages.
-Each model includes detailed attributes, validation rules, and example configurations 
-to facilitate consistent usage and integration across different components of the system.
+This module defines Pydantic models for proxying and standardizing requests and responses
+across various language model providers and communication platforms.
+Models:
+    - IncomingMessage: Standardizes incoming messages from different platforms.
+    - ProxyRequest: Represents a proxy request with message, user, context, and optional memory/contextual data.
+    - ProxyOneShotRequest: Represents a one-shot proxy interaction with a language model.
+    - MultiTurnRequest: Represents a multi-turn conversation request with a language model.
+    - ProxyResponse: Standardizes the response from a proxy model interaction.
+    - ProxyDiscordDMRequest: Encapsulates a Discord direct message proxy request with conversation and user details.
+    - OllamaRequest: Represents a request to the Ollama API for text generation.
+    - OpenAIRequest: Represents a request to the OpenAI API for text generation.
+    - RespondJsonRequest: Represents a JSON request for generating a model response.
+    - DivoomRequest: Represents a request for the Divoom API (structure only).
+    - OllamaResponse: Standardizes the response from the Ollama API.
+    - OpenAIResponse: Standardizes and parses the response from the OpenAI API.
+These models facilitate structured, type-safe interactions between application logic,
+language model APIs, and various communication platforms, supporting both single-turn
+and multi-turn conversational flows, as well as provider-specific options and metadata.
 """
 
 from shared.config import LLM_DEFAULTS
@@ -407,7 +406,18 @@ class OllamaResponse(BaseModel):
 
 class OpenAIResponse(BaseModel):
     """
-    Represents a response from the OpenAI API, including support for tool/function call responses.
+    Represents a response from the OpenAI API, parsing and extracting key details from the API response.
+    
+    Attributes:
+        response (str): The generated text response from the model.
+        eval_count (Optional[int]): The number of tokens used in generating the response.
+        prompt_eval_count (Optional[int]): The number of tokens used in the input prompt.
+        tool_calls (Optional[list]): List of tool calls returned by the model, if any.
+        function_call (Optional[dict]): Function call object returned by the model, if any.
+    
+    The `from_api` class method provides a convenient way to transform a raw OpenAI API 
+    response into a structured OpenAIResponse object, handling extraction of response 
+    content, token usage, and optional tool/function call information.
     """
     response: str = Field(..., description="The generated text response from the model.")
     eval_count: Optional[int] = Field(None, description="The number of tokens used in the response.")

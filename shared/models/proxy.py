@@ -232,7 +232,7 @@ class ProxyDiscordDMRequest(BaseModel):
         summaries (Optional[str]): Optional summary of the conversation.
     """
     message: DiscordDirectMessage               = Field(..., description="The incoming message associated with the proxy request.")
-    messages: List[Dict[str, str]]                 = Field(..., description="List of messages for multi-turn conversation.")
+    messages: List[Dict[str, str]]              = Field(..., description="List of messages for multi-turn conversation.")
     contact: Contact                            = Field(..., description="The contact information associated with the user.")
     is_admin: Optional[bool]                    = Field(False, description="Indicates if the user is an admin.")
     mode: Optional[str]                         = Field("guest", description="An optional mode specification for the request.")
@@ -388,9 +388,9 @@ class OllamaResponse(BaseModel):
     """
     Represents a response from the Ollama API.
     """
-    response: str = Field(..., description="The generated text response from the model.")
-    eval_count: Optional[int] = Field(None, description="The number of tokens used in the response.")
-    prompt_eval_count: Optional[int] = Field(None, description="The number of tokens used in the prompt.")
+    response: str                           = Field(..., description="The generated text response from the model.")
+    eval_count: Optional[int]               = Field(None, description="The number of tokens used in the response.")
+    prompt_eval_count: Optional[int]        = Field(None, description="The number of tokens used in the prompt.")
     # Add any other fields as needed from Ollama's API
 
     model_config = {
@@ -419,12 +419,23 @@ class OpenAIResponse(BaseModel):
     response into a structured OpenAIResponse object, handling extraction of response 
     content, token usage, and optional tool/function call information.
     """
-    response: str = Field(..., description="The generated text response from the model.")
-    eval_count: Optional[int] = Field(None, description="The number of tokens used in the response.")
-    prompt_eval_count: Optional[int] = Field(None, description="The number of tokens used in the prompt.")
-    tool_calls: Optional[list] = Field(None, description="List of tool calls returned by the model, if any.")
-    function_call: Optional[dict] = Field(None, description="Function call object returned by the model, if any.")
-    # Add any other fields as needed from OpenAI's API
+    response: str                       = Field(..., description="The generated text response from the model.")
+    eval_count: Optional[int]           = Field(None, description="The number of tokens used in the response.")
+    prompt_eval_count: Optional[int]    = Field(None, description="The number of tokens used in the prompt.")
+    tool_calls: Optional[list]          = Field(None, description="List of tool calls returned by the model, if any.")
+    function_call: Optional[dict]       = Field(None, description="Function call object returned by the model, if any.")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "response": "Don't forget your meds",
+                "eval_count": 10,
+                "prompt_eval_count": 5,
+                "tool_calls": None,
+                "function_call": None
+            }
+        }
+    }
 
     @classmethod
     def from_api(cls, api_response: dict) -> "OpenAIResponse":

@@ -59,7 +59,15 @@ async def delete_user_buffer_from_summaries(request: List[Summary]):
     """
     user_ids = set()
     for summary in request:
-        user_ids.add(summary.metadata.user_id)
+        # Support both dict and object with .metadata
+        if isinstance(summary, dict):
+            # Defensive: handle both possible dict structures
+            if 'metadata' in summary and isinstance(summary['metadata'], dict):
+                user_ids.add(summary['metadata'].get('user_id'))
+            elif 'user_id' in summary:
+                user_ids.add(summary['user_id'])
+        else:
+            user_ids.add(summary.metadata.user_id)
 
     # step through each user id and delete the buffer for that user id
     for user_id in user_ids:
@@ -197,19 +205,19 @@ async def summarize_user_buffer_evening():
         date=(datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
     )
 
-    try: 
-        logger.debug(f"Creating evening summary for date: {payload.date}")
-        summaries = await create_summary(payload)
-        if summaries:
-            logger.debug(f"Deleting user buffer for evening summary for date: {payload.date}")
-            await delete_user_buffer_from_summaries(summaries)
+    #try: 
+    #    logger.debug(f"Creating evening summary for date: {payload.date}")
+    #    summaries = await create_summary(payload)
+    #    if summaries:
+    #        logger.debug(f"Deleting user buffer for evening summary for date: {payload.date}")
+    #        await delete_user_buffer_from_summaries(summaries)
 
-    except Exception as e:
-        logger.error(f"Failed to trigger summarize_user_buffer_evening(): {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to trigger summarize_user_buffer_evening()"
-        )
+    #except Exception as e:
+    #    logger.error(f"Failed to trigger summarize_user_buffer_evening(): {e}")
+    #    raise HTTPException(
+    #        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+    #        detail="Failed to trigger summarize_user_buffer_evening()"
+    #    )
     
     # next, create the summary for the day
     try:
@@ -261,7 +269,6 @@ async def summarize_user_buffer_evening():
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to trigger create_monthly_summary()"
             )
-
 
 
 """

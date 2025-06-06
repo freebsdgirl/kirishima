@@ -134,7 +134,10 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
                 "platform": platform,
                 "platform_msg_id": platform_msg_id,
                 "role": m.get("role"),
-                "content": m.get("content")
+                "content": m.get("content"),
+                "model": message.model if hasattr(message, 'model') else None,
+                "tool_calls": m.get("tool_calls"),
+                "function_call": m.get("function_call"),
             }
             for m in last_msgs
         ]
@@ -182,7 +185,10 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
             "platform": platform,
             "platform_msg_id": platform_msg_id,
             "role": "assistant",
-            "content": proxy_response.response
+            "content": proxy_response.response,
+            "model": message.model if hasattr(message, 'model') else None,
+            "tool_calls": getattr(proxy_response, 'tool_calls', None),
+            "function_call": getattr(proxy_response, 'function_call', None),
         }]
         await post_to_service(
             'ledger',

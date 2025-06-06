@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS user_messages (
     user_id         TEXT    NOT NULL,
     platform        TEXT    NOT NULL,
     platform_msg_id TEXT,
-    role            TEXT    NOT NULL CHECK (role IN ('user','assistant','system')),
+    role            TEXT    NOT NULL CHECK (role IN ('user','assistant','system','tool')),
     content         TEXT    NOT NULL,
     model           TEXT,
     tool_calls      TEXT,

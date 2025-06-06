@@ -98,6 +98,14 @@ def get_user_messages(
         cur.execute("SELECT * FROM user_messages WHERE user_id = ? ORDER BY id", (user_id,))
         columns = [col[0] for col in cur.description]
         messages = [CanonicalUserMessage(**dict(zip(columns, row))) for row in cur.fetchall()]
+        # Filter out tool messages
+        messages = [msg for msg in messages if getattr(msg, 'role', None) != 'tool']
+        # Remove tool/function call fields from returned messages
+        for msg in messages:
+            if hasattr(msg, 'tool_calls'):
+                msg.tool_calls = None
+            if hasattr(msg, 'function_call'):
+                msg.function_call = None
         if period:
             start, end = get_period_range(period, date)
             def parse_created_at(dt_str):

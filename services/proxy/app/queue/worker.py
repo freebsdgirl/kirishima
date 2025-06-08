@@ -106,11 +106,22 @@ async def send_to_openai(request: OpenAIRequest) -> OpenAIResponse:
     """
     logger.debug(f"🤖 Request to OpenAI API:\n{json.dumps(request.model_dump(), indent=4, ensure_ascii=False)}")
 
+    # Normalize tool_calls to always be a list (OpenAI expects an array)
+    def _normalize_tool_calls(messages):
+        for msg in messages:
+            if "tool_calls" in msg and msg["tool_calls"] is not None and not isinstance(msg["tool_calls"], list):
+                msg["tool_calls"] = [msg["tool_calls"]]
+        return messages
+
     payload = {
         "model": request.model,
-        "messages": request.messages,
+        "messages": _normalize_tool_calls(request.messages),
         **(request.options or {})
     }
+    if getattr(request, "tools", None):
+        payload["tools"] = request.tools
+    if getattr(request, "tool_choice", None):
+        payload["tool_choice"] = request.tool_choice
 
     # Get OpenAI API key from config.json
     api_key = _config.get("openai", {}).get("api_key")

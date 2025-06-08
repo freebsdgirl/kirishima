@@ -116,12 +116,16 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
     summaries = "\n".join(summary_lines)
 
     # Build new MultiTurnRequest with updated fields
+    with open('/app/app/tools.json') as f:
+        tools = json.load(f)
+
     updated_request = message.copy(update={
         "memories": [m.model_dump() for m in memories],
-        "messages": message.messages,  # Use messages directly, no sanitization
+        "messages": message.messages,
         "username": username,
         "summaries": summaries,
-        "platform": platform
+        "platform": platform,
+        "tools": tools,  # <-- This line is needed!
     })
 
     # --- Send last 4 messages to ledger as RawUserMessage ---
@@ -136,7 +140,8 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
                 "role": m.get("role"),
                 "content": m.get("content"),
                 "model": message.model if hasattr(message, 'model') else None,
-                "tool_calls": m.get("tool_calls"),
+                # Only include the first tool_call dict if tool_calls is a non-empty list, else dict, else None
+                "tool_calls": m.get("tool_calls")[0] if isinstance(m.get("tool_calls"), list) and m.get("tool_calls") else m.get("tool_calls") if isinstance(m.get("tool_calls"), dict) else None,
                 "function_call": m.get("function_call"),
             }
             for m in last_msgs
@@ -148,9 +153,18 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
             error_prefix="Error forwarding to ledger service"
         )
         ledger_buffer = ledger_response.json()
-        # Use dicts for messages, not ChatMessage
+        # Use dicts for messages, not ChatMessage, and preserve tool_calls/function_call/tool_call_id fields
         updated_request = updated_request.copy(update={
-            "messages": [{"role": msg["role"], "content": msg["content"]} for msg in ledger_buffer]
+            "messages": [
+                {
+                    "role": msg["role"],
+                    "content": msg["content"],
+                    **({"tool_calls": msg["tool_calls"]} if msg.get("tool_calls") is not None else {}),
+                    **({"function_call": msg["function_call"]} if msg.get("function_call") is not None else {}),
+                    **({"tool_call_id": msg["tool_call_id"]} if msg.get("tool_call_id") is not None else {}),
+                }
+                for msg in ledger_buffer
+            ]
         })
     except Exception as e:
         logger.error(f"Error sending messages to ledger sync endpoint: {e}")
@@ -159,35 +173,39 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
             detail="Failed to sync messages with ledger service."
         )
 
-    # send the payload to the proxy service
-    response = await post_to_service(
-        'proxy', '/api/multiturn', updated_request.model_dump(),
-        error_prefix="Error forwarding to proxy service"
-    )
-    try:
-        json_response = response.json()
-        proxy_response = ProxyResponse.model_validate(json_response)
-    except Exception as e:
-        logger.debug(f"Error parsing response from proxy service: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to parse response from proxy service: {e}"
+    # send the payload to the proxy service and handle tool call loop
+    from app.tools import TOOL_FUNCTIONS
+    import json as _json
+    final_response = None
+    message_buffer = updated_request.messages
+    tool_loop_count = 0
+    MAX_TOOL_LOOPS = 5
+    while tool_loop_count < MAX_TOOL_LOOPS:
+        # 1. Send to proxy
+        response = await post_to_service(
+            'proxy', '/api/multiturn', updated_request.model_dump(),
+            error_prefix="Error forwarding to proxy service"
         )
+        try:
+            json_response = response.json()
+            proxy_response = ProxyResponse.model_validate(json_response)
+        except Exception as e:
+            logger.debug(f"Error parsing response from proxy service: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to parse response from proxy service: {e}"
+            )
 
-
-    try:
-        # Send proxy_response to ledger as a single RawUserMessage
-        user_id = await get_admin_user_id()
-        platform = 'api'
-        platform_msg_id = None
+        # 2. Sync assistant/tool call message to ledger
         sync_snapshot = [{
             "user_id": user_id,
             "platform": platform,
-            "platform_msg_id": platform_msg_id,
+            "platform_msg_id": None,
             "role": "assistant",
             "content": proxy_response.response,
             "model": message.model if hasattr(message, 'model') else None,
-            "tool_calls": getattr(proxy_response, 'tool_calls', None),
+            # Only include the first tool_call dict if tool_calls is a non-empty list
+            "tool_calls": proxy_response.tool_calls[0] if isinstance(proxy_response.tool_calls, list) and proxy_response.tool_calls else None,
             "function_call": getattr(proxy_response, 'function_call', None),
         }]
         await post_to_service(
@@ -197,25 +215,75 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
             error_prefix="Error forwarding to ledger service (proxy_response)"
         )
 
-    except Exception as e:
-        logger.error(f"Error sending proxy_response to ledger sync endpoint: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to sync proxy_response with ledger service: {e}"
-        )
-
-    # last, update our last seen timestamp
-    update_last_seen(LastSeen(
-        user_id=user_id,
-        platform=platform
-    ))
-
-    # update divoom with emoji response
-    try:
-        await update_divoom(user_id)
-    except Exception as e:
-        logger.error(f"Error updating divoom with emoji response: {e}")
-
-    logger.debug(f"brain: /api/multiturn Returns:\n{proxy_response.model_dump_json(indent=4)}")
-
-    return proxy_response
+        # 3. If tool call, execute tool and loop
+        tool_calls = getattr(proxy_response, 'tool_calls', None)
+        if tool_calls:
+            for tool_call in tool_calls:
+                if tool_call.get('type') == 'function':
+                    fn = tool_call['function']['name']
+                    args = tool_call['function'].get('arguments', '{}')
+                    try:
+                        args_dict = _json.loads(args) if isinstance(args, str) else args
+                    except Exception as e:
+                        logger.error(f"Failed to parse tool arguments for {fn}: {e}")
+                        tool_result = {"error": f"Failed to parse tool arguments: {e}"}
+                    else:
+                        tool_fn = TOOL_FUNCTIONS.get(fn)
+                        if tool_fn:
+                            try:
+                                tool_result = tool_fn(**args_dict)
+                                logger.info(f"Executed tool {fn}: {tool_result}")
+                            except Exception as e:
+                                logger.error(f"Error executing tool {fn}: {e}")
+                                tool_result = {"error": f"Tool '{fn}' execution failed: {e}"}
+                        else:
+                            logger.warning(f"No tool function registered for {fn}")
+                            tool_result = {"error": f"Tool '{fn}' is not available."}
+                    # 4. Create tool message per OpenAI spec
+                    tool_msg = {
+                        "role": "tool",
+                        "content": _json.dumps(tool_result) if not isinstance(tool_result, str) else tool_result,
+                        "tool_call_id": tool_call.get("id")
+                    }
+                    # 5. Sync tool message to ledger
+                    tool_sync = [{
+                        "user_id": user_id,
+                        "platform": platform,
+                        "platform_msg_id": None,
+                        "role": "tool",
+                        "content": tool_msg["content"],
+                        "model": message.model if hasattr(message, 'model') else None,
+                        "tool_calls": None,
+                        "function_call": None,
+                        "tool_call_id": tool_msg["tool_call_id"]
+                    }]
+                    ledger_response = await post_to_service(
+                        'ledger',
+                        f'/ledger/user/{user_id}/sync',
+                        {"snapshot": tool_sync},
+                        error_prefix="Error forwarding tool message to ledger"
+                    )
+                    ledger_buffer = ledger_response.json()
+                    # 6. Update message buffer for next request
+                    message_buffer = [
+                        {
+                            "role": msg["role"],
+                            "content": msg["content"],
+                            **({"tool_calls": msg["tool_calls"]} if msg.get("tool_calls") is not None else {}),
+                            **({"function_call": msg["function_call"]} if msg.get("function_call") is not None else {}),
+                            **({"tool_call_id": msg["tool_call_id"]} if msg.get("tool_call_id") is not None else {}),
+                        }
+                        for msg in ledger_buffer
+                    ]
+                    updated_request = updated_request.copy(update={"messages": message_buffer})
+            tool_loop_count += 1
+            continue  # Loop again with updated buffer
+        # 7. If we get a real assistant message (content), break and return
+        if proxy_response.response:
+            final_response = proxy_response
+            break
+        tool_loop_count += 1
+    if final_response is None:
+        final_response = proxy_response
+    logger.debug(f"brain: /api/multiturn Returns:\n{final_response.model_dump_json(indent=4)}")
+    return final_response

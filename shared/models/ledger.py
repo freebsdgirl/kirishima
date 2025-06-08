@@ -33,6 +33,9 @@ class RawUserMessage(BaseModel):
         platform_msg_id (Optional[str]): Optional platform-specific message ID.
         role (str): Role of the message sender, either 'user' or 'assistant'.
         content (str): Message body.
+        model (Optional[str]): Model/mode used for this message (e.g., 'default', 'nsfw').
+        tool_calls (Optional[dict]): Tool call requests as dict/JSON.
+        function_call (Optional[dict]): Function call content as dict/JSON.
     """
     user_id: str                                = Field(..., description="Sender's unique ID")
     platform: str                               = Field(..., description="Origin platform ('api','discord',etc)")
@@ -42,6 +45,7 @@ class RawUserMessage(BaseModel):
     model: Optional[str]                        = Field(None, description="Model/mode used for this message (e.g., 'default', 'nsfw')")
     tool_calls: Optional[dict]                  = Field(None, description="Tool call requests as dict/JSON")
     function_call: Optional[dict]               = Field(None, description="Function call content as dict/JSON")
+    tool_call_id: Optional[str]                 = Field(None, description="Tool call ID for tool messages")
 
     model_config = {
         "json_schema_extra": {
@@ -50,7 +54,21 @@ class RawUserMessage(BaseModel):
                 "platform": "discord",
                 "platform_msg_id": "9876543210",
                 "role": "user",
-                "content": "Hello, how are you?"
+                "content": "Hello, how are you?",
+                "model": "default",
+                "tool_calls": [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "get_weather",
+                            "arguments": "{\"location\": \"New York\"}"
+                        }
+                    }
+                ],
+                "function_call": {
+                    "name": "get_weather",
+                    "arguments": "{\"location\": \"New York\"}"
+                }
             }
         }
     }
@@ -69,6 +87,9 @@ class CanonicalUserMessage(BaseModel):
         content (str): Message body content.
         created_at (str): Timestamp when the message was created.
         updated_at (str): Timestamp when the message was last updated.
+        model (Optional[str]): Model/mode used for this message (e.g., 'default', 'nsfw').
+        tool_calls (Optional[dict]): Tool call requests as dict/JSON.
+        function_call (Optional[dict]): Function call content as dict/JSON.
     """
     id: int                                     = Field(..., description="Unique message ID")
     user_id: str                                = Field(..., description="Sender's unique ID")
@@ -79,6 +100,7 @@ class CanonicalUserMessage(BaseModel):
     model: Optional[str]                        = Field(None, description="Model/mode used for this message (e.g., 'default', 'nsfw')")
     tool_calls: Optional[dict]                  = Field(None, description="Tool call requests as dict/JSON")
     function_call: Optional[dict]               = Field(None, description="Function call content as dict/JSON")
+    tool_call_id: Optional[str]                 = Field(None, description="Tool call ID for tool messages")
     created_at: str                             = Field(..., description="Message creation timestamp")
     updated_at: str                             = Field(..., description="Message update timestamp")
 
@@ -91,6 +113,20 @@ class CanonicalUserMessage(BaseModel):
                 "platform_msg_id": "9876543210",
                 "role": "user",
                 "content": "Hello, how are you?",
+                "model": "default",
+                "tool_calls": [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "get_weather",
+                            "arguments": "{\"location\": \"New York\"}"
+                        }
+                    }
+                ],
+                "function_call": {
+                    "name": "get_weather",
+                    "arguments": "{\"location\": \"New York\"}"
+                },
                 "created_at": "2023-10-01 12:00:00Z",
                 "updated_at": "2023-10-01 12:00:00Z"
             }

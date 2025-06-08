@@ -25,7 +25,6 @@ from app.imessage import router as imessage_router
 from app.summary import router as summary_router
 from app.discord import router as discord_router
 from app.json import router as json_router
-from app.divoom import router as divoom_router
 
 from app.queue.router import router as queue_router
 from app.queue.router import ollama_queue, openai_queue
@@ -69,7 +68,6 @@ app.include_router(imessage_router, tags=["imessage"])
 app.include_router(discord_router, tags=["discord"])
 app.include_router(json_router, tags=["json"])
 app.include_router(queue_router, tags=["queue"])
-app.include_router(divoom_router, tags=["divoom"])
 
 register_list_routes(app)
 

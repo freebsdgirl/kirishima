@@ -1,0 +1,19 @@
+[
+  {
+    "type": "function",
+    "function": {
+      "name": "update_divoom",
+      "description": "Update the Divoom Max to display an emoji.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "emoji": {
+            "type": "string",
+            "description": "The emoji to display on the Divoom Max. Use a valid emoji Unicode character."
+          }
+        },
+        "required": ["emoji"]
+      }
+    }
+  }
+]

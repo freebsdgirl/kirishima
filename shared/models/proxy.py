@@ -155,13 +155,14 @@ class MultiTurnRequest(BaseModel):
     """
     model: str                                 = Field(..., description="The model to be used for generating the response.")
     provider: Optional[str]                    = Field(None, description="The provider for the model (e.g., 'openai', 'ollama').")
-    messages: List[Dict[str, str]]             = Field(..., description="List of messages for multi-turn conversation.")
+    messages: List[Dict[str, Any]]             = Field(..., description="List of messages for multi-turn conversation.")
     options: Optional[Dict[str, Any]]          = Field(None, description="Provider-specific options (temperature, max_tokens, etc.)")
     memories: Optional[List[MemoryEntryFull]]  = Field(None, description="List of memory entries associated with the conversation.")
     summaries: Optional[str]                   = Field(None, description="List of user summaries associated with the conversation.")
     platform: Optional[str]                    = Field(None, description="The platform from which the request originates.")
     username: Optional[str]                    = Field(None, description="The username of the person making the request.")
-
+    tools: Optional[List[Dict[str, Any]]]      = Field(None, description="List of tools available for the model to call.")
+    
     model_config = {
         "json_schema_extra": {
             "example": {
@@ -175,7 +176,26 @@ class MultiTurnRequest(BaseModel):
                 "memories": None,
                 "summaries": None,
                 "platform": "api",
-                "username": "randi"
+                "username": "randi",
+                "tools": [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "remind_user",
+                            "description": "Reminds the user to take their medication.",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "medication_name": {
+                                        "type": "string",
+                                        "description": "The name of the medication to remind about."
+                                    }
+                                },
+                                "required": ["medication_name"]
+                            }
+                        }
+                    }
+                ]
             }
         }
     }
@@ -207,7 +227,18 @@ class ProxyResponse(BaseModel):
                 "timestamp": "2025-04-09T04:00:00Z",
                 "eval_count": 10,
                 "prompt_eval_count": 5,
-                "tool_calls": None,
+                "tool_calls": [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "remind_user",
+                            "description": "Reminds the user to take their medication.",
+                            "parameters": {
+                                "medication_name": "Aspirin"
+                            }
+                        }
+                    }
+                ],
                 "function_call": None
             }
         }
@@ -329,11 +360,12 @@ class OpenAIRequest(BaseModel):
         options (Optional[Dict[str, Any]]): Provider-specific options (temperature, max_tokens, etc.).
         stream (Optional[bool]): Indicates whether to stream the response.
     """
-    model: str                                  = Field(..., description="The name of the model to be used for generating the response.")
-    messages: List[Dict[str, str]]              = Field(..., description="List of messages for multi-turn conversation.")
-    options: Optional[Dict[str, Any]]           = Field(None, description="Provider-specific options (temperature, max_tokens, etc.)")
-    stream: Optional[bool]                      = Field(False, description="Indicates whether to stream the response.")
-
+    model: str                                      = Field(..., description="The name of the model to be used for generating the response.")
+    messages: List[Dict[str, Any]]                  = Field(..., description="List of messages for multi-turn conversation.")
+    options: Optional[Dict[str, Any]]               = Field(None, description="Provider-specific options (temperature, max_tokens, etc.)")
+    stream: Optional[bool]                          = Field(False, description="Indicates whether to stream the response.")
+    tools: Optional[List[Dict[str, Any]]]           = Field(None, description="List of tools available for the model to call.")
+    tool_choice: Optional[Literal["auto", "none"]]  = Field("auto", description="How to handle tool calls: 'auto' to allow, 'none' to disable.")
     model_config = {
         "json_schema_extra": {
             "example": {
@@ -343,7 +375,27 @@ class OpenAIRequest(BaseModel):
                     {"role": "assistant", "content": "Sure, I will remind you!"}
                 ],
                 "options": {"temperature": 0.7, "max_tokens": 256},
-                "stream": False
+                "stream": False,
+                "tools": [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "remind_user",
+                            "description": "Reminds the user to take their medication.",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "medication_name": {
+                                        "type": "string",
+                                        "description": "The name of the medication to remind about."
+                                    }
+                                },
+                                "required": ["medication_name"]
+                            }
+                        }
+                    }
+                ],
+                "tool_choice": "auto"
             }
         }
     }
@@ -428,10 +480,19 @@ class OpenAIResponse(BaseModel):
     model_config = {
         "json_schema_extra": {
             "example": {
-                "response": "Don't forget your meds",
+                "response": None,
                 "eval_count": 10,
                 "prompt_eval_count": 5,
-                "tool_calls": None,
+                "tool_calls": [
+                    {
+                        "id": "call_abc123",
+                        "type": "function",
+                        "function": {
+                            "name": "update_divoom",
+                            "arguments": "{\"emoji\": \"😀\"}"
+                        }
+                    }
+                ],
                 "function_call": None
             }
         }

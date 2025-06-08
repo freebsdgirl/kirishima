@@ -55,6 +55,13 @@ def _open_conn() -> sqlite3.Connection:
     return conn
 
 
+def ensure_first_user(messages):
+    for i, msg in enumerate(messages):
+        if msg.role == "user":
+            return messages[i:]
+    return []
+
+
 @router.post("/ledger/user/{user_id}/sync", response_model=List[CanonicalUserMessage])
 def sync_user_buffer(
     user_id: str = Path(..., description="Unique user identifier"),
@@ -87,6 +94,7 @@ def sync_user_buffer(
     #    background_tasks.add_task(create_summaries, user_id)
     #    return []
 
+    # Do NOT filter snapshot; allow any role at the start
     last_msg = snapshot[-1]
 
     def _msg_fields(msg):
@@ -98,7 +106,8 @@ def sync_user_buffer(
             msg.content,
             getattr(msg, 'model', None),
             json.dumps(getattr(msg, 'tool_calls', None)) if getattr(msg, 'tool_calls', None) is not None else None,
-            json.dumps(getattr(msg, 'function_call', None)) if getattr(msg, 'function_call', None) is not None else None
+            json.dumps(getattr(msg, 'function_call', None)) if getattr(msg, 'function_call', None) is not None else None,
+            getattr(msg, 'tool_call_id', None) if getattr(msg, 'tool_call_id', None) is not None else None
         )
 
     # --- Edge case: consecutive user messages (likely after a 500) ---
@@ -114,7 +123,7 @@ def sync_user_buffer(
             conn.commit()
             # After deletion, insert the new incoming user message
             cur.execute(
-                f"INSERT INTO {TABLE} (user_id, platform, platform_msg_id, role, content, model, tool_calls, function_call) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                f"INSERT INTO {TABLE} (user_id, platform, platform_msg_id, role, content, model, tool_calls, function_call, tool_call_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 _msg_fields(last_msg),
             )
             conn.commit()
@@ -125,14 +134,16 @@ def sync_user_buffer(
                 CanonicalUserMessage(**{
                     **dict(zip(colnames, row)),
                     'tool_calls': json.loads(row[colnames.index('tool_calls')]) if row[colnames.index('tool_calls')] else None,
-                    'function_call': json.loads(row[colnames.index('function_call')]) if row[colnames.index('function_call')] else None
+                    'function_call': json.loads(row[colnames.index('function_call')]) if row[colnames.index('function_call')] else None,
+                    'tool_call_id': row[colnames.index('tool_call_id')] if 'tool_call_id' in colnames else None,
                 }) for row in cur.fetchall()
             ]
-            #if last_msg.role == "assistant":
-                #background_tasks.add_task(create_summaries, user_id)
             if limit is not None:
-                return result[-limit:]
+                result = result[-limit:]
+                result = ensure_first_user(result)
+                return result
             else:
+                result = ensure_first_user(result)
                 return result
 
     # ----------------- Non‑API fast path -----------------
@@ -140,7 +151,7 @@ def sync_user_buffer(
         with _open_conn() as conn:
             cur = conn.cursor()
             cur.execute(
-                f"INSERT INTO {TABLE} (user_id, platform, platform_msg_id, role, content, model, tool_calls, function_call) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                f"INSERT INTO {TABLE} (user_id, platform, platform_msg_id, role, content, model, tool_calls, function_call, tool_call_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 _msg_fields(last_msg),
             )
             conn.commit()
@@ -150,14 +161,19 @@ def sync_user_buffer(
                 CanonicalUserMessage(**{
                     **dict(zip(colnames, row)),
                     'tool_calls': json.loads(row[colnames.index('tool_calls')]) if row[colnames.index('tool_calls')] else None,
-                    'function_call': json.loads(row[colnames.index('function_call')]) if row[colnames.index('function_call')] else None
+                    'function_call': json.loads(row[colnames.index('function_call')]) if row[colnames.index('function_call')] else None,
+                    'tool_call_id': row[colnames.index('tool_call_id')] if 'tool_call_id' in colnames else None,
                 }) for row in cur.fetchall()
             ]
+            result = ensure_first_user(result)
             #if last_msg.role == "assistant":
                 #background_tasks.add_task(create_summaries, user_id)
             if limit is not None:
-                return result[-limit:]
+                result = result[-limit:]
+                result = ensure_first_user(result)
+                return result
             else:
+                result = ensure_first_user(result)
                 return result
 
     # ----------------- API logic -----------------
@@ -178,7 +194,7 @@ def sync_user_buffer(
         # Seed brand‑new buffer with exactly the last incoming message
         if not rows:
             cur.execute(
-                f"INSERT INTO {TABLE} (user_id, platform, platform_msg_id, role, content, model, tool_calls, function_call) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                f"INSERT INTO {TABLE} (user_id, platform, platform_msg_id, role, content, model, tool_calls, function_call, tool_call_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 _msg_fields(last_msg),
             )
             conn.commit()
@@ -188,7 +204,8 @@ def sync_user_buffer(
                 CanonicalUserMessage(**{
                     **dict(zip(colnames, row)),
                     'tool_calls': json.loads(row[colnames.index('tool_calls')]) if row[colnames.index('tool_calls')] else None,
-                    'function_call': json.loads(row[colnames.index('function_call')]) if row[colnames.index('function_call')] else None
+                    'function_call': json.loads(row[colnames.index('function_call')]) if row[colnames.index('function_call')] else None,
+                    'tool_call_id': row[colnames.index('tool_call_id')] if 'tool_call_id' in colnames else None,
                 }) for row in cur.fetchall()
             ]
             #if last_msg.role == "assistant":
@@ -217,7 +234,8 @@ def sync_user_buffer(
                     CanonicalUserMessage(**{
                         **dict(zip(colnames, row)),
                         'tool_calls': json.loads(row[colnames.index('tool_calls')]) if row[colnames.index('tool_calls')] else None,
-                        'function_call': json.loads(row[colnames.index('function_call')]) if row[colnames.index('function_call')] else None
+                        'function_call': json.loads(row[colnames.index('function_call')]) if row[colnames.index('function_call')] else None,
+                        'tool_call_id': row[colnames.index('tool_call_id')] if 'tool_call_id' in colnames else None,
                     }) for row in cur.fetchall()
                 ]
                 #if last_msg.role == "assistant":
@@ -242,7 +260,7 @@ def sync_user_buffer(
                     )
                     conn.commit()
             cur.execute(
-                f"INSERT INTO {TABLE} (user_id, platform, platform_msg_id, role, content, model, tool_calls, function_call) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                f"INSERT INTO {TABLE} (user_id, platform, platform_msg_id, role, content, model, tool_calls, function_call, tool_call_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 _msg_fields(last_msg),
             )
             conn.commit()
@@ -252,14 +270,18 @@ def sync_user_buffer(
                 CanonicalUserMessage(**{
                     **dict(zip(colnames, row)),
                     'tool_calls': json.loads(row[colnames.index('tool_calls')]) if row[colnames.index('tool_calls')] else None,
-                    'function_call': json.loads(row[colnames.index('function_call')]) if row[colnames.index('function_call')] else None
+                    'function_call': json.loads(row[colnames.index('function_call')]) if row[colnames.index('function_call')] else None,
+                    'tool_call_id': row[colnames.index('tool_call_id')] if 'tool_call_id' in colnames else None,
                 }) for row in cur.fetchall()
             ]
             #if last_msg.role == "assistant":
                 #background_tasks.add_task(create_summaries, user_id)
             if limit is not None:
-                return result[-limit:]
+                result = result[-limit:]
+                result = ensure_first_user(result)
+                return result
             else:
+                result = ensure_first_user(result)
                 return result
 
         # Rule 2 – edit assistant
@@ -285,19 +307,23 @@ def sync_user_buffer(
                 CanonicalUserMessage(**{
                     **dict(zip(colnames, row)),
                     'tool_calls': json.loads(row[colnames.index('tool_calls')]) if row[colnames.index('tool_calls')] else None,
-                    'function_call': json.loads(row[colnames.index('function_call')]) if row[colnames.index('function_call')] else None
+                    'function_call': json.loads(row[colnames.index('function_call')]) if row[colnames.index('function_call')] else None,
+                    'tool_call_id': row[colnames.index('tool_call_id')] if 'tool_call_id' in colnames else None,
                 }) for row in cur.fetchall()
             ]
             #if last_msg.role == "assistant":
                 #background_tasks.add_task(create_summaries, user_id)
             if limit is not None:
-                return result[-limit:]
+                result = result[-limit:]
+                result = ensure_first_user(result)
+                return result
             else:
+                result = ensure_first_user(result)
                 return result
 
         # Rule 3 – fallback append
         cur.execute(
-            f"INSERT INTO {TABLE} (user_id, platform, platform_msg_id, role, content, model, tool_calls, function_call) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            f"INSERT INTO {TABLE} (user_id, platform, platform_msg_id, role, content, model, tool_calls, function_call, tool_call_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             _msg_fields(last_msg),
         )
         conn.commit()
@@ -307,12 +333,16 @@ def sync_user_buffer(
             CanonicalUserMessage(**{
                 **dict(zip(colnames, row)),
                 'tool_calls': json.loads(row[colnames.index('tool_calls')]) if row[colnames.index('tool_calls')] else None,
-                'function_call': json.loads(row[colnames.index('function_call')]) if row[colnames.index('function_call')] else None
+                'function_call': json.loads(row[colnames.index('function_call')]) if row[colnames.index('function_call')] else None,
+                'tool_call_id': row[colnames.index('tool_call_id')] if 'tool_call_id' in colnames else None,
             }) for row in cur.fetchall()
         ]
         #if last_msg.role == "assistant":
             #background_tasks.add_task(create_summaries, user_id)
         if limit is not None:
-            return result[-limit:]
+            result = result[-limit:]
+            result = ensure_first_user(result)
+            return result
         else:
+            result = ensure_first_user(result)
             return result

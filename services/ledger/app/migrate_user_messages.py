@@ -16,6 +16,8 @@ def migrate_user_messages():
         cur.execute("ALTER TABLE user_messages ADD COLUMN tool_calls TEXT")
     if "function_call" not in columns:
         cur.execute("ALTER TABLE user_messages ADD COLUMN function_call TEXT")
+    if "tool_call_id" not in columns:
+        cur.execute("ALTER TABLE user_messages ADD COLUMN tool_call_id TEXT")
     conn.commit()
 
     # Set model to 'default' for all existing rows where model is NULL

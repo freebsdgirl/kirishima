@@ -33,6 +33,7 @@ from shared.log_config import get_logger
 logger = get_logger(f"proxy.{__name__}")
 
 import json
+import os
 
 from datetime import datetime
 from dateutil import tz
@@ -109,7 +110,9 @@ async def from_api_multiturn(request: MultiTurnRequest) -> ProxyResponse:
         payload = OpenAIRequest(
             model=model,
             messages=openai_messages,
-            options=options
+            options=options,
+            tools=request.tools,
+            tool_choice="auto"  # Use auto tool choice for OpenAI
         )
         queue_to_use = openai_queue
     else:
@@ -146,6 +149,8 @@ async def from_api_multiturn(request: MultiTurnRequest) -> ProxyResponse:
         function_call=getattr(result, 'function_call', None),
         timestamp=datetime.now().isoformat()
     )
+
+    # Remove tool execution logic: proxy should not process tool calls
 
     queue_to_use.remove_task(task_id)
 

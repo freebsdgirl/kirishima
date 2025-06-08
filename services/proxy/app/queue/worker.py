@@ -120,8 +120,9 @@ async def send_to_openai(request: OpenAIRequest) -> OpenAIResponse:
     }
     if getattr(request, "tools", None):
         payload["tools"] = request.tools
-    if getattr(request, "tool_choice", None):
-        payload["tool_choice"] = request.tool_choice
+
+        if getattr(request, "tool_choice", None):
+            payload["tool_choice"] = request.tool_choice
 
     # Get OpenAI API key from config.json
     api_key = _config.get("openai", {}).get("api_key")

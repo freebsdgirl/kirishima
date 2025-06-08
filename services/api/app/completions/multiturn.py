@@ -86,7 +86,7 @@ async def chat_completions(data: ChatCompletionRequest):
     Raises:
         HTTPException: For various error scenarios including HTTP and request errors.
     """
-    logger.debug(f"/v1/chat/completions Request:\n{data.model_dump_json(indent=4)}")
+    logger.debug(f"/v1/chat/completions Request")
 
     # Check if the first user message starts with "### Task"
     if data.messages and data.messages[0]["role"] == "user" and data.messages[0]["content"].startswith("### Task"):

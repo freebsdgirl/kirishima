@@ -15,5 +15,85 @@
         "required": ["emoji"]
       }
     }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "memory_add",
+      "description": "Add a new memory.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "memory": {
+            "type": "string",
+            "description": "The memory to save.",
+            "example": "Slam Jackson is Randi's dog. He is a golden doodle."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Tags/keywords associated with the memory.",
+            "example": ["Slam Jackson", "dog", "pet", "golden doodle"]
+          },
+          "priority": {
+            "type": "number",
+            "description": "Priority level of the memory, where 0.0 is low priority and 1.0 is high priority.",
+            "minimum": 0.0,
+            "maximum": 1.0,
+            "example": 0.5
+          }
+        },
+        "required": ["message","tags","priority"]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "memory_delete",
+      "description": "Delete a memory and its tags by memory ID.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "memory_id": {
+            "type": "string",
+            "description": "The ID of the memory to delete."
+          }
+        },
+        "required": ["memory_id"]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "memory_list",
+      "description": "List all memories along with their keywords.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "memory_search",
+      "description": "Search for memories by a list of keywords (exact, case-insensitive match). Returns memories ordered by number of matches, priority, and recency.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "keywords": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "List of keywords to search for."
+          }
+        },
+        "required": ["keywords"]
+      }
+    }
   }
 ]

@@ -39,7 +39,6 @@ from app.modes import mode_get
 from app.util import get_admin_user_id, sanitize_messages, post_to_service
 from app.memory.get import list_memory
 from app.last_seen import update_last_seen
-from app.intents.intents import process_intents
 
 import httpx
 import json
@@ -130,17 +129,7 @@ async def discord_message_incoming(message: DiscordDirectMessage):
 
     # if user is an admin:
     if is_admin:
-        # check for intents on user input
-        # compontent probably really doesn't even need to be a thing with intents at this point.
-        # but we need to pass it in the request, so
-        intentreq = IntentRequest(
-            mode=True,
-            memory=True,
-            component="proxy",
-            message=messages,
-        )
-
-        response = await process_intents(intentreq)
+        response = messages
 
         try:
             returned_messages = [m for m in response]
@@ -291,15 +280,7 @@ async def discord_message_incoming(message: DiscordDirectMessage):
         response_content = str(response_content)
 
     if is_admin:
-        # send to intents, but only if the original message was from an admin.
-        intentreq = IntentRequest(
-            mode=True,
-            component="proxy",
-            memory=True,
-            message=[{"role": "assistant", "content": response_content}]
-        )
-
-        response = await process_intents(intentreq)
+        response = [{"role": "assistant", "content": response_content}]
 
         try:
             returned_messages = [m for m in response]

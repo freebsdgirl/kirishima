@@ -179,7 +179,7 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
     final_response = None
     message_buffer = updated_request.messages
     tool_loop_count = 0
-    MAX_TOOL_LOOPS = 5
+    MAX_TOOL_LOOPS = 10
     while tool_loop_count < MAX_TOOL_LOOPS:
         # 1. Send to proxy
         response = await post_to_service(

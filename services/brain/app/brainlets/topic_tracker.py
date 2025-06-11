@@ -52,15 +52,16 @@ async def topic_tracker(brainlets_output: Dict[str, Any], message: MultiTurnRequ
             chatlog_lines.append(f"User: {m['content']}")
         elif m['role'] == 'assistant':
             chatlog_lines.append(f"Assistant: {m['content']}")
-    chatlog = '\n'.join(chatlog_lines)
+    filtered = chatlog_lines[-5:]
+    chatlog = '\n'.join(filtered)
 
     # --- Build prompt for the model ---
     if most_recent_topic:
         prompt = (
             "Given the following conversation, and the most recent topic discussed ('{topic}'), "
             "determine the current subject matter or topic the user and assistant are discussing.\n"
-            "While the entire conversation is provided for context, focus on the most recent exchanges.\n"
-            "If the topic has significantly changed, reply with the new topic. If it has not significantly changed, reply with the same topic. "
+            "While the entire conversation is provided for context, focus on the most recent user comment.\n"
+            "If the topic has changed, reply with the new topic. If it has not changed, reply with the same topic. "
             "Respond with a concise word or phrase.\n\n"
             "Most recent topic: {topic}\n\n"
             "{chatlog}\n\nCurrent topic:"

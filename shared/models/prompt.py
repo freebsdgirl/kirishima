@@ -27,6 +27,7 @@ class BuildSystemPrompt(BaseModel):
     summaries: Optional[str]                    = Field(None, description="List of summaries")
     username: Optional[str]                     = Field(None, description="Username of the user")
     timestamp: str                              = Field(None, description="Timestamp of the request")
+    brainlets: Optional[str]                    = Field(None, description="Brainlets configuration for the prompt")
 
     model_config = {
         "json_schema_extra": {

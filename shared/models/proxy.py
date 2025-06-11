@@ -146,12 +146,14 @@ class MultiTurnRequest(BaseModel):
     Attributes:
         model (str): The name of the model to be used for generating the response.
         provider (Optional[str]): The provider for the model (e.g., 'openai', 'ollama').
-        messages (List[Dict[str, str]]): A list of messages representing the conversation history.
+        messages (List[Dict[str, Any]]): A list of messages representing the conversation history.
         options (Optional[Dict[str, Any]]): Provider-specific options (temperature, max_tokens, etc.).
         memories (Optional[List[MemoryEntryFull]]): A list of memory entries associated with the conversation.
         summaries (Optional[str]): A list of user summaries associated with the conversation.
         platform (Optional[str]): The platform from which the request originates.
         username (Optional[str]): The username of the person making the request.
+        tools (Optional[List[Dict[str, Any]]]): A list of tools available for the model to call.
+        user_id (Optional[int]): The user ID associated with the request.
     """
     model: str                                 = Field(..., description="The model to be used for generating the response.")
     provider: Optional[str]                    = Field(None, description="The provider for the model (e.g., 'openai', 'ollama').")
@@ -162,7 +164,8 @@ class MultiTurnRequest(BaseModel):
     platform: Optional[str]                    = Field(None, description="The platform from which the request originates.")
     username: Optional[str]                    = Field(None, description="The username of the person making the request.")
     tools: Optional[List[Dict[str, Any]]]      = Field(None, description="List of tools available for the model to call.")
-    
+    user_id: Optional[str]                     = Field(None, description="The user ID associated with the request.")
+
     model_config = {
         "json_schema_extra": {
             "example": {
@@ -195,7 +198,8 @@ class MultiTurnRequest(BaseModel):
                             }
                         }
                     }
-                ]
+                ],
+                "user_id": "1234567890"
             }
         }
     }

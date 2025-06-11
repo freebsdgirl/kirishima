@@ -1,0 +1,7 @@
+vosk
+sounddevice
+openai-whisper
+torch==2.2.0+cu121 
+-f https://download.pytorch.org/whl/torch_stable.html
+numpy
+pyaudio

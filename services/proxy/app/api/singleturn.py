@@ -57,20 +57,24 @@ async def from_api_completions(message: ProxyOneShotRequest) -> ProxyResponse:
     # Branch on provider and construct provider-specific request
     if provider == "ollama":
         payload = OllamaRequest(
-            model=model,
+            model=message.model,
             prompt=message.prompt,
-            temperature=options.get('temperature'),
-            max_tokens=options.get('max_tokens'),
-            stream=options.get('stream', False),
+            temperature=message.temperature,
+            max_tokens=message.max_tokens,
+            stream=False,
             raw=True
         )
         queue_to_use = ollama_queue
     elif provider == "openai":
         from shared.models.proxy import OpenAIRequest  # Local import to avoid circular
         payload = OpenAIRequest(
-            model=model,
+            model=message.model,
             messages=[{"role": "user", "content": message.prompt}],
-            options=options
+            options={
+                "temperature": message.temperature,
+                "max_tokens": message.max_tokens,
+                "stream": False
+            }
         )
         queue_to_use = openai_queue
     else:

@@ -11,7 +11,6 @@ Functions:
         - Sets up indexes for efficient querying.
         - Configures the database to use Write-Ahead Logging (WAL) for improved performance.
 """
-import app.config
 
 import sqlite3
 from pathlib import Path
@@ -30,39 +29,49 @@ def verify_database():
     
     The database is configured with WAL (Write-Ahead Logging) journal mode for improved performance.
     """
-    # Check the database path, return if it exists
-    db_path = Path(app.config.STATUS_DB)
+    with open('/app/shared/config.json') as f:
+        _config = json.load(f)
 
-    if not db_path.exists():
-        # Create the directory if it doesn't exist
-        db_path.parent.mkdir(parents=True, exist_ok=True)
+    if _config['db']['brainlets']:
+        brainlets_db_path = Path(_config['db']['brainlets'])
+        # Always ensure the directory exists
+        brainlets_db_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Connect to (or create) the SQLite database
-        with sqlite3.connect(app.config.STATUS_DB) as conn:
+        # Always connect and ensure table/indexes exist
+        with sqlite3.connect(_config['db']['brainlets']) as conn:
             cursor = conn.cursor()
             cursor.execute("PRAGMA journal_mode=WAL;")
-            cursor.execute("CREATE TABLE IF NOT EXISTS status (key, value)")
-            cursor.execute("INSERT OR REPLACE INTO status (key, value) VALUES (?, ?)",("mode", "default"))
+            cursor.execute("CREATE TABLE IF NOT EXISTS topic_tracker (id TEXT PRIMARY KEY, user_id TEXT, topic TEXT, timestamp_begin TEXT)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_id ON topic_tracker (user_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_topic ON topic_tracker (topic)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_timestamp_begin ON topic_tracker (timestamp_begin)")
+            conn.commit()
+
+    if _config['db']['status']:
+        status_db_path = Path(_config['db']['status'])
+        if not status_db_path.exists():
+            # Create the directory if it doesn't exist
+            status_db_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Connect to (or create) the SQLite database
+        with sqlite3.connect(_config['db']['status']) as conn:
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA journal_mode=WAL;")
             cursor.execute("CREATE TABLE IF NOT EXISTS notifications (id TEXT, user_id TEXT, notification TEXT, timestamp TEXT, status TEXT)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_id ON notifications (user_id)")
             cursor.execute("CREATE TABLE IF NOT EXISTS last_seen (user_id TEXT, platform TEXT, timestamp TEXT)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_id ON last_seen (user_id)")
-
+            
             # Commit and close
             conn.commit()
 
     # now check for the memories database
-
-    with open('/app/shared/config.json') as f:
-        _config = json.load(f)
-    if not _config['db']['memories']:
-        return
-    
-    memories_db_path = Path(_config['db']['memories'])
-    if not memories_db_path.exists():
-        # Create the directory if it doesn't exist
-        memories_db_path.parent.mkdir(parents=True, exist_ok=True)
-        # Connect to (or create) the memories SQLite database
+    if _config['db']['memories']:
+        memories_db_path = Path(_config['db']['memories'])
+        if not memories_db_path.exists():
+            # Create the directory if it doesn't exist
+            memories_db_path.parent.mkdir(parents=True, exist_ok=True)
+            # Connect to (or create) the memories SQLite database
         with sqlite3.connect(_config['db']['memories']) as conn:
             cursor = conn.cursor()
             cursor.execute("PRAGMA journal_mode=WAL;")

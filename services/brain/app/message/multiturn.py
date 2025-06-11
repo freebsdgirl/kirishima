@@ -60,7 +60,7 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
     Raises:
         HTTPException: If any error occurs when contacting the proxy service.
     """
-    logger.debug(f"brain: /api/multiturn Request:\n{message.model_dump_json(indent=4)}")
+    logger.debug(f"brain: /api/multiturn Request:")
 
     # get a list of memories
     memory_query = MemoryListQuery(component="proxy", limit=100, mode=message.model)
@@ -73,6 +73,10 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
     user_id = await get_admin_user_id()
     username = await get_user_alias(user_id)
     platform = message.platform or "api"
+
+    message.user_id = user_id
+
+
 
     # get a list of the last 4 summaries - this returns a List[Summary]
     summaries = ""
@@ -172,6 +176,60 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to sync messages with ledger service."
         )
+    # Run the brainlets!
+    # Load brainlets config and import brainlets
+    brainlets_config = _config.get('brainlets', [])
+    import app.brainlets
+
+    # Topological sort to respect depends_on
+    def topo_sort_brainlets(brainlets):
+        from collections import defaultdict, deque
+        name_to_brainlet = {b['name']: b for b in brainlets}
+        graph = defaultdict(list)
+        indegree = defaultdict(int)
+        for b in brainlets:
+            for dep in b.get('depends_on', []):
+                graph[dep].append(b['name'])
+                indegree[b['name']] += 1
+            if b['name'] not in indegree:
+                indegree[b['name']] = 0
+        # Kahn's algorithm
+        queue = deque([name for name, deg in indegree.items() if deg == 0])
+        sorted_names = []
+        while queue:
+            name = queue.popleft()
+            sorted_names.append(name)
+            for neighbor in graph[name]:
+                indegree[neighbor] -= 1
+                if indegree[neighbor] == 0:
+                    queue.append(neighbor)
+        # Only return brainlets that are in the config and in the sorted order
+        return [name_to_brainlet[name] for name in sorted_names if name in name_to_brainlet]
+
+    brainlets_sorted = topo_sort_brainlets(brainlets_config)
+    brainlets_output = {}
+    for brainlet in brainlets_sorted:
+        modes = brainlet.get('modes', [])
+        if message.model in modes:
+            logger.debug(f"Running brainlet: {brainlet['name']} for mode: {message.model}")
+            brainlet_name = brainlet['name']
+            brainlet_func = getattr(app.brainlets, brainlet_name, None)
+            if brainlet_func:
+                logger.debug(f"Found brainlet function: {brainlet_func.__name__}")
+                brainlet_result = await brainlet_func(brainlets_output, updated_request)
+                if brainlet_result and isinstance(brainlet_result, dict):
+                    logger.debug(f"Brainlet {brainlet_name} returned: {brainlet_result}")
+                    brainlets_output[brainlet_name] = brainlet_result
+
+    # Merge brainlets_output lists into updated_request.messages
+    for v in brainlets_output.values():
+        if isinstance(v, list):
+            updated_request.messages.extend(v)
+        elif isinstance(v, dict):
+            # If the dict contains a list under any key, extend messages with it
+            for val in v.values():
+                if isinstance(val, list):
+                    updated_request.messages.extend(val)
 
     # send the payload to the proxy service and handle tool call loop
     from app.tools import TOOL_FUNCTIONS

@@ -83,7 +83,8 @@ async def from_api_multiturn(request: MultiTurnRequest) -> ProxyResponse:
             platform=request.platform or 'api',
             summaries=request.summaries,
             username=request.username or 'Randi',
-            timestamp=datetime.now().isoformat(timespec="seconds")
+            timestamp=datetime.now().isoformat(timespec="seconds"),
+            agent_prompt=request.agent_prompt or None,
         ),
         provider=provider,
         mode=request.model or 'default'

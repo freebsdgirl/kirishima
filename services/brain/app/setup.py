@@ -45,6 +45,10 @@ def verify_database():
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_id ON topic_tracker (user_id)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_topic ON topic_tracker (topic)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_timestamp_begin ON topic_tracker (timestamp_begin)")
+            cursor.execute("CREATE TABLE IF NOT EXISTS prompt (id TEXT PRIMARY KEY, user_id TEXT, prompt TEXT, reasoning TEXT, timestamp TEXT, enabled BOOLEAN DEFAULT 1)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_prompt_user_id ON prompt (user_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_prompt_enabled ON prompt (enabled)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_prompt_timestamp ON prompt (timestamp)")
             conn.commit()
 
     if _config['db']['status']:

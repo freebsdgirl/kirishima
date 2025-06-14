@@ -20,6 +20,8 @@ class BuildSystemPrompt(BaseModel):
         summaries (Optional[str]): Optional list of summaries to include in the prompt.
         username (Optional[str]): Optional username of the user associated with the prompt.
         timestamp (str): Optional timestamp of the request.
+        brainlets (Optional[str]): Optional brainlets configuration for the prompt.
+        agent_prompt (Optional[str]): Optional agent prompt configuration for the prompt.
     """
     memories: Optional[List[MemoryEntryFull]]   = Field(None, description="List of memory entries")
     mode: str                                   = Field(..., description="Mode of the conversation")
@@ -28,6 +30,7 @@ class BuildSystemPrompt(BaseModel):
     username: Optional[str]                     = Field(None, description="Username of the user")
     timestamp: str                              = Field(None, description="Timestamp of the request")
     brainlets: Optional[str]                    = Field(None, description="Brainlets configuration for the prompt")
+    agent_prompt: Optional[str]                 = Field(None, description="Agent prompt configuration for the prompt")
 
     model_config = {
         "json_schema_extra": {
@@ -42,7 +45,9 @@ class BuildSystemPrompt(BaseModel):
                 "platform": "web",
                 "summaries": ["summary1", "summary2"],
                 "username": "user123",
-                "timestamp": "2023-10-01T12:00:00Z"
+                "timestamp": "2023-10-01T12:00:00Z",
+                "brainlets": "brainlets_config",
+                "agent_prompt": "agent_prompt_config"
             }
         }
     }

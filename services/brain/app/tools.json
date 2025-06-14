@@ -2,17 +2,30 @@
   {
     "type": "function",
     "function": {
-      "name": "update_divoom",
-      "description": "Update the Divoom Max to display an emoji.",
+      "name": "manage_prompt",
+      "description": "Manage the agent's prompt (add, update, delete, or list prompts).",
       "parameters": {
         "type": "object",
         "properties": {
-          "emoji": {
+          "action": {
             "type": "string",
-            "description": "The emoji to display on the Divoom Max. Use a valid emoji Unicode character."
+            "description": "Action to perform: 'add', 'update', 'delete', or 'list'.",
+            "enum": ["add", "update", "delete", "list"]
+          },
+          "prompt_id": {
+            "type": "string",
+            "description": "The ID of the prompt to update or delete. Required for 'update' and 'delete'."
+          },
+          "prompt_text": {
+            "type": "string",
+            "description": "The text of the prompt to add or update. Required for 'add' and 'update'."
+          },
+          "reasoning": {
+            "type": "string",
+            "description": "The reasoning for the prompt. Required for 'add' and 'update'."
           }
         },
-        "required": ["emoji"]
+        "required": ["action"]
       }
     }
   },
@@ -93,6 +106,23 @@
           }
         },
         "required": ["keywords"]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "update_divoom",
+      "description": "Update the Divoom Max to display an emoji.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "emoji": {
+            "type": "string",
+            "description": "The emoji to display on the Divoom Max. Use a valid emoji Unicode character."
+          }
+        },
+        "required": ["emoji"]
       }
     }
   }

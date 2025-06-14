@@ -156,6 +156,7 @@ class MultiTurnRequest(BaseModel):
         username (Optional[str]): The username of the person making the request.
         tools (Optional[List[Dict[str, Any]]]): A list of tools available for the model to call.
         user_id (Optional[int]): The user ID associated with the request.
+        agent_prompt (Optional[str]): An optional agent prompt to guide the model's behavior.
     """
     model: str                                 = Field(..., description="The model to be used for generating the response.")
     provider: Optional[str]                    = Field(None, description="The provider for the model (e.g., 'openai', 'ollama').")
@@ -167,6 +168,7 @@ class MultiTurnRequest(BaseModel):
     username: Optional[str]                    = Field(None, description="The username of the person making the request.")
     tools: Optional[List[Dict[str, Any]]]      = Field(None, description="List of tools available for the model to call.")
     user_id: Optional[str]                     = Field(None, description="The user ID associated with the request.")
+    agent_prompt: Optional[str]                = Field(None, description="An optional agent prompt to guide the model's behavior.")
 
     model_config = {
         "json_schema_extra": {
@@ -201,7 +203,8 @@ class MultiTurnRequest(BaseModel):
                         }
                     }
                 ],
-                "user_id": "1234567890"
+                "user_id": "1234567890",
+                "agent_prompt": "You are a helpful assistant that reminds users about their medications."
             }
         }
     }

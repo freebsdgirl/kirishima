@@ -34,6 +34,8 @@ logger = get_logger(f"brain.{__name__}")
 
 import json
 import httpx
+import sqlite3
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
@@ -42,6 +44,30 @@ with open('/app/shared/config.json') as f:
     _config = json.load(f)
 
 TIMEOUT = _config["timeout"]
+
+
+def get_agent_managed_prompt(user_id: str) -> str:
+    """
+    Fetch all enabled prompts for the user from the brainlets database, ordered by timestamp.
+    Returns a string with each prompt on a new line, prefixed by '- '.
+    If no prompts are found, returns an empty string.
+    """
+    try:
+        with open('/app/shared/config.json') as f:
+            _config = json.load(f)
+        db_path = _config['db']['brainlets']
+        if not db_path or not Path(db_path).exists():
+            return ""
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT prompt FROM prompt WHERE user_id = ? AND enabled = 1 ORDER BY timestamp", (user_id,))
+            rows = cursor.fetchall()
+            if not rows:
+                return ""
+            return "\n".join(f"- {row[0]}" for row in rows)
+    except Exception as e:
+        logger.error(f"Error fetching agent-managed prompts: {e}")
+        return ""
 
 
 @router.post("/api/multiturn", response_model=ProxyResponse)
@@ -70,6 +96,9 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
     username = await get_user_alias(message.user_id)
     platform = message.platform or "api"
 
+    # construct the agent-managed prompt
+    agent_prompt = get_agent_managed_prompt(message.user_id)
+    
     # get a list of the last 4 summaries - this returns a formatted string
     from app.notification.util import get_recent_summaries
     summaries = await get_recent_summaries(message.user_id, limit=4)
@@ -91,7 +120,8 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
         "username": username,
         "summaries": summaries,
         "platform": platform,
-        "tools": tools,  # <-- This line is needed!
+        "tools": tools,
+        "agent_prompt": agent_prompt
     })
 
     # --- Send last 4 messages to ledger as RawUserMessage ---

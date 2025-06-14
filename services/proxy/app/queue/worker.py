@@ -49,10 +49,7 @@ async def send_to_ollama(request: OllamaRequest) -> OllamaResponse:
     payload = {
         "model": request.model,
         "prompt": request.prompt,
-        "options": {
-            "temperature": request.temperature
-        },
-        "max_tokens": request.max_tokens,
+        **(request.options or {}),
         "stream": False,
         "raw": True
     }

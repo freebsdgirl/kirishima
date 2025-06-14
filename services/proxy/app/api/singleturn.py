@@ -51,21 +51,27 @@ async def from_api_completions(message: ProxyOneShotRequest) -> ProxyResponse:
     logger.debug(f"/api/singleturn Request:\n{message.model_dump_json(indent=4)}")
 
     # Resolve provider/model/options from model name
-    provider, model, options = resolve_model_provider_options(message.model)
-    logger.debug(f"Resolved provider/model/options: {provider}, {model}, {options}")
+    #provider, model, options = resolve_model_provider_options(message.model)
+    #logger.debug(f"Resolved provider/model/options: {provider}, {model}, {options}")
+
+    if message.model == "nemo:latest":
+        message.provider = "ollama"
 
     # Branch on provider and construct provider-specific request
-    if provider == "ollama":
+    if message.provider == "ollama":
         payload = OllamaRequest(
             model=message.model,
-            prompt=message.prompt,
-            temperature=message.temperature,
-            max_tokens=message.max_tokens,
+            prompt=f"[INST]<<SYS>>{message.prompt}<<SYS>>[/INST]",
+            options={
+                "temperature": message.temperature,
+                "max_tokens": message.max_tokens,
+                "stream": False
+            },
             stream=False,
             raw=True
         )
         queue_to_use = ollama_queue
-    elif provider == "openai":
+    elif message.provider == "openai":
         from shared.models.proxy import OpenAIRequest  # Local import to avoid circular
         payload = OpenAIRequest(
             model=message.model,
@@ -78,7 +84,7 @@ async def from_api_completions(message: ProxyOneShotRequest) -> ProxyResponse:
         )
         queue_to_use = openai_queue
     else:
-        raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}")
+        raise HTTPException(status_code=400, detail=f"Unknown provider: {message.provider}")
 
     # Create a blocking ProxyTask
     task_id = str(uuid.uuid4())

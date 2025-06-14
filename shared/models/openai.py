@@ -31,6 +31,7 @@ class OpenAICompletionRequest(BaseModel):
     temperature: Optional[float]        = Field(LLM_DEFAULTS['temperature'], description="Sampling temperature.")
     max_tokens: Optional[int]           = Field(LLM_DEFAULTS['max_tokens'], description="Maximum tokens to generate.")
     n: Optional[int]                    = Field(default=1, description="Number of completions to generate.")
+    provider: Optional[str]             = Field("openai", description="The provider of the model, default is 'ollama'.")
 
     model_config = {
         "json_schema_extra": {

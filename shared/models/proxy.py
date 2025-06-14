@@ -122,19 +122,21 @@ class ProxyOneShotRequest(BaseModel):
         prompt (str): The input text or prompt to be processed by the model.
         temperature (float): Controls the randomness of the model's output. Defaults to 0.7.
         max_tokens (int): The maximum number of tokens to generate in the response. Defaults to 256.
+        provider (Optional[str]): The provider for the model (e.g., 'openai', 'ollama'). Defaults to 'openai'.
     """
     model: Optional[str]            = Field(LLM_DEFAULTS['model'], description="The model to be used for generating the response.")
     prompt: str                     = Field(..., description="The prompt or input text for the model.")
     temperature: Optional[float]    = Field(LLM_DEFAULTS['temperature'], description="The temperature setting for randomness in the model's output.")
     max_tokens: Optional[int]       = Field(LLM_DEFAULTS['max_tokens'], description="The maximum number of tokens to generate in the response.")
-
+    provider: Optional[str]         = Field("openai", description="The provider for the model (e.g., 'openai', 'ollama').")
     model_config = {
         "json_schema_extra": {
             "example": {
                 "model": "nemo",
                 "prompt": "Don't forget your meds",
                 "temperature": 0.7,
-                "max_tokens": 256
+                "max_tokens": 256,
+                "provider": "openai"
             }
         }
     }

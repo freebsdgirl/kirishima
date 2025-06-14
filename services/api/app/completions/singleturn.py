@@ -89,7 +89,8 @@ async def openai_v1_completions(request: OpenAICompletionRequest, request_data: 
         prompt=request.prompt,
         model=request.model,
         temperature=request.temperature,
-        max_tokens=request.max_tokens
+        max_tokens=request.max_tokens,
+        provider=request.provider
     )
     proxy_request_data = proxy_request.model_dump()
     proxy_request_data["stream"] = False

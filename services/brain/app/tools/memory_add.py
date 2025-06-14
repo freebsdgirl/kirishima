@@ -2,8 +2,6 @@ import sqlite3
 import json
 import uuid
 from datetime import datetime
-import time
-from pathlib import Path
 
 # Load config to get the memories DB path
 with open('/app/shared/config.json') as f:

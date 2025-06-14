@@ -45,7 +45,7 @@ async def divoom(brainlets_output: Dict[str, Any], message: MultiTurnRequest):
 
     # --- Build prompt for the model ---
     prompt = (
-        "Using the conversation only as context, return a single emoji that best represents the topic or tone of the user's most recent message.\n"
+        "Using the conversation only as context, return a single emoji that best represents the topic or tone of the assistant's most recent message.\n"
         "{chatlog}\n\nEmoji:"
     ).format(chatlog=chatlog)
 

@@ -25,7 +25,7 @@ from shared.models.summary import Summary
 from shared.models.notification import LastSeen
 
 from app.memory.get import list_memory
-from app.util import get_admin_user_id, post_to_service, get_user_alias
+from app.util import get_admin_user_id, post_to_service, get_user_alias, sanitize_messages
 from app.last_seen import update_last_seen
 from app.divoom.update import update_divoom
 
@@ -47,77 +47,39 @@ TIMEOUT = _config["timeout"]
 @router.post("/api/multiturn", response_model=ProxyResponse)
 async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse:
     """
-    Forwards a multi-turn conversation request to the internal multi-turn 
-    endpoint (/api/multiturn). This endpoint acts as a simple proxy with no
-    additional processing.
+    This function needs a big rework.
 
-    Args:
-        message (ProxyMultiTurnRequest): The multi-turn conversation request.
+    For one, while the way we're loading brainlets looks good, there are some brainlets
+    that I want to run after we get the assistant response - like picking an emoji for the divoom.
 
-    Returns:
-        ProxyResponse: The response from the internal proxy service.
-
-    Raises:
-        HTTPException: If any error occurs when contacting the proxy service.
     """
     logger.debug(f"brain: /api/multiturn Request:")
 
-    # get a list of memories
-    memory_query = MemoryListQuery(component="proxy", limit=100, mode=message.model)
-    memories = await list_memory(memory_query)
-
-    # No longer sanitize proxy messages
-    # sanitized_messages = sanitize_messages(message.messages)
+    # Memories only apply to ollama requests - we should not be sending them to openai requests.
+    memories = []
+    if message.provider == "ollama":
+        # get a list of memories
+        memory_query = MemoryListQuery(component="proxy", limit=100, mode=message.model)
+        memories = await list_memory(memory_query)
+    
+        # sanitize proxy messages
+        message.messages = sanitize_messages(message.messages)
 
     # get username
-    user_id = await get_admin_user_id()
-    username = await get_user_alias(user_id)
+    message.user_id = await get_admin_user_id()
+    username = await get_user_alias(message.user_id)
     platform = message.platform or "api"
 
-    message.user_id = user_id
-
-
-
-    # get a list of the last 4 summaries - this returns a List[Summary]
-    summaries = ""
-    try:
-        chromadb_address, chromadb_port = shared.consul.get_service_address('chromadb')
-        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-            response = await client.get(f"http://{chromadb_address}:{chromadb_port}/summary?user_id={user_id}&limit=4")
-            response.raise_for_status()
-            summaries_list = response.json()
-    except httpx.HTTPStatusError as e:
-        if e.response.status_code == status.HTTP_404_NOT_FOUND:
-            logger.info(f"No summaries found for {user_id}, skipping.")
-            summaries_list = []
-        else:
-            logger.error(f"HTTP error from chromadb: {e.response.status_code} - {e.response.text}")
-            raise
-    except Exception as e:
-        logger.error(f"Failed to contact chromadb to get a list of summaries: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to retrieve summaries: {e}")
-    if not summaries_list:
+    # get a list of the last 4 summaries - this returns a formatted string
+    from app.notification.util import get_recent_summaries
+    summaries = await get_recent_summaries(message.user_id, limit=4)
+    if not summaries:
         logger.warning("No summaries found for the specified period.")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No summaries found for the specified period."
         )
-    summary_lines = []
-    for s in summaries_list:
-        summary = Summary.model_validate(s) if not isinstance(s, Summary) else s
-        meta = summary.metadata
-        if meta is not None:
-            if meta.summary_type.value == "daily":
-                date_str = meta.timestamp_begin.split(" ")[0]
-                label = date_str
-            else:
-                label = meta.summary_type.value
-        else:
-            label = "summary"
-        summary_lines.append(f"[{label}] {summary.content}")
-    summaries = "\n".join(summary_lines)
+    # summaries is already a formatted string, no need to re-parse or join
 
     # Build new MultiTurnRequest with updated fields
     with open('/app/app/tools.json') as f:
@@ -133,12 +95,13 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
     })
 
     # --- Send last 4 messages to ledger as RawUserMessage ---
+    from app.notification.util import sync_with_ledger
     try:
         platform_msg_id = None
         last_msgs = updated_request.messages[-4:]
         sync_snapshot = [
             {
-                "user_id": user_id,
+                "user_id": message.user_id,
                 "platform": platform,
                 "platform_msg_id": platform_msg_id,
                 "role": m.get("role"),
@@ -150,13 +113,13 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
             }
             for m in last_msgs
         ]
-        ledger_response = await post_to_service(
-            'ledger',
-            f'/ledger/user/{user_id}/sync',
-            {"snapshot": sync_snapshot},
-            error_prefix="Error forwarding to ledger service"
+        ledger_buffer = await sync_with_ledger(
+            user_id=message.user_id,
+            platform=platform,
+            snapshot=sync_snapshot,
+            error_prefix="Error forwarding to ledger service",
+            logger=logger
         )
-        ledger_buffer = ledger_response.json()
         # Use dicts for messages, not ChatMessage, and preserve tool_calls/function_call/tool_call_id fields
         updated_request = updated_request.copy(update={
             "messages": [
@@ -207,8 +170,10 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
         return [name_to_brainlet[name] for name in sorted_names if name in name_to_brainlet]
 
     brainlets_sorted = topo_sort_brainlets(brainlets_config)
+    # Filter for pre-execution brainlets only
+    pre_brainlets = [b for b in brainlets_sorted if b.get('execution_stage') == 'pre']
     brainlets_output = {}
-    for brainlet in brainlets_sorted:
+    for brainlet in pre_brainlets:
         modes = brainlet.get('modes', [])
         if message.model in modes:
             logger.debug(f"Running brainlet: {brainlet['name']} for mode: {message.model}")
@@ -217,9 +182,71 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
             if brainlet_func:
                 logger.debug(f"Found brainlet function: {brainlet_func.__name__}")
                 brainlet_result = await brainlet_func(brainlets_output, updated_request)
+                logger.debug(f"brainlet_result type: {type(brainlet_result)}, value: {brainlet_result}")
                 if brainlet_result and isinstance(brainlet_result, dict):
                     logger.debug(f"Brainlet {brainlet_name} returned: {brainlet_result}")
-                    brainlets_output[brainlet_name] = brainlet_result
+                    # Sync any lists of message dicts inside the dict
+                    for val in brainlet_result.values():
+                        if isinstance(val, list):
+                            for msg_dict in val:
+                                logger.debug(f"Processing brainlet message from dict value: {msg_dict}")
+                                if isinstance(msg_dict, dict) and msg_dict.get("role") in ("assistant", "tool"):
+                                    sync_snapshot = [
+                                        {
+                                            "user_id": message.user_id,
+                                            "platform": platform,
+                                            "platform_msg_id": None,
+                                            "role": msg_dict.get("role"),
+                                            "content": msg_dict.get("content"),
+                                            "model": message.model if hasattr(message, 'model') else None,
+                                            "tool_calls": msg_dict.get("tool_calls"),
+                                            "function_call": msg_dict.get("function_call"),
+                                            "tool_call_id": msg_dict.get("tool_call_id"),
+                                        }
+                                    ]
+                                    try:
+                                        logger.debug(f"Syncing brainlet message to ledger: {sync_snapshot}")
+                                        await sync_with_ledger(
+                                            user_id=message.user_id,
+                                            platform=platform,
+                                            snapshot=sync_snapshot,
+                                            error_prefix=f"Error forwarding brainlet ({brainlet_name}) message to ledger",
+                                            logger=logger
+                                        )
+                                        logger.debug("Ledger sync successful.")
+                                    except Exception as e:
+                                        logger.error(f"Ledger sync failed for brainlet {brainlet_name}: {e}")
+                brainlets_output[brainlet_name] = brainlet_result
+            elif brainlet_result and isinstance(brainlet_result, list):
+                for msg_dict in brainlet_result:
+                    logger.debug(f"Processing brainlet message: {msg_dict}")
+                    if isinstance(msg_dict, dict) and msg_dict.get("role") in ("assistant", "tool"):
+                        sync_snapshot = [
+                            {
+                                "user_id": message.user_id,
+                                "platform": platform,
+                                "platform_msg_id": None,
+                                "role": msg_dict.get("role"),
+                                "content": msg_dict.get("content"),
+                                "model": message.model if hasattr(message, 'model') else None,
+                                "tool_calls": msg_dict.get("tool_calls"),
+                                "function_call": msg_dict.get("function_call"),
+                                "tool_call_id": msg_dict.get("tool_call_id"),
+                            }
+                        ]
+                        try:
+                            logger.debug(f"Syncing brainlet message to ledger: {sync_snapshot}")
+                            await sync_with_ledger(
+                                user_id=message.user_id,
+                                platform=platform,
+                                snapshot=sync_snapshot,
+                                error_prefix=f"Error forwarding brainlet ({brainlet_name}) message to ledger",
+                                logger=logger
+                            )
+                            logger.debug("Ledger sync successful.")
+                        except Exception as e:
+                            logger.error(f"Ledger sync failed for brainlet {brainlet_name}: {e}")
+                brainlets_output[brainlet_name] = brainlet_result
 
     # Merge brainlets_output lists into updated_request.messages
     for v in brainlets_output.values():
@@ -256,7 +283,7 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
 
         # 2. Sync assistant/tool call message to ledger
         sync_snapshot = [{
-            "user_id": user_id,
+            "user_id": message.user_id,
             "platform": platform,
             "platform_msg_id": None,
             "role": "assistant",
@@ -266,11 +293,12 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
             "tool_calls": proxy_response.tool_calls[0] if isinstance(proxy_response.tool_calls, list) and proxy_response.tool_calls else None,
             "function_call": getattr(proxy_response, 'function_call', None),
         }]
-        await post_to_service(
-            'ledger',
-            f'/ledger/user/{user_id}/sync',
-            {"snapshot": sync_snapshot},
-            error_prefix="Error forwarding to ledger service (proxy_response)"
+        await sync_with_ledger(
+            user_id=message.user_id,
+            platform=platform,
+            snapshot=sync_snapshot,
+            error_prefix="Error forwarding to ledger service (proxy_response)",
+            logger=logger
         )
 
         # 3. If tool call, execute tool and loop
@@ -305,7 +333,7 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
                     }
                     # 5. Sync tool message to ledger
                     tool_sync = [{
-                        "user_id": user_id,
+                        "user_id": message.user_id,
                         "platform": platform,
                         "platform_msg_id": None,
                         "role": "tool",
@@ -315,13 +343,13 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
                         "function_call": None,
                         "tool_call_id": tool_msg["tool_call_id"]
                     }]
-                    ledger_response = await post_to_service(
-                        'ledger',
-                        f'/ledger/user/{user_id}/sync',
-                        {"snapshot": tool_sync},
-                        error_prefix="Error forwarding tool message to ledger"
+                    ledger_buffer = await sync_with_ledger(
+                        user_id=message.user_id,
+                        platform=platform,
+                        snapshot=tool_sync,
+                        error_prefix="Error forwarding tool message to ledger",
+                        logger=logger
                     )
-                    ledger_buffer = ledger_response.json()
                     # 6. Update message buffer for next request
                     message_buffer = [
                         {
@@ -343,5 +371,96 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
         tool_loop_count += 1
     if final_response is None:
         final_response = proxy_response
+
+    # Ensure the assistant's final response is appended to updated_request.messages
+    if final_response and final_response.response:
+        assistant_msg = {
+            "role": "assistant",
+            "content": final_response.response,
+        }
+        # Optionally include tool_calls and function_call if present
+        if hasattr(final_response, 'tool_calls') and final_response.tool_calls:
+            assistant_msg["tool_calls"] = final_response.tool_calls
+        if hasattr(final_response, 'function_call') and final_response.function_call:
+            assistant_msg["function_call"] = final_response.function_call
+        updated_request.messages.append(assistant_msg)
+
+    # Run post-execution brainlets
+    post_brainlets = [b for b in brainlets_sorted if b.get('execution_stage') == 'post']
+    post_brainlets_output = {}
+    for brainlet in post_brainlets:
+        modes = brainlet.get('modes', [])
+        if message.model in modes:
+            logger.debug(f"Running post brainlet: {brainlet['name']} for mode: {message.model}")
+            brainlet_name = brainlet['name']
+            brainlet_func = getattr(app.brainlets, brainlet_name, None)
+            if brainlet_func:
+                logger.debug(f"Found post brainlet function: {brainlet_func.__name__}")
+                # Pass the latest brainlets_output and updated_request (with final_response)
+                post_result = await brainlet_func(brainlets_output, updated_request)
+                if post_result and isinstance(post_result, dict):
+                    logger.debug(f"Post brainlet {brainlet_name} returned: {post_result}")
+                    # Sync any lists of message dicts inside the dict
+                    for val in post_result.values():
+                        if isinstance(val, list):
+                            for msg_dict in val:
+                                logger.debug(f"Processing post brainlet message from dict value: {msg_dict}")
+                                if isinstance(msg_dict, dict) and msg_dict.get("role") in ("assistant", "tool"):
+                                    sync_snapshot = [
+                                        {
+                                            "user_id": message.user_id,
+                                            "platform": platform,
+                                            "platform_msg_id": None,
+                                            "role": msg_dict.get("role"),
+                                            "content": msg_dict.get("content"),
+                                            "model": message.model if hasattr(message, 'model') else None,
+                                            "tool_calls": msg_dict.get("tool_calls"),
+                                            "function_call": msg_dict.get("function_call"),
+                                            "tool_call_id": msg_dict.get("tool_call_id"),
+                                        }
+                                    ]
+                                    try:
+                                        logger.debug(f"Syncing post brainlet message to ledger: {sync_snapshot}")
+                                        await sync_with_ledger(
+                                            user_id=message.user_id,
+                                            platform=platform,
+                                            snapshot=sync_snapshot,
+                                            error_prefix=f"Error forwarding post brainlet ({brainlet_name}) message to ledger",
+                                            logger=logger
+                                        )
+                                        logger.debug("Ledger sync successful.")
+                                    except Exception as e:
+                                        logger.error(f"Ledger sync failed for post brainlet {brainlet_name}: {e}")
+                elif post_result and isinstance(post_result, list):
+                    for msg_dict in post_result:
+                        if isinstance(msg_dict, dict) and msg_dict.get("role") in ("assistant", "tool"):
+                            sync_snapshot = [
+                                {
+                                    "user_id": message.user_id,
+                                    "platform": platform,
+                                    "platform_msg_id": None,
+                                    "role": msg_dict.get("role"),
+                                    "content": msg_dict.get("content"),
+                                    "model": message.model if hasattr(message, 'model') else None,
+                                    "tool_calls": msg_dict.get("tool_calls"),
+                                    "function_call": msg_dict.get("function_call"),
+                                    "tool_call_id": msg_dict.get("tool_call_id"),
+                                }
+                            ]
+                            try:
+                                logger.debug(f"Syncing post brainlet message to ledger: {sync_snapshot}")
+                                await sync_with_ledger(
+                                    user_id=message.user_id,
+                                    platform=platform,
+                                    snapshot=sync_snapshot,
+                                    error_prefix=f"Error forwarding post brainlet ({brainlet_name}) message to ledger",
+                                    logger=logger
+                                )
+                                logger.debug("Ledger sync successful.")
+                            except Exception as e:
+                                logger.error(f"Ledger sync failed for post brainlet {brainlet_name}: {e}")
+                post_brainlets_output[brainlet_name] = post_result
+    # Optionally merge post_brainlets_output into final_response if needed
+
     logger.debug(f"brain: /api/multiturn Returns:\n{final_response.model_dump_json(indent=4)}")
     return final_response

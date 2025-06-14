@@ -60,9 +60,11 @@ async def topic_tracker(brainlets_output: Dict[str, Any], message: MultiTurnRequ
         prompt = (
             "Given the following conversation, and the most recent topic discussed ('{topic}'), "
             "determine the current subject matter or topic the user and assistant are discussing.\n"
-            "While the entire conversation is provided for context, focus on the most recent user comment.\n"
-            "If the topic has changed, reply with the new topic. If it has not changed, reply with the same topic. "
-            "Respond with a concise word or phrase.\n\n"
+            "Topics should be very broad and not too specific.\n"
+            "Identify the main subject or ongoing theme of the conversation and avoid changing it unless there’s a significant shift.\n"
+            "If the topic has significantly changed, reply with the new topic. If it has not significantly changed, reply with the same topic.\n"
+            "The topic should be representative of the user's last comment as though it were the title of a chapter in a book unless it is a continuation of the previous conversation and not a complete change in topic.\n"
+            "Respond with a single word or phrase representing the topic. Output only the topic—no formatting, no explanations, no commentary, no extra words.\n"
             "Most recent topic: {topic}\n\n"
             "{chatlog}\n\nCurrent topic:"
         ).format(topic=most_recent_topic, chatlog=chatlog)
@@ -120,4 +122,3 @@ async def topic_tracker(brainlets_output: Dict[str, Any], message: MultiTurnRequ
         )
     # If the topic has not changed, return an empty string
     return ""
-

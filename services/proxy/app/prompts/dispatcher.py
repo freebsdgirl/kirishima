@@ -13,6 +13,7 @@ import importlib
 PROMPT_REGISTRY = {
     ("openai", "default"): "app.prompts.openai-default",
     ("ollama", "default"): "app.prompts.ollama-default",
+    ("openai", "tts"): "app.prompts.openai-tts",
     ("ollama", "nsfw"): "app.prompts.ollama-nsfw",
     ("openai", "work"): "app.prompts.work",
     ("ollama", "work"): "app.prompts.work",

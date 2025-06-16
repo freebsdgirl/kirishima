@@ -112,6 +112,24 @@
   {
     "type": "function",
     "function": {
+      "name": "tts",
+      "description": "Toggle TTS/STT availability or retrieve TTS/STT status.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "Action to perform: 'start', 'stop', or 'status'.",
+            "enum": ["start", "stop", "status"]
+          }
+        },
+        "required": ["action"]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
       "name": "update_divoom",
       "description": "Update the Divoom Max to display an emoji.",
       "parameters": {

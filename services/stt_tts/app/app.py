@@ -1,4 +1,5 @@
-from app import vosk_stt
+from app.vosk_stt import start_tts_api, main
 
 if __name__ == "__main__":
-    vosk_stt.main()
+    start_tts_api()
+    main()

@@ -11,6 +11,9 @@ import time
 import queue
 
 import requests
+from fastapi import FastAPI
+from pydantic import BaseModel
+import threading
 
 MODEL_PATH = "./vosk-model-en-us-0.22"
 
@@ -137,10 +140,24 @@ def _main_loop(recognizer, stream):
             else:
                 utterance_audio = b''
 
-if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        print("\nExiting.")
-    except Exception as e:
-        print(str(e))
+# Add FastAPI app for TTS endpoint
+tts_api = FastAPI()
+
+class SpeakRequest(BaseModel):
+    text: str
+    gap: float = 0.5
+
+@tts_api.post("/tts/speak")
+def tts_speak_endpoint(req: SpeakRequest):
+    threading.Thread(target=text_to_speech, args=(req.text, req.gap), daemon=True).start()
+    return {"status": "speaking"}
+
+def start_tts_api():
+    import uvicorn
+    def run():
+        print("[DEBUG] Uvicorn thread starting")
+        uvicorn.run("app.vosk_stt:tts_api", host="0.0.0.0", port=4210, reload=False, log_level="info")
+        print("[DEBUG] Uvicorn thread finished")
+    print("[DEBUG] About to start Uvicorn thread")
+    threading.Thread(target=run, daemon=True).start()
+    print("[DEBUG] Uvicorn thread started")

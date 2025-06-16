@@ -27,7 +27,7 @@ env = Environment(
 
 
 def render_prompt(mode, context):
-    if mode in ["nsfw", "work", "default"]:
+    if mode in ["nsfw", "work", "default", "tts"]:
         template = env.get_template(f"default.j2")
     elif mode == "guest":
         template = env.get_template(f"guest.j2")

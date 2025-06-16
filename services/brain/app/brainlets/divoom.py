@@ -15,17 +15,6 @@ async def divoom(brainlets_output: Dict[str, Any], message: MultiTurnRequest):
     with open('/app/shared/config.json') as f:
         _config = json.load(f)
 
-    # Extract topic from the brainlet output
-    topic = brainlets_output.get('topic_tracker', "")
-    logger.debug(f"Extracted topic from brainlets_output: {topic}")
-
-    # if the topic hasn't changed, then it will be empty - return early
-    if not topic:
-        logger.debug("No topic found, returning early from divoom")
-        return
-
-    # topic isn't actually what we want to search for, but rather the keywords
-    # that we want to use for the memory search
     messages = message.messages
     # --- Filter messages: only 'user' or 'assistant' with non-empty content ---
     filtered = [

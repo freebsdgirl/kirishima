@@ -39,14 +39,6 @@ async def memory_search(brainlets_output: Dict[str, Any], message: MultiTurnRequ
     with open('/app/shared/config.json') as f:
         _config = json.load(f)
 
-    # Extract topic from the brainlet output
-    topic = brainlets_output.get('topic_tracker', "")
-    logger.debug(f"Extracted topic from brainlets_output: {topic}")
-
-    # if the topic hasn't changed, then it will be empty - return early
-    if not topic:
-        logger.debug("No topic found, returning early from memory_search")
-        return
 
     # topic isn't actually what we want to search for, but rather the keywords
     # that we want to use for the memory search
@@ -68,8 +60,8 @@ async def memory_search(brainlets_output: Dict[str, Any], message: MultiTurnRequ
 
     # --- Build prompt for the model ---
     prompt = (
-        "Using the conversation only as context, determine the keywords for the user's most recent message.\n"
-        "The keywords should be relevant to the topic of the conversation and should help in retrieving relevant memories.\n"
+        "Using the conversation only as context, determine the keywords for the user's most recent messages.\n"
+        "The keywords should help in retrieving relevant memories.\n"
         "Keywords should be comma-separated.\n\n"
         "{chatlog}\n\nKeywords:"
     ).format(chatlog=chatlog)
@@ -80,7 +72,6 @@ async def memory_search(brainlets_output: Dict[str, Any], message: MultiTurnRequ
         if brainlet.get('name') == 'memory_search':
             brainlet_config = brainlet
             break
-    logger.debug(f"Brainlet config for memory_search: {brainlet_config}")
     model = None
     temperature = None
     max_tokens = None
@@ -120,6 +111,10 @@ async def memory_search(brainlets_output: Dict[str, Any], message: MultiTurnRequ
     }
     # Tool response entry
     tool_result = memory_search_tool(keywords)
+
+    if not tool_result.get("memories"):
+        return "No memories found for the provided keywords."
+
     tool_entry = {
         "role": "tool",
         "content": json.dumps(tool_result),

@@ -17,11 +17,9 @@ Routes:
         processing. Handles intents detection, retrieves the current mode, 
         queries memory, sanitizes messages, and processes the proxy response.
 """
-import shared.consul
 
 from shared.models.proxy import MultiTurnRequest, ProxyResponse  # Removed ChatMessage import
 from shared.models.memory import MemoryListQuery
-from shared.models.summary import Summary
 from shared.models.notification import LastSeen
 
 from app.memory.get import list_memory
@@ -32,9 +30,9 @@ from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
 
 import json
-import httpx
 import sqlite3
 from pathlib import Path
+import httpx 
 
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
@@ -43,6 +41,24 @@ with open('/app/shared/config.json') as f:
     _config = json.load(f)
 
 TIMEOUT = _config["timeout"]
+
+
+async def send_to_tts(text: str):
+    """
+    Sends a text to the TTS service for processing.
+    Args:
+        text (str): The text to be sent to the TTS service.
+    Returns:
+        dict: The response from the TTS service.
+    """
+    try:
+        url = f"http://host.docker.internal:4208/tts/speak"
+        payload = {"text": text}
+        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+            response = await client.post(url, json=payload)
+            response.raise_for_status()
+    except Exception as e:
+        logger.debug(f"Error sending to TTS service: {e}")
 
 
 def get_agent_managed_prompt(user_id: str) -> str:
@@ -413,6 +429,10 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
         if hasattr(final_response, 'function_call') and final_response.function_call:
             assistant_msg["function_call"] = final_response.function_call
         updated_request.messages.append(assistant_msg)
+
+    # Send assistant's response to TTS before returning
+    if final_response and final_response.response:
+        await send_to_tts(final_response.response)
 
     # Run post-execution brainlets
     post_brainlets = [b for b in brainlets_sorted if b.get('execution_stage') == 'post']

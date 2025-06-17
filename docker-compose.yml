@@ -12,7 +12,6 @@ services:
       - consul
       - graylog
       - brain
-      - ollama
     ports:
       - "${API_PORT}:${API_PORT}"
     volumes:
@@ -286,7 +285,36 @@ services:
         gelf-address: "tcp://localhost:12201"
     networks:
       - shared-net
-
+  
+  smarthome:
+    build:
+      context: ./services/smarthome
+      args:
+        SERVICE_PORT: ${SMARTHOME_PORT}
+    environment:
+      - SERVICE_PORT=${SMARTHOME_PORT}
+      - SERVICE_NAME=smarthome
+      - TZ=America/Los_Angeles
+    depends_on:
+      - consul
+      - graylog
+    ports:
+      - "${SMARTHOME_PORT}:${SMARTHOME_PORT}"
+    volumes:
+      - ./services/smarthome/app:/app/app
+      - ./shared:/app/shared
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${SMARTHOME_PORT}/ping"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: gelf
+      options:
+        gelf-address: "tcp://localhost:12201"
+    networks:
+      - shared-net
 
   consul:
     image: hashicorp/consul
@@ -423,51 +451,6 @@ services:
     networks:
       - ollama-docker
       - shared-net
-
-  stt:
-    build:
-      context: ./services/stt
-      args:
-        SERVICE_PORT: ${STT_PORT}
-    environment:
-      - TZ=America/Los_Angeles
-      - SERVICE_PORT=${STT_PORT}
-      - SERVICE_NAME=stt
-      - VOSK_MODEL_PATH=/app/vosk-model-en-us-0.22  # adjust if your model is elsewhere
-      - PULSE_SERVER=unix:/run/user/1000/pulse/native  # for audio output
-      - XDG_CACHE_HOME=/app/cache  # for caching models
-      - MIC_TEST=1
-    tty: true
-    depends_on:
-      - consul
-      - graylog
-    ports:
-      - "${STT_PORT}:${STT_PORT}"
-    devices:
-      - "/dev/snd:/dev/snd"
-      - "/dev/bus/usb:/dev/bus/usb"
-    volumes:
-      - ./services/stt/app:/app/app
-      - ./shared:/app/shared
-      - ./services/stt/vosk-model-en-us-0.22:/app/vosk-model-en-us-0.22  # adjust if your model is elsewhere
-      - ./services/stt/output:/app/output  # for saving wav files
-      - /run/user/1000/pulse:/run/user/1000/pulse  # for audio output
-    networks:
-      - shared-net
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-        limits:
-          cpus: '4.0'
-    logging:
-      driver: gelf
-      options:
-        gelf-address: "tcp://localhost:12201"
-    privileged: true
 
 
 networks:

@@ -6,12 +6,12 @@ from time import sleep
 
 def send_emoji(emoji):
     pixoo_baddr = "11:75:58:50:B9:8A"
-    img_path = f"/home/randi/twemoji/assets/72x72/{emoji}.png"
+    img_path = f"/home/randi/Pictures/pixelart/{emoji}.png"
 
     if not os.path.exists(img_path):
         return
 
-    print(f"Sending emoji {emoji} to Divoom at {pixoo_baddr} from {img_path}")
+    print(f"Sending image {emoji} to Divoom at {pixoo_baddr} from {img_path}")
 
     pixoo = PixooMax(pixoo_baddr)
     pixoo.connect()

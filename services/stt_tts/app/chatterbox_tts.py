@@ -14,7 +14,7 @@ import os
 
 model = ChatterboxTTS.from_pretrained(device="cuda")
 
-AUDIO_PROMPT_PATH = "./prompts/tony_stark_tts_prompt_1.wav"
+AUDIO_PROMPT_PATH = "./prompts/tony_stark_tts_prompt_2.wav"
 OUTPUT_DIR = "./output"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 LOG_FILE = "./tts.log"
@@ -48,7 +48,7 @@ def text_to_speech(text: str, gap: float = 0.5):
         for sentence in sentences:
             uid = str(uuid.uuid4())
             filename = f"{OUTPUT_DIR}/{uid}.wav"
-            wav = model.generate(sentence, audio_prompt_path=AUDIO_PROMPT_PATH, temperature=1.1)
+            wav = model.generate(sentence, audio_prompt_path=AUDIO_PROMPT_PATH, temperature=1.1, exaggeration=0.7, cfg_weight=0.5)
             ta.save(filename, wav, model.sr)
             # Log the UUID and sentence
             with open(LOG_FILE, "a") as logf:

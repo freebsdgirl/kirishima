@@ -1,30 +1,29 @@
 """
-This module provides functionality for handling multi-turn conversation requests 
-in a FastAPI application. It includes utilities for sanitizing messages, 
-forwarding requests to other services using Consul service discovery, and 
-processing responses.
-Functions:
-    sanitize_messages(messages):
-        Sanitizes a list of messages by removing HTML details tags and stripping 
-        whitespace. Logs an error for any non-dictionary messages encountered.
-    post_to_service(service_name, endpoint, payload, error_prefix, timeout=60):
-        Sends a POST request to a specified service endpoint using Consul service 
-        discovery. Handles errors and raises HTTP exceptions for service 
-        unavailability, connection failures, or HTTP errors.
-Routes:
-    @router.post("/api/multiturn", response_model=ProxyResponse):
-        endpoint (/api/multiturn). Acts as a proxy with no additional 
-        processing. Handles intents detection, retrieves the current mode, 
-        queries memory, sanitizes messages, and processes the proxy response.
+This module implements the multi-turn conversation endpoint for the brain service.
+It provides the `/api/multiturn` FastAPI route, which orchestrates a complex workflow for handling multi-turn chat requests, including:
+- Retrieving user memories and context
+- Running pre- and post-execution brainlets (customizable logic modules)
+- Managing agent-managed prompts and recent summaries
+- Interfacing with a proxy service for LLM responses
+- Executing tool/function calls in a loop as required by the LLM
+- Synchronizing all relevant messages with a ledger service for audit/history
+- Handling error cases and logging throughout the process
+Key Functions:
+- `get_agent_managed_prompt(user_id: str) -> str`: Fetches all enabled prompts for a user from the brainlets database, returning them as a formatted string.
+- `outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse`: Main endpoint handler for multi-turn chat, coordinating memory retrieval, brainlet execution, proxy interaction, tool call execution, and ledger synchronization.
+Dependencies:
+- FastAPI, httpx, sqlite3, shared models and utilities, app-specific modules for memory, tools, and brainlets.
+Configuration:
+- Reads from `/app/shared/config.json` and `/app/app/tools.json` for settings and tool definitions.
+Logging:
+- Uses a structured logger for debugging and error reporting throughout the workflow.
 """
 
-from shared.models.proxy import MultiTurnRequest, ProxyResponse  # Removed ChatMessage import
+from shared.models.proxy import MultiTurnRequest, ProxyResponse
 from shared.models.memory import MemoryListQuery
-from shared.models.notification import LastSeen
 
 from app.memory.get import list_memory
 from app.util import get_admin_user_id, post_to_service, get_user_alias, sanitize_messages
-from app.last_seen import update_last_seen
 
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
@@ -32,7 +31,6 @@ logger = get_logger(f"brain.{__name__}")
 import json
 import sqlite3
 from pathlib import Path
-import httpx 
 
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
@@ -41,24 +39,6 @@ with open('/app/shared/config.json') as f:
     _config = json.load(f)
 
 TIMEOUT = _config["timeout"]
-
-
-async def send_to_tts(text: str):
-    """
-    Sends a text to the TTS service for processing.
-    Args:
-        text (str): The text to be sent to the TTS service.
-    Returns:
-        dict: The response from the TTS service.
-    """
-    try:
-        url = f"http://host.docker.internal:4208/tts/speak"
-        payload = {"text": text}
-        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-            response = await client.post(url, json=payload)
-            response.raise_for_status()
-    except Exception as e:
-        logger.debug(f"Error sending to TTS service: {e}")
 
 
 def get_agent_managed_prompt(user_id: str) -> str:
@@ -88,11 +68,19 @@ def get_agent_managed_prompt(user_id: str) -> str:
 @router.post("/api/multiturn", response_model=ProxyResponse)
 async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse:
     """
-    This function needs a big rework.
+    Handles multi-turn conversation requests by processing messages through a complex workflow:
+    - Retrieves memories and user context
+    - Runs pre-execution brainlets
+    - Sends request to proxy service
+    - Handles tool calls and function execution
+    - Syncs messages with ledger service
+    - Runs post-execution brainlets
 
-    For one, while the way we're loading brainlets looks good, there are some brainlets
-    that I want to run after we get the assistant response - like picking an emoji for the divoom.
+    Args:
+        message (MultiTurnRequest): The incoming multi-turn conversation request
 
+    Returns:
+        ProxyResponse: The final response from the conversation processing pipeline
     """
     logger.debug(f"brain: /api/multiturn Request:")
 
@@ -429,10 +417,6 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
         if hasattr(final_response, 'function_call') and final_response.function_call:
             assistant_msg["function_call"] = final_response.function_call
         updated_request.messages.append(assistant_msg)
-
-    # Send assistant's response to TTS before returning
-    if final_response and final_response.response:
-        await send_to_tts(final_response.response)
 
     # Run post-execution brainlets
     post_brainlets = [b for b in brainlets_sorted if b.get('execution_stage') == 'post']

@@ -1,15 +1,29 @@
+"""
+This module provides a function to manage prompt entries in the brainlets SQLite database.
+It supports adding, deleting, and listing prompts associated with a user.
+Functions:
+    manage_prompt(action: str, prompt_id: str = None, prompt_text: str = None, reasoning: str = None) -> dict
+        Perform add, delete, or list operations on prompts in the database.
+Details:
+- The database path is loaded from a shared configuration file.
+- Prompts are associated with a user ID (currently stubbed).
+- Each prompt includes an ID, user ID, prompt text, reasoning, and timestamp.
+- Only enabled prompts are listed.
+- Returns a dictionary indicating the result of the operation.
+"""
 import sqlite3
 import json
 import uuid
 from datetime import datetime
 from pathlib import Path
 
+
 def manage_prompt(action: str, prompt_id: str = None, prompt_text: str = None, reasoning: str = None):
     """
     Manage prompts in the brainlets database.
     
     Args:
-        action (str): 'add', 'update', 'delete', or 'list'.
+        action (str): 'add', 'delete', or 'list'.
         prompt_id (str, optional): The ID of the prompt to manage.
         prompt_text (str, optional): The text of the prompt to add or update.
         reasoning (str, optional): The reasoning for the prompt.
@@ -42,17 +56,7 @@ def manage_prompt(action: str, prompt_id: str = None, prompt_text: str = None, r
                 )
                 conn.commit()
                 return {"status": "success", "action": "added", "id": prompt_id}
-            
-            elif action == 'update':
-                if not prompt_id or not prompt_text or not reasoning:
-                    return {"status": "error", "error": "prompt_id, prompt_text and reasoning are required for updating a prompt."}
-                cursor.execute(
-                    "UPDATE prompt SET prompt = ?, reasoning = ? WHERE id = ? AND user_id = ?",
-                    (prompt_text, reasoning, prompt_id, user_id)
-                )
-                conn.commit()
-                return {"status": "success", "action": "updated"}
-            
+
             elif action == 'delete':
                 if not prompt_id:
                     return {"status": "error", "error": "prompt_id is required for deleting a prompt."}
@@ -61,6 +65,7 @@ def manage_prompt(action: str, prompt_id: str = None, prompt_text: str = None, r
                 if cursor.rowcount == 0:
                     return {"status": "error", "error": "No prompt found with that ID for the user."}
                 return {"status": "success", "action": "deleted", "id": prompt_id}
+
             elif action == 'list':
                 cursor.execute("SELECT id, prompt, reasoning, timestamp FROM prompt WHERE user_id = ? AND enabled = 1", (user_id,))
                 prompts = cursor.fetchall()
@@ -70,6 +75,7 @@ def manage_prompt(action: str, prompt_id: str = None, prompt_text: str = None, r
                 return {"status": "success", "action": "list", "prompts": prompt_list}
             else:
                 return {"status": "error", "error": "Invalid action. Use 'add', 'update', 'delete', or 'list'."}
+
     except sqlite3.Error as e:
         return {"status": "error", "error": str(e)}
 # Example usage:

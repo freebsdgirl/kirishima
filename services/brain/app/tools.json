@@ -3,26 +3,26 @@
     "type": "function",
     "function": {
       "name": "manage_prompt",
-      "description": "Manage the agent's prompt (add, update, delete, or list prompts).",
+      "description": "Manage the agent's prompt (add or delete a line, or list all lines and ids).",
       "parameters": {
         "type": "object",
         "properties": {
           "action": {
             "type": "string",
-            "description": "Action to perform: 'add', 'update', 'delete', or 'list'.",
-            "enum": ["add", "update", "delete", "list"]
+            "description": "Action to perform: 'add', 'delete', or 'list'.",
+            "enum": ["add", "delete", "list"]
           },
           "prompt_id": {
             "type": "string",
-            "description": "The ID of the prompt to update or delete. Required for 'update' and 'delete'."
+            "description": "The ID of the prompt to delete. Required for 'delete'. First, list prompts to get the ID."
           },
           "prompt_text": {
             "type": "string",
-            "description": "The text of the prompt to add or update. Required for 'add' and 'update'."
+            "description": "The new line of the prompt to add. Required for 'add'."
           },
           "reasoning": {
             "type": "string",
-            "description": "The reasoning for the prompt. Required for 'add' and 'update'."
+            "description": "The reasoning for the prompt. Required for 'add'."
           }
         },
         "required": ["action"]

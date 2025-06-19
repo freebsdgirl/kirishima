@@ -405,6 +405,7 @@ services:
 #### ollama and openwebui
 
   ollama:
+    profiles: ["ollama"]
     volumes:
       - ./services/ollama:/root/.ollama
     container_name: ollama
@@ -433,8 +434,6 @@ services:
     container_name: ollama-webui
     volumes:
       - ./services/ollama-webui:/app/backend/data
-    depends_on:
-      - ollama
     ports:
       - 8080:8080
     environment: # https://docs.openwebui.com/getting-started/env-configuration#default_models

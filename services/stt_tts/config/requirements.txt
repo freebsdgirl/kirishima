@@ -1,0 +1,9 @@
+fastapi
+sounddevice
+soundfile
+wave
+vosk
+whisper
+nltk
+chatterbox.tts
+torchaudio

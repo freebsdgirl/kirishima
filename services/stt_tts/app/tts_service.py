@@ -139,7 +139,7 @@ def text_to_speech(text: str, gap: float = 0.5):
             uid = str(uuid.uuid4())
             filename = f"{OUTPUT_DIR}/{uid}.wav"
 
-            wav = model.generate(sentence, audio_prompt_path=os.path.join(PROMPT_DIR, "tony_stark_tts_prompt_2.wav"), temperature=1.1, exaggeration=0.7, cfg_weight=0.5)
+            wav = model.generate(sentence, audio_prompt_path=os.path.join(PROMPT_DIR, "tony_stark_2.wav"), temperature=1.1, exaggeration=0.7, cfg_weight=0.5)
 
             ta.save(filename, wav, model.sr)
 
@@ -160,13 +160,13 @@ def text_to_speech(text: str, gap: float = 0.5):
         time.sleep(gap)
 
 
-def text_to_speech_to_wav(text: str, voice: str = "tony_stark_tts_prompt_2", options: dict = None) -> str:
+def text_to_speech_to_wav(text: str, voice: str = "tony_stark_2", options: dict = None) -> str:
     """
     Convert text to a WAV audio file using a specified voice model.
     
     Args:
         text (str): The text to convert to speech.
-        voice (str, optional): The voice prompt to use. Defaults to "tony_stark_tts_prompt_2".
+        voice (str, optional): The voice prompt to use. Defaults to "tony_stark_2".
         options (dict, optional): Generation options for the TTS model. Defaults to None.
             Supported options:
             - temperature (float): Controls randomness of generation. Defaults to 1.1.
@@ -272,7 +272,7 @@ async def openai_compatible_tts(request: Request):
     input_text = data.get("input", "")
     if not input_text:
         return {"error": "No input text provided"}
-    voice = data.get("voice", "tony_stark_tts_prompt_2")
+    voice = data.get("voice", "tony_stark_2")
     model = data.get("model", "temperature=1.1,exaggeration=0.7,cfg_weight=0.5,gap=0.5")
 
     options = {

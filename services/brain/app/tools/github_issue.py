@@ -17,10 +17,10 @@ def github_issue(
     comment_body: str = None
 ):
     """
-    Manage GitHub issues: create, list, view, comment, or close (delete) an issue.
+    Manage GitHub issues: create, list, view, comment, or close an issue.
     Args:
         action (str): The action to perform.
-        issue_id (str): The ID of the issue (for view, delete, comment).
+        issue_id (str): The ID of the issue (for view, close, comment).
         title (str): The title of the issue (for create).
         body (str): The body content of the issue (for create).
         assignees (list): List of usernames to assign to the issue (optional).
@@ -113,10 +113,9 @@ def github_issue(
                 "html_url": comment.get("html_url")
             }
 
-        elif action == "delete":
-            # GitHub does not support deleting issues, only closing them
+        elif action == "close":
             if not issue_id:
-                return {"error": "Missing issue_id for delete action."}
+                return {"error": "Missing issue_id for close action."}
             data = {"state": "closed"}
             resp = requests.patch(f"{api_url}/issues/{issue_id}", json=data, headers=headers, timeout=TIMEOUT)
             resp.raise_for_status()

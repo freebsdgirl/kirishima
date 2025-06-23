@@ -148,18 +148,18 @@
     "type": "function",
     "function": {
       "name": "github_issue",
-      "description": "Create, delete, list, view, comment, or list comments on a GitHub issue.",
+      "description": "Create, close, list, view, comment, or list comments on a GitHub issue.",
       "parameters": {
         "type": "object",
         "properties": {
           "action": {
             "type": "string",
             "description": "The action to perform on the GitHub issue.",
-            "enum": ["create", "delete", "list", "view", "comment", "list_comments"]
+            "enum": ["create", "close", "list", "view", "comment", "list_comments"]
           },
           "issue_id": {
             "type": "string",
-            "description": "The ID of the issue to delete, view, or list comments. Required for 'delete', 'view', and 'list_comments'."
+            "description": "The ID of the issue to close, view, or list comments. Required for 'close', 'view', and 'list_comments'."
           },
           "title": {
             "type": "string",

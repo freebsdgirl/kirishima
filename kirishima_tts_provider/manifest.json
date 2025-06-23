@@ -1,0 +1,9 @@
+{
+  "domain": "kirishima_tts_provider",
+  "name": "Kirishima TTS Provider",
+  "version": "0.1.0",
+  "documentation": "https://github.com/freebsdgirl/kirishima",
+  "requirements": [],
+  "dependencies": [],
+  "codeowners": ["@freebsdgirl"]
+}

@@ -143,5 +143,57 @@
         "required": ["emoji"]
       }
     }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "github_issue",
+      "description": "Create, delete, list, view, comment, or list comments on a GitHub issue.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "The action to perform on the GitHub issue.",
+            "enum": ["create", "delete", "list", "view", "comment", "list_comments"]
+          },
+          "issue_id": {
+            "type": "string",
+            "description": "The ID of the issue to delete, view, or list comments. Required for 'delete', 'view', and 'list_comments'."
+          },
+          "title": {
+            "type": "string",
+            "description": "The title of the issue. Required for 'create'."
+          },
+          "body": {
+            "type": "string",
+            "description": "The body content of the issue. Required for 'create'."
+          },
+          "assignees": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "List of usernames to assign to the issue. Optional for 'create' and 'list'."
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "List of labels to apply to the issue. Optional for 'create' and 'list'."
+          },
+          "options": {
+            "type": "object",
+            "description": "Additional GitHub API options as a dict."
+          },
+          "comment_body": {
+            "type": "string",
+            "description": "The body of the comment to add to the issue. Required for 'comment'."
+          }
+        },
+        "required": ["action"]
+      }
+    }
   }
 ]

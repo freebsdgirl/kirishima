@@ -11,6 +11,7 @@ All services are discovered via Consul and accessed using HTTP requests. Errors 
 from shared.models.contacts import Contact
 from shared.models.imessage import OutgoingiMessage
 from shared.models.discord import SendDMRequest
+from shared.models.summary import Summary
 
 import shared.consul
 
@@ -154,15 +155,6 @@ async def get_recent_summaries(user_id: str, limit: int = 4) -> str:
     Returns a string suitable for prompt injection.
     Raises HTTPException if no summaries are found or on error.
     """
-    from shared.models.summary import Summary
-    import httpx
-    from fastapi import status, HTTPException
-    import shared.consul
-    logger = get_logger(f"brain.util")
-    try:
-        from app.config import TIMEOUT
-    except ImportError:
-        TIMEOUT = 60
 
     try:
         chromadb_address, chromadb_port = shared.consul.get_service_address('chromadb')

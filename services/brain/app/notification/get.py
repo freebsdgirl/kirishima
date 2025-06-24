@@ -17,14 +17,13 @@ Functions:
         Retrieves notifications for a given user from the database and returns them as a list
         of Notification objects. Handles database errors and logs relevant information.
 """
-import app.config
-
 from shared.models.notification import Notification
 
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
 
 import sqlite3
+import json
 
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
@@ -47,8 +46,19 @@ def notification_get(user_id: str) -> list:
     """
     logger.debug(f"Retrieving notifications for user {user_id}")
 
+    with open('/app/config/config.json') as f:
+        _config = json.load(f)
+
+    db = _config["db"]["status"]
+    if not db:
+        logger.error("Database path is not configured.")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database path is not configured."
+        )
+
     try:
-        with sqlite3.connect(app.config.STATUS_DB) as conn:
+        with sqlite3.connect(db) as conn:
             cursor = conn.cursor()
             cursor.execute("PRAGMA journal_mode=WAL;")
             cursor.execute(

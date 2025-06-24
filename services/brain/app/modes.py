@@ -17,6 +17,7 @@ from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
 
 import sqlite3
+import json
 
 from fastapi import APIRouter, HTTPException, status, FastAPI
 from fastapi.responses import JSONResponse
@@ -40,7 +41,20 @@ def load_mode_from_db():
         sqlite3.Error: If there's an issue connecting to or querying the database.
     """
     global current_mode
-    with sqlite3.connect(app.config.STATUS_DB) as conn:
+
+
+    with open('/app/config/config.json') as f:
+        _config = json.load(f)
+
+    db = _config["db"]["status"]
+    if not db:
+        logger.error("Database path is not configured.")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database path is not configured."
+        )
+
+    with sqlite3.connect(db) as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT value FROM status WHERE key='mode'")
         row = cursor.fetchone()
@@ -58,7 +72,19 @@ def save_mode_to_db(mode: str):
     Args:
         mode (str): The mode to be saved in the database.
     """
-    with sqlite3.connect(app.config.STATUS_DB) as conn:
+
+    with open('/app/config/config.json') as f:
+        _config = json.load(f)
+
+    db = _config["db"]["status"]
+    if not db:
+        logger.error("Database path is not configured.")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database path is not configured."
+        )
+
+    with sqlite3.connect(db) as conn:
         cursor = conn.cursor()
         cursor.execute("PRAGMA journal_mode=WAL;")
         cursor.execute(

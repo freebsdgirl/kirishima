@@ -1,5 +1,3 @@
-import app.config
-
 from shared.models.notification import NotificationCreateRequest, Notification
 
 from app.last_seen import is_active
@@ -10,6 +8,7 @@ from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
 
 import sqlite3
+import json
 
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
@@ -30,8 +29,21 @@ async def notification_execute():
     Raises:
         HTTPException: If there are issues retrieving contacts or sending notifications.
     """
+
+
+    with open('/app/config/config.json') as f:
+        _config = json.load(f)
+
+    db = _config["db"]["status"]
+    if not db:
+        logger.error("Database path is not configured.")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database path is not configured."
+        )
+
     try:
-        with sqlite3.connect(app.config.STATUS_DB) as conn:
+        with sqlite3.connect(db) as conn:
             cursor = conn.cursor()
             cursor.execute("PRAGMA journal_mode=WAL;")
             cursor.execute(

@@ -18,13 +18,27 @@ from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
 
 import sqlite3
+import json
+
 from datetime import datetime
 from fastapi import HTTPException, status
 
 
 def update_last_seen(request: LastSeen) -> None:
+
+    with open('/app/config/config.json') as f:
+        _config = json.load(f)
+
+    db = _config["db"]["status"]
+    if not db:
+        logger.error("Database path is not configured.")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database path is not configured."
+        )
+
     try:
-        with sqlite3.connect(app.config.STATUS_DB) as conn:
+        with sqlite3.connect(db) as conn:
             cursor = conn.cursor()
             cursor.execute("PRAGMA journal_mode=WAL;")  # Enable WAL mode
             cursor.execute(
@@ -57,8 +71,20 @@ def get_last_seen(user_id: str) -> LastSeen | None:
         HTTPException: If an unexpected database error occurs during retrieval, 
                        with a 500 Internal Server Error status code.
     """
+
+    with open('/app/config/config.json') as f:
+        _config = json.load(f)
+
+    db = _config["db"]["status"]
+    if not db:
+        logger.error("Database path is not configured.")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database path is not configured."
+        )
+
     try:
-        with sqlite3.connect(app.config.STATUS_DB) as conn:
+        with sqlite3.connect(db) as conn:
             conn.row_factory = sqlite3.Row  # This makes fetchone() return a dict-like Row
             cursor = conn.cursor()
             cursor.execute("PRAGMA journal_mode=WAL;")

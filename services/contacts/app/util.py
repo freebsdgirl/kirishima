@@ -1,12 +1,9 @@
-
-
-import app.config as config
-
 from shared.log_config import get_logger
 logger = get_logger(f"contacts.{__name__}")
 
 import sqlite3
 from fastapi import HTTPException, status
+import json
 
 def get_db_connection():
     """
@@ -15,8 +12,15 @@ def get_db_connection():
     
     Returns:
         sqlite3.Connection: An active database connection using the configured database path.
-    """
-    conn = sqlite3.connect(config.CONTACTS_DB)
+    """\
+    
+
+    with open('/app/config/config.json') as f:
+        _config = json.load(f)
+
+    db = _config["db"]["contacts"]
+    
+    conn = sqlite3.connect(db)
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
 

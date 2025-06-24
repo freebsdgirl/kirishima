@@ -1,11 +1,9 @@
-
-import app.config as config
-
 from shared.log_config import get_logger
 logger = get_logger(f"contacts.{__name__}")
 
 import os
 import sqlite3
+import json
 
 def initialize_database():
     """
@@ -36,12 +34,17 @@ def initialize_database():
         FOREIGN KEY(contact_id) REFERENCES contacts(id) ON DELETE CASCADE
     );
     '''
-    db_path = config.CONTACTS_DB
-    db_dir = os.path.dirname(db_path)
+
+    with open('/app/config/config.json') as f:
+        _config = json.load(f)
+
+    db = _config["db"]["contacts"]
+
+    db_dir = os.path.dirname(db)
     if db_dir and not os.path.exists(db_dir):
         os.makedirs(db_dir)
-    needs_init = not os.path.exists(db_path)
-    with sqlite3.connect(db_path) as conn:
+    needs_init = not os.path.exists(db)
+    with sqlite3.connect(db) as conn:
         conn.execute("PRAGMA foreign_keys = ON")
         # Check if tables exist
         cursor = conn.cursor()

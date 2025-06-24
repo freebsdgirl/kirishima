@@ -14,7 +14,15 @@ Each class is designed to closely match the structure of OpenAI's API, enabling 
 
 from typing import List, Optional, Dict
 from pydantic import BaseModel, Field
-from shared.config import LLM_DEFAULTS
+
+import os
+import json
+
+CONFIG_PATH = os.environ.get("KIRISHIMA_CONFIG", "/app/config/config.json")
+with open(CONFIG_PATH) as f:
+    _config = json.load(f)
+_default_mode = _config["llm"]["mode"]["default"]
+
 class OpenAICompletionRequest(BaseModel):
     """
     OpenAI-style completions request.
@@ -27,9 +35,9 @@ class OpenAICompletionRequest(BaseModel):
         n (Optional[int]): Number of completions to generate (default: 1).
     """
     prompt: str                         = Field(..., description="The prompt to generate completions for.")
-    model: Optional[str]                = Field(LLM_DEFAULTS['model'], description="The model to be used.")
-    temperature: Optional[float]        = Field(LLM_DEFAULTS['temperature'], description="Sampling temperature.")
-    max_tokens: Optional[int]           = Field(LLM_DEFAULTS['max_tokens'], description="Maximum tokens to generate.")
+    model: Optional[str]                = Field(_default_mode['model'], description="The model to be used.")
+    temperature: Optional[float]        = Field(_default_mode['options']['temperature'], description="Sampling temperature.")
+    max_tokens: Optional[int]           = Field(_default_mode['options']['max_tokens'], description="Maximum tokens to generate.")
     n: Optional[int]                    = Field(default=1, description="Number of completions to generate.")
     provider: Optional[str]             = Field("openai", description="The provider of the model, default is 'ollama'.")
 

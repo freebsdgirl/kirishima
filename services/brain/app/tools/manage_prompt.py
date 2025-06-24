@@ -33,7 +33,7 @@ def manage_prompt(action: str, prompt_id: str = None, prompt_text: str = None, r
     """
     user_id = 'c63989a3-756c-4bdf-b0c2-13d01e129e02'  # Stub: replace with actual user_id logic
 
-    with open('/app/shared/config.json') as f:
+    with open('/app/config/config.json') as f:
         _config = json.load(f)
     
     db_path = _config['db']['brainlets']

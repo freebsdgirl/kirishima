@@ -25,7 +25,7 @@ app.include_router(message_router, tags=["message"])
 register_list_routes(app)
 
 import json
-with open('/app/shared/config.json') as f:
+with open('/app/config/config.json') as f:
     _config = json.load(f)
 if _config['tracing_enabled']:
     from shared.tracing import setup_tracing

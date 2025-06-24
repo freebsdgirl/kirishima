@@ -9,7 +9,7 @@ def memory_list():
         dict: Status and list of memories, each with a list of keywords.
     """
     try:
-        with open('/app/shared/config.json') as f:
+        with open('/app/config/config.json') as f:
             _config = json.load(f)
         MEMORIES_DB = _config['db']['memories']
         with sqlite3.connect(MEMORIES_DB) as conn:

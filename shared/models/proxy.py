@@ -19,15 +19,19 @@ language model APIs, and various communication platforms, supporting both single
 and multi-turn conversational flows, as well as provider-specific options and metadata.
 """
 
-from shared.config import LLM_DEFAULTS
-
-
 from typing import List, Optional, Dict, Any, Literal
 from pydantic import BaseModel, Field
 from shared.models.memory import MemoryEntryFull
 from shared.models.contacts import Contact
 from shared.models.discord import DiscordDirectMessage
 
+import os
+import json
+
+CONFIG_PATH = os.environ.get("KIRISHIMA_CONFIG", "/app/config/config.json")
+with open(CONFIG_PATH) as f:
+    _config = json.load(f)
+_default_mode = _config["llm"]["mode"]["default"]
 
 class IncomingMessage(BaseModel):
     """
@@ -124,10 +128,10 @@ class ProxyOneShotRequest(BaseModel):
         max_tokens (int): The maximum number of tokens to generate in the response. Defaults to 256.
         provider (Optional[str]): The provider for the model (e.g., 'openai', 'ollama'). Defaults to 'openai'.
     """
-    model: Optional[str]            = Field(LLM_DEFAULTS['model'], description="The model to be used for generating the response.")
+    model: Optional[str]            = Field(_default_mode["model"], description="The model to be used for generating the response.")
     prompt: str                     = Field(..., description="The prompt or input text for the model.")
-    temperature: Optional[float]    = Field(LLM_DEFAULTS['temperature'], description="The temperature setting for randomness in the model's output.")
-    max_tokens: Optional[int]       = Field(LLM_DEFAULTS['max_tokens'], description="The maximum number of tokens to generate in the response.")
+    temperature: Optional[float]    = Field(_default_mode['options']['temperature'], description="The temperature setting for randomness in the model's output.")
+    max_tokens: Optional[int]       = Field(_default_mode['options']['max_tokens'], description="The maximum number of tokens to generate in the response.")
     provider: Optional[str]         = Field("openai", description="The provider for the model (e.g., 'openai', 'ollama').")
     model_config = {
         "json_schema_extra": {

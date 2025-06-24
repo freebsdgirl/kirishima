@@ -9,7 +9,7 @@ from shared.models.proxy import MultiTurnRequest
 
 async def topic_tracker(brainlets_output: Dict[str, Any], message: MultiTurnRequest):
     # Load config (for db path and model selection)
-    with open('/app/shared/config.json') as f:
+    with open('/app/config/config.json') as f:
         _config = json.load(f)
 
     n_turns = 7

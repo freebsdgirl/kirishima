@@ -14,7 +14,7 @@ Key Functions:
 Dependencies:
 - FastAPI, httpx, sqlite3, shared models and utilities, app-specific modules for memory, tools, and brainlets.
 Configuration:
-- Reads from `/app/shared/config.json` and `/app/app/tools.json` for settings and tool definitions.
+- Reads from `/app/config/config.json` and `/app/app/tools.json` for settings and tool definitions.
 Logging:
 - Uses a structured logger for debugging and error reporting throughout the workflow.
 """
@@ -35,7 +35,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
 
-with open('/app/shared/config.json') as f:
+with open('/app/config/config.json') as f:
     _config = json.load(f)
 
 TIMEOUT = _config["timeout"]
@@ -48,7 +48,7 @@ def get_agent_managed_prompt(user_id: str) -> str:
     If no prompts are found, returns an empty string.
     """
     try:
-        with open('/app/shared/config.json') as f:
+        with open('/app/config/config.json') as f:
             _config = json.load(f)
         db_path = _config['db']['brainlets']
         if not db_path or not Path(db_path).exists():

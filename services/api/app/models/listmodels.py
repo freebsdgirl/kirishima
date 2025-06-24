@@ -46,7 +46,7 @@ async def list_models():
     from datetime import datetime
     
     try:
-        with open('/app/shared/config.json', 'r') as f:
+        with open('/app/config/config.json', 'r') as f:
             config = json.load(f)
     except Exception as e:
         logger.error(f"Could not read config.json: {e}")

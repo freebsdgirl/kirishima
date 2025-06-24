@@ -57,7 +57,7 @@ async def get_model(model_id: str):
         HTTPException: If there's an error fetching or parsing the model data.
     """
     try:
-        with open('/app/shared/config.json', 'r') as f:
+        with open('/app/config/config.json', 'r') as f:
             config = json.load(f)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Could not read config.json: {e}")

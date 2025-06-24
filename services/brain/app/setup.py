@@ -29,7 +29,7 @@ def verify_database():
     
     The database is configured with WAL (Write-Ahead Logging) journal mode for improved performance.
     """
-    with open('/app/shared/config.json') as f:
+    with open('/app/config/config.json') as f:
         _config = json.load(f)
 
     if _config['db']['brainlets']:

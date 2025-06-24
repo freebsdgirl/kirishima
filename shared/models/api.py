@@ -5,7 +5,7 @@ import json
 import os
 
 # Load config and get default mode values for defaults
-CONFIG_PATH = os.environ.get("KIRISHIMA_CONFIG", "/app/shared/config.json")
+CONFIG_PATH = os.environ.get("KIRISHIMA_CONFIG", "/app/config/config.json")
 with open(CONFIG_PATH) as f:
     _config = json.load(f)
 _default_mode = _config["llm"]["mode"]["default"]

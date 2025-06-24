@@ -22,7 +22,7 @@ from fastapi import HTTPException, status
 
 from app.queue.router import ollama_queue, openai_queue
 
-with open('/app/shared/config.json') as f:
+with open('/app/config/config.json') as f:
     _config = json.load(f)
 
 TIMEOUT = _config["timeout"]

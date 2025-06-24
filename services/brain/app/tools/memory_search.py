@@ -12,7 +12,7 @@ def memory_search(keywords: List[str]):
         dict: Status and list of matching memory IDs.
     """
     try:
-        with open('/app/shared/config.json') as f:
+        with open('/app/config/config.json') as f:
             _config = json.load(f)
         MEMORIES_DB = _config['db']['memories']
         # Normalize keywords to lowercase

@@ -17,6 +17,7 @@ services:
     volumes:
       - ./services/api/app:/app/app
       - ./shared:/app/shared
+      - ~/.kirishima:/app/config
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:${API_PORT}/ping"]
       interval: 60s
@@ -48,6 +49,7 @@ services:
     volumes:
       - ./services/brain/app:/app/app
       - ./shared:/app/shared
+      - ~/.kirishima:/app/config
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:${BRAIN_PORT}/ping"]
       interval: 60s
@@ -80,6 +82,7 @@ services:
     volumes:
       - ./services/chromadb/app:/app/app
       - ./shared:/app/shared
+      - ~/.kirishima:/app/config
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:${CHROMADB_PORT}/ping"]
       interval: 60s
@@ -110,6 +113,7 @@ services:
     volumes:
       - ./services/contacts/app:/app/app
       - ./shared:/app/shared
+      - ~/.kirishima:/app/config
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:${CONTACTS_PORT}/ping"]
       interval: 60s
@@ -141,6 +145,7 @@ services:
     volumes:
       - ./services/discord/app:/app/app
       - ./shared:/app/shared
+      - ~/.kirishima:/app/config
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:${DISCORD_PORT}/ping"]
       interval: 60s
@@ -177,6 +182,7 @@ services:
     volumes:
       - ./services/imessage/app:/app/app
       - ./shared:/app/shared
+      - ~/.kirishima:/app/config
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:${IMESSAGE_PORT}/ping"]
       interval: 60s
@@ -207,6 +213,7 @@ services:
     volumes:
       - ./services/ledger/app:/app/app
       - ./shared:/app/shared
+      - ~/.kirishima:/app/config
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:${LEDGER_PORT}/ping"]
       interval: 60s
@@ -242,6 +249,7 @@ services:
     volumes:
       - ./services/proxy/app:/app/app
       - ./shared:/app/shared
+      - ~/.kirishima:/app/config
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:${PROXY_PORT}/ping"]
       interval: 60s
@@ -273,6 +281,7 @@ services:
     volumes:
       - ./services/scheduler/app:/app/app
       - ./shared:/app/shared
+      - ~/.kirishima:/app/config
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:${SCHEDULER_PORT}/ping"]
       interval: 60s
@@ -303,6 +312,7 @@ services:
     volumes:
       - ./services/smarthome/app:/app/app
       - ./shared:/app/shared
+      - ~/.kirishima:/app/config
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:${SMARTHOME_PORT}/ping"]
       interval: 60s

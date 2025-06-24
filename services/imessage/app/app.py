@@ -42,12 +42,6 @@ bluebubbles_password = os.getenv('BLUEBUBBLES_PASSWORD', 'bluebubbles')
 from shared.models.middleware import CacheRequestBodyMiddleware
 from fastapi import FastAPI, HTTPException, Request, status
 
-with open('/app/shared/config.json') as f:
-    _config = json.load(f)
-
-TIMEOUT = _config["timeout"]
-
-
 app = FastAPI()
 app.add_middleware(CacheRequestBodyMiddleware)
 
@@ -57,11 +51,13 @@ app.include_router(docs_router, tags=["docs"])
 register_list_routes(app)
 
 import json
-with open('/app/shared/config.json') as f:
+with open('/app/config/config.json') as f:
     _config = json.load(f)
 if _config['tracing_enabled']:
     from shared.tracing import setup_tracing
     setup_tracing(app, service_name="imessage")
+
+TIMEOUT = _config["timeout"]
 
 
 class BlueBubblesClient:

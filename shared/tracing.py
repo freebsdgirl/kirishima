@@ -5,7 +5,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 import json
 
-with open('/app/shared/config.json') as f:
+with open('/app/config/config.json') as f:
     _config = json.load(f)
 OTLP_API_KEY = _config['otlp']['api_key']
 OTLP_URL = _config['otlp']['url']

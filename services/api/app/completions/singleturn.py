@@ -33,7 +33,7 @@ from fastapi import APIRouter, HTTPException, status, Request
 from fastapi.responses import RedirectResponse
 router = APIRouter()
 
-with open('/app/shared/config.json') as f:
+with open('/app/config/config.json') as f:
     _config = json.load(f)
 
 TIMEOUT = _config["timeout"]

@@ -15,13 +15,13 @@ Routes:
         Returns a summary of the number of deleted messages.
 """
 
-from app.config import BUFFER_DB
 from shared.models.ledger import  DeleteSummary
 
 from shared.log_config import get_logger
 logger = get_logger(f"ledger{__name__}")
 
 import sqlite3
+import json
 from typing import Optional
 from fastapi import APIRouter, Path, Query
 from datetime import datetime, time, timedelta
@@ -32,7 +32,11 @@ TABLE = "user_messages"
 
 
 def _open_conn() -> sqlite3.Connection:
-    conn = sqlite3.connect(BUFFER_DB, timeout=5.0)
+    with open('/app/config/config.json') as f:
+        _config = json.load(f)
+
+    db = _config["db"]["ledger"]
+    conn = sqlite3.connect(db, timeout=5.0)
     conn.execute("PRAGMA journal_mode=WAL;")
     return conn
 

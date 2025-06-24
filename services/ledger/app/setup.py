@@ -1,9 +1,8 @@
-from app.config import BUFFER_DB
-
 from shared.log_config import get_logger
 logger = get_logger(f"ledger.{__name__}")
 
 import sqlite3
+import json
 
 # SQL schema for buffer table and summary metadata
 SCHEMA_SQL = """
@@ -78,7 +77,12 @@ def init_buffer_db():
     This function connects to the buffer database, executes the predefined schema SQL script,
     commits the changes, and closes the database connection.
     """
-    conn = sqlite3.connect(BUFFER_DB, timeout=5.0)
+
+    with open('/app/config/config.json') as f:
+        _config = json.load(f)
+
+        db = _config["db"]["ledger"]
+    conn = sqlite3.connect(db, timeout=5.0)
     conn.execute("PRAGMA journal_mode=WAL;")
     conn.executescript(SCHEMA_SQL)
     conn.commit()

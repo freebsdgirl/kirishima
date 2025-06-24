@@ -1,5 +1,3 @@
-BUFFER_DB = "./shared/db/ledger/buffer.db"
-
 user_chunk_size          = 512     # the maximum number of tokens to process for user summarization
 user_chunk_at            = 1024    # the number of tokens the buffer must contain before the oldest user chunk is summarized
 

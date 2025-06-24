@@ -10,7 +10,6 @@ The module uses FastAPI for routing, SQLite for data storage, and shared models 
 logging configuration for consistent data handling and logging.
 """
 
-from app.config import BUFFER_DB
 from shared.models.ledger import CanonicalUserMessage
 
 from shared.log_config import get_logger
@@ -93,7 +92,12 @@ def get_user_messages(
         else:
             date = now.strftime("%Y-%m-%d")
 
-    with sqlite3.connect(BUFFER_DB, timeout=5.0) as conn:
+    with open('/app/config/config.json') as f:
+        _config = json.load(f)
+
+    db = _config["db"]["ledger"]
+
+    with sqlite3.connect(db, timeout=5.0) as conn:
         conn.execute("PRAGMA journal_mode=WAL;")
         cur = conn.cursor()
         cur.execute("SELECT * FROM user_messages WHERE user_id = ? ORDER BY id", (user_id,))

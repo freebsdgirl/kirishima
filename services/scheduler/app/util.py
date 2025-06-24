@@ -6,8 +6,6 @@ and default job settings to control execution behavior. The module provides a ut
 execute scheduled jobs by sending HTTP POST requests to external endpoints, including job metadata
 and execution timestamps in the payload. Logging is integrated for monitoring job execution and errors.
 """
-import app.config
-
 from shared.log_config import get_logger
 logger = get_logger(f"scheduler.{__name__}")
 
@@ -18,7 +16,7 @@ from apscheduler.executors.pool import ThreadPoolExecutor
 from typing import Dict, Any
 from datetime import datetime
 import requests
-
+import json
 
 """
 Configures the background scheduler with SQLAlchemy job store, thread pool executor, and job defaults.
@@ -27,8 +25,15 @@ Sets up a scheduler that uses a SQLite database for persistent job storage, a th
 for concurrent job execution, and default settings to control job behavior such as 
 preventing job coalescing and limiting concurrent job instances.
 """
+
+
+with open('/app/config/config.json') as f:
+    _config = json.load(f)
+
+db = _config["db"]["scheduler"]
+
 jobstores = {
-    'default': SQLAlchemyJobStore(url=f"sqlite:///{app.config.SCHEDULER_DB}")
+    'default': SQLAlchemyJobStore(url=f"sqlite:///{db}")
 }
 
 executors = {

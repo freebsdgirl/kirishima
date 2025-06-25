@@ -152,7 +152,13 @@ async def trigger_summaries_for_inactive_users():
     Returns:
         List[str]: A list of unique user IDs found in the user messages database.
     """
-    with sqlite3.connect(BUFFER_DB, timeout=5.0, isolation_level=None) as conn:
+
+    with open('/app/config/config.json') as f:
+        _config = json.load(f)
+
+    db = _config["db"]["ledger"]
+
+    with sqlite3.connect(db, timeout=5.0, isolation_level=None) as conn:
         conn.execute("PRAGMA journal_mode=WAL;")
         cur = conn.cursor()
         cur.execute(

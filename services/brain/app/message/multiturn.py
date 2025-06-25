@@ -31,6 +31,7 @@ logger = get_logger(f"brain.{__name__}")
 import json
 import sqlite3
 from pathlib import Path
+import inspect
 
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
@@ -350,7 +351,10 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
                         tool_fn = TOOL_FUNCTIONS.get(fn)
                         if tool_fn:
                             try:
-                                tool_result = tool_fn(**args_dict)
+                                if inspect.iscoroutinefunction(tool_fn):
+                                    tool_result = await tool_fn(**args_dict)
+                                else:
+                                    tool_result = tool_fn(**args_dict)
                                 logger.info(f"Executed tool {fn}: {tool_result}")
                             except Exception as e:
                                 logger.error(f"Error executing tool {fn}: {e}")

@@ -6,6 +6,7 @@ from .memory_list import memory_list
 from .tts import tts
 from .update_divoom import update_divoom
 from .github_issue import github_issue
+from .smarthome import smarthome
 
 TOOL_FUNCTIONS = {
     "manage_prompt": manage_prompt,
@@ -15,5 +16,6 @@ TOOL_FUNCTIONS = {
     "memory_list": memory_list,
     "tts": tts,
     "update_divoom": update_divoom,
-    "github_issue": github_issue
+    "github_issue": github_issue,
+    "smarthome": smarthome
 }

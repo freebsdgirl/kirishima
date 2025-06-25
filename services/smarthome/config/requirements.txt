@@ -2,3 +2,5 @@ uvicorn
 fastapi
 httpx
 pygelf
+websockets
+requests

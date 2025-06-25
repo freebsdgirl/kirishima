@@ -195,5 +195,26 @@
         "required": ["action"]
       }
     }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "smarthome",
+      "description": "Perform smarthome actions.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "user_request": {
+            "type": "string",
+            "description": "The natural language request to perform (e.g., 'turn on the living room lights')."
+          },
+          "device": {
+            "type": "string",
+            "description": "The name of the device to control (e.g., 'living room lights')."
+          }
+        },
+        "required": ["user_request"]
+      }
+    }
   }
 ]

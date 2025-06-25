@@ -222,6 +222,7 @@ async def tts_speak_endpoint(request: Request):
         Any exceptions during audio generation or playback will be printed to console.
     """
     data = await request.json()
+    print(data)
 
     text = data.get("text", "")
     wav_path = text_to_speech_to_wav(text)
@@ -268,6 +269,7 @@ async def openai_compatible_tts(request: Request):
         HTTPException: If input text is missing or model options are invalid
     """
     data = await request.json()
+    print(data)
 
     input_text = data.get("input", "")
     if not input_text:

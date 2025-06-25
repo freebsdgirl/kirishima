@@ -79,3 +79,17 @@ async def list_entities() -> list:
     """
     from app.util import get_entities
     return await get_entities()
+
+
+@router.get("/entity/{entity_id}")
+async def get_entity(entity_id: str):
+    """
+    Retrieves details for a specific entity by its ID.
+
+    Args:
+        entity_id (str): The ID of the entity to retrieve.
+    Returns:
+        dict: A dictionary containing the entity's details.
+    """
+    from app.util import get_states_for_entity_ids
+    return await get_states_for_entity_ids([entity_id])

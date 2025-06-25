@@ -1,61 +1,44 @@
-def get_smart_home_devices() -> list:
+import httpx
+
+from shared.models.smarthome import UserRequest
+from shared.log_config import get_logger
+logger = get_logger(f"brain.{__name__}")
+
+import shared.consul
+import json
+
+async def smarthome(user_request: str, device: str = None) -> str:
     """
-    Queries home assistant for available smart home devices.
-
-    Returns:
-        list: A list of available smart home devices.
-    """
-    pass  # Placeholder for actual smart home device retrieval logic
-
-
-def get_smart_home_automations() -> list:
-    """
-    Queries home assistant for available smart home automations.
-
-    Returns:
-        list: A list of available smart home automations.
-    """
-    pass  # Placeholder for actual smart home automation retrieval logic
-
-
-def set_smart_home_device(device: str, value: dict) -> str:
-    """
-    Sets a value for a specific smart home device.
-
+    Sends a user request to the smarthome service via Consul service discovery.
+    
     Args:
-        device (str): The device entity to control (e.g., 'light.bedroom', 'fan.office').
-        value (dict): The values to set for the device (e.g., {'brightness': 75, 'color': 'blue'}, {'power': 'on'}).
-
+        user_request (str): The full text request from the user.
+        device (str, optional): The name of the specific device, if applicable.
+    
     Returns:
-        str: A message indicating the result of the action.
+        str: JSON-encoded response from the smarthome service, or an error message.
+    
+    Raises:
+        Handles httpx.TimeoutException and httpx.RequestError, logging errors and returning
+        JSON-encoded error responses.
     """
-    pass  # Placeholder for actual smart home setting logic
+    if not user_request:
+        return json.dumps({"error": "User request cannot be empty."})
 
-
-def run_smart_home_automation(automation: str) -> str:
-    """
-    Runs a specific smart home automation.
-
-    Args:
-        automation (str): The automation to run (e.g., 'morning_routine', 'night_mode', 'give_slam_a_treat').
-
-    Returns:
-        str: A message indicating the result of the action.
-    """
-    pass  # Placeholder for actual smart home automation logic
-
-
-def smarthome(action: str, device: str = None, automation: str = None, value: dict = None) -> str:
-    """
-    Simulates a smart home action.
-
-    Args:
-        action (str): The action to perform (e.g., 'set', 'get', 'run').
-        device (str): The natural language device to control/query (e.g., 'bedroom lights', 'office fan').
-        automation (str): The natural language automation to run (e.g., 'morning routine', 'night mode', 'give slam a treat').
-        value (dict): The values to set for the device (e.g., {'brightness': 75, 'color': 'blue'}, {'power': 'on'}).
-
-    Returns:
-        str: A message indicating the result of the action.
-    """
-    pass  # Placeholder for actual smart home logic
+    data = UserRequest(full_request=user_request, name=device)
+    try:
+        smarthome_address, smarthome_port = shared.consul.get_service_address('smarthome')
+        async with httpx.AsyncClient(timeout=60) as client:
+            response = await client.post(
+                f'http://{smarthome_address}:{smarthome_port}/user_request',
+                json=data.model_dump()
+            )
+            response.raise_for_status()
+            data = response.json()
+            return data
+    except httpx.TimeoutException:
+        logger.error("Request timed out.")
+        return json.dumps({"error": "Request timed out."})
+    except httpx.RequestError as e:
+        logger.error(f"An error occurred: {e}")
+        return json.dumps({"error": str(e)})

@@ -292,6 +292,15 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
                 if isinstance(val, list):
                     updated_request.messages.extend(val)
 
+    # technically this should be a brainlet, but it lives here for now.
+    # check for any stickynotes that are due and return them as tool calls
+    from app.tools.stickynotes import check_stickynotes
+    tools_calls = await check_stickynotes(message.user_id)
+    if tools_calls:
+        # if the list isn't empty, append the dicts to the messages.
+        # they are already formatted as OpenAI tool calls.
+        updated_request.messages.extend(tools_calls)
+
     # send the payload to the proxy service and handle tool call loop
     from app.tools import TOOL_FUNCTIONS
     import json as _json

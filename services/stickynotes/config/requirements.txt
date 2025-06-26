@@ -1,0 +1,7 @@
+uvicorn
+fastapi
+httpx
+pygelf
+isodate
+sqlalchemy
+dateutils

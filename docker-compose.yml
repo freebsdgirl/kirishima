@@ -326,6 +326,37 @@ services:
     networks:
       - shared-net
 
+  stickynotes:
+    build:
+      context: ./services/stickynotes
+      args:
+        SERVICE_PORT: ${STICKYNOTES_PORT}
+    environment:
+      - SERVICE_PORT=${STICKYNOTES_PORT}
+      - SERVICE_NAME=stickynotes
+      - TZ=America/Los_Angeles
+    depends_on:
+      - consul
+      - graylog
+    ports:
+      - "${STICKYNOTES_PORT}:${STICKYNOTES_PORT}"
+    volumes:
+      - ./services/stickynotes/app:/app/app
+      - ./shared:/app/shared
+      - ~/.kirishima:/app/config
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${STICKYNOTES_PORT}/ping"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: gelf
+      options:
+        gelf-address: "tcp://localhost:12201"
+    networks:
+      - shared-net
+
   consul:
     image: hashicorp/consul
     command: agent -server -bootstrap -ui -client=0.0.0.0

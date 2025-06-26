@@ -216,5 +216,42 @@
         "required": ["user_request"]
       }
     }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "stickynotes",
+      "description": "Perform sticky notes actions.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "Action to perform: 'create', 'list', 'snooze', 'resolve'."
+          },
+          "text": {
+            "type": "string",
+            "description": "The text content of the sticky note, used for create."
+          },
+          "snooze": {
+            "type": "string",
+            "description": "The snooze period. Format is ISO 8601 duration."
+          },
+          "periodicity": {
+            "type": "string",
+            "description": "The periodicity of the sticky note, used for create. (e.g., R/P1D) Format is ISO 8601 duration."
+          },
+          "id": {
+            "type": "string",
+            "description": "The ID of the sticky note, used to snooze or resolve."
+          },
+          "date": {
+            "type": "string",
+            "description": "The date for the sticky note, used for create. Format is ISO 8601 date."
+          }
+        },
+        "required": ["action"]
+      }
+    }
   }
 ]

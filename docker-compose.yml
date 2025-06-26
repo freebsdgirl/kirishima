@@ -8,6 +8,19 @@ services:
       - SERVICE_PORT=${API_PORT}
       - SERVICE_NAME=api
       - TZ=America/Los_Angeles
+      - API_PORT=${API_PORT}
+      - BRAIN_PORT=${BRAIN_PORT}
+      - CHROMADB_PORT=${CHROMADB_PORT}
+      - CONTACTS_PORT=${CONTACTS_PORT}
+      - COURIER_PORT=${COURIER_PORT}
+      - DISCORD_PORT=${DISCORD_PORT}
+      - IMESSAGE_PORT=${IMESSAGE_PORT}
+      - LEDGER_PORT=${LEDGER_PORT}
+      - PROXY_PORT=${PROXY_PORT}
+      - SCHEDULER_PORT=${SCHEDULER_PORT}
+      - SMARTHOME_PORT=${SMARTHOME_PORT}
+      - STICKYNOTES_PORT=${STICKYNOTES_PORT}
+      - TTS_PORT=${TTS_PORT}
     depends_on:
       - consul
       - graylog
@@ -40,6 +53,19 @@ services:
       - SERVICE_PORT=${BRAIN_PORT}
       - SERVICE_NAME=brain
       - TZ=America/Los_Angeles
+      - API_PORT=${API_PORT}
+      - BRAIN_PORT=${BRAIN_PORT}
+      - CHROMADB_PORT=${CHROMADB_PORT}
+      - CONTACTS_PORT=${CONTACTS_PORT}
+      - COURIER_PORT=${COURIER_PORT}
+      - DISCORD_PORT=${DISCORD_PORT}
+      - IMESSAGE_PORT=${IMESSAGE_PORT}
+      - LEDGER_PORT=${LEDGER_PORT}
+      - PROXY_PORT=${PROXY_PORT}
+      - SCHEDULER_PORT=${SCHEDULER_PORT}
+      - SMARTHOME_PORT=${SMARTHOME_PORT}
+      - STICKYNOTES_PORT=${STICKYNOTES_PORT}
+      - TTS_PORT=${TTS_PORT}
     depends_on:
       - consul
       - graylog
@@ -74,6 +100,19 @@ services:
       - SERVICE_PORT=${CHROMADB_PORT}
       - SERVICE_NAME=chromadb
       - TZ=America/Los_Angeles
+      - API_PORT=${API_PORT}
+      - BRAIN_PORT=${BRAIN_PORT}
+      - CHROMADB_PORT=${CHROMADB_PORT}
+      - CONTACTS_PORT=${CONTACTS_PORT}
+      - COURIER_PORT=${COURIER_PORT}
+      - DISCORD_PORT=${DISCORD_PORT}
+      - IMESSAGE_PORT=${IMESSAGE_PORT}
+      - LEDGER_PORT=${LEDGER_PORT}
+      - PROXY_PORT=${PROXY_PORT}
+      - SCHEDULER_PORT=${SCHEDULER_PORT}
+      - SMARTHOME_PORT=${SMARTHOME_PORT}
+      - STICKYNOTES_PORT=${STICKYNOTES_PORT}
+      - TTS_PORT=${TTS_PORT}
     depends_on:
       - consul
       - graylog
@@ -105,6 +144,19 @@ services:
       - SERVICE_PORT=${CONTACTS_PORT}
       - SERVICE_NAME=contacts
       - TZ=America/Los_Angeles
+      - API_PORT=${API_PORT}
+      - BRAIN_PORT=${BRAIN_PORT}
+      - CHROMADB_PORT=${CHROMADB_PORT}
+      - CONTACTS_PORT=${CONTACTS_PORT}
+      - COURIER_PORT=${COURIER_PORT}
+      - DISCORD_PORT=${DISCORD_PORT}
+      - IMESSAGE_PORT=${IMESSAGE_PORT}
+      - LEDGER_PORT=${LEDGER_PORT}
+      - PROXY_PORT=${PROXY_PORT}
+      - SCHEDULER_PORT=${SCHEDULER_PORT}
+      - SMARTHOME_PORT=${SMARTHOME_PORT}
+      - STICKYNOTES_PORT=${STICKYNOTES_PORT}
+      - TTS_PORT=${TTS_PORT}
     depends_on:
       - consul
       - graylog
@@ -137,6 +189,19 @@ services:
       - SERVICE_NAME=discord
       - TZ=America/Los_Angeles
       - DISCORD_TOKEN=${DISCORD_TOKEN}
+      - API_PORT=${API_PORT}
+      - BRAIN_PORT=${BRAIN_PORT}
+      - CHROMADB_PORT=${CHROMADB_PORT}
+      - CONTACTS_PORT=${CONTACTS_PORT}
+      - COURIER_PORT=${COURIER_PORT}
+      - DISCORD_PORT=${DISCORD_PORT}
+      - IMESSAGE_PORT=${IMESSAGE_PORT}
+      - LEDGER_PORT=${LEDGER_PORT}
+      - PROXY_PORT=${PROXY_PORT}
+      - SCHEDULER_PORT=${SCHEDULER_PORT}
+      - SMARTHOME_PORT=${SMARTHOME_PORT}
+      - STICKYNOTES_PORT=${STICKYNOTES_PORT}
+      - TTS_PORT=${TTS_PORT}
     depends_on:
       - consul
       - graylog
@@ -171,8 +236,20 @@ services:
       - BLUEBUBBLES_PORT=${BLUEBUBBLES_PORT}
       - BLUEBUBBLES_PASSWORD=${BLUEBUBBLES_PASSWORD}
       - BRAIN_HOST=brain
-      - BRAIN_PORT=${BRAIN_PORT}
       - TZ=America/Los_Angeles
+      - API_PORT=${API_PORT}
+      - BRAIN_PORT=${BRAIN_PORT}
+      - CHROMADB_PORT=${CHROMADB_PORT}
+      - CONTACTS_PORT=${CONTACTS_PORT}
+      - COURIER_PORT=${COURIER_PORT}
+      - DISCORD_PORT=${DISCORD_PORT}
+      - IMESSAGE_PORT=${IMESSAGE_PORT}
+      - LEDGER_PORT=${LEDGER_PORT}
+      - PROXY_PORT=${PROXY_PORT}
+      - SCHEDULER_PORT=${SCHEDULER_PORT}
+      - SMARTHOME_PORT=${SMARTHOME_PORT}
+      - STICKYNOTES_PORT=${STICKYNOTES_PORT}
+      - TTS_PORT=${TTS_PORT}
     depends_on:
       - consul
       - graylog
@@ -205,6 +282,19 @@ services:
       - SERVICE_PORT=${LEDGER_PORT}
       - SERVICE_NAME=ledger
       - TZ=America/Los_Angeles
+      - API_PORT=${API_PORT}
+      - BRAIN_PORT=${BRAIN_PORT}
+      - CHROMADB_PORT=${CHROMADB_PORT}
+      - CONTACTS_PORT=${CONTACTS_PORT}
+      - COURIER_PORT=${COURIER_PORT}
+      - DISCORD_PORT=${DISCORD_PORT}
+      - IMESSAGE_PORT=${IMESSAGE_PORT}
+      - LEDGER_PORT=${LEDGER_PORT}
+      - PROXY_PORT=${PROXY_PORT}
+      - SCHEDULER_PORT=${SCHEDULER_PORT}
+      - SMARTHOME_PORT=${SMARTHOME_PORT}
+      - STICKYNOTES_PORT=${STICKYNOTES_PORT}
+      - TTS_PORT=${TTS_PORT}
     depends_on:
       - consul
       - graylog
@@ -239,6 +329,19 @@ services:
       - OLLAMA_SERVER_HOST=${OLLAMA_SERVER_HOST}
       - OLLAMA_SERVER_PORT=${OLLAMA_SERVER_PORT}
       - TZ=America/Los_Angeles
+      - API_PORT=${API_PORT}
+      - BRAIN_PORT=${BRAIN_PORT}
+      - CHROMADB_PORT=${CHROMADB_PORT}
+      - CONTACTS_PORT=${CONTACTS_PORT}
+      - COURIER_PORT=${COURIER_PORT}
+      - DISCORD_PORT=${DISCORD_PORT}
+      - IMESSAGE_PORT=${IMESSAGE_PORT}
+      - LEDGER_PORT=${LEDGER_PORT}
+      - PROXY_PORT=${PROXY_PORT}
+      - SCHEDULER_PORT=${SCHEDULER_PORT}
+      - SMARTHOME_PORT=${SMARTHOME_PORT}
+      - STICKYNOTES_PORT=${STICKYNOTES_PORT}
+      - TTS_PORT=${TTS_PORT}
     depends_on:
       - consul
       - graylog
@@ -272,6 +375,19 @@ services:
       - SERVICE_PORT=${SCHEDULER_PORT}
       - SERVICE_NAME=scheduler
       - TZ=America/Los_Angeles
+      - API_PORT=${API_PORT}
+      - BRAIN_PORT=${BRAIN_PORT}
+      - CHROMADB_PORT=${CHROMADB_PORT}
+      - CONTACTS_PORT=${CONTACTS_PORT}
+      - COURIER_PORT=${COURIER_PORT}
+      - DISCORD_PORT=${DISCORD_PORT}
+      - IMESSAGE_PORT=${IMESSAGE_PORT}
+      - LEDGER_PORT=${LEDGER_PORT}
+      - PROXY_PORT=${PROXY_PORT}
+      - SCHEDULER_PORT=${SCHEDULER_PORT}
+      - SMARTHOME_PORT=${SMARTHOME_PORT}
+      - STICKYNOTES_PORT=${STICKYNOTES_PORT}
+      - TTS_PORT=${TTS_PORT}
     depends_on:
       - brain
       - consul
@@ -304,6 +420,19 @@ services:
       - SERVICE_PORT=${SMARTHOME_PORT}
       - SERVICE_NAME=smarthome
       - TZ=America/Los_Angeles
+      - API_PORT=${API_PORT}
+      - BRAIN_PORT=${BRAIN_PORT}
+      - CHROMADB_PORT=${CHROMADB_PORT}
+      - CONTACTS_PORT=${CONTACTS_PORT}
+      - COURIER_PORT=${COURIER_PORT}
+      - DISCORD_PORT=${DISCORD_PORT}
+      - IMESSAGE_PORT=${IMESSAGE_PORT}
+      - LEDGER_PORT=${LEDGER_PORT}
+      - PROXY_PORT=${PROXY_PORT}
+      - SCHEDULER_PORT=${SCHEDULER_PORT}
+      - SMARTHOME_PORT=${SMARTHOME_PORT}
+      - STICKYNOTES_PORT=${STICKYNOTES_PORT}
+      - TTS_PORT=${TTS_PORT}
     depends_on:
       - consul
       - graylog
@@ -335,6 +464,19 @@ services:
       - SERVICE_PORT=${STICKYNOTES_PORT}
       - SERVICE_NAME=stickynotes
       - TZ=America/Los_Angeles
+      - API_PORT=${API_PORT}
+      - BRAIN_PORT=${BRAIN_PORT}
+      - CHROMADB_PORT=${CHROMADB_PORT}
+      - CONTACTS_PORT=${CONTACTS_PORT}
+      - COURIER_PORT=${COURIER_PORT}
+      - DISCORD_PORT=${DISCORD_PORT}
+      - IMESSAGE_PORT=${IMESSAGE_PORT}
+      - LEDGER_PORT=${LEDGER_PORT}
+      - PROXY_PORT=${PROXY_PORT}
+      - SCHEDULER_PORT=${SCHEDULER_PORT}
+      - SMARTHOME_PORT=${SMARTHOME_PORT}
+      - STICKYNOTES_PORT=${STICKYNOTES_PORT}
+      - TTS_PORT=${TTS_PORT}
     depends_on:
       - consul
       - graylog

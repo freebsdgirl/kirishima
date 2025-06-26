@@ -1,13 +1,28 @@
 """
-This module provides API endpoints and utility functions for retrieving user messages
-from the ledger service. It includes:
-- A utility function `get_period_range` to compute datetime ranges for named periods
-    (e.g., 'morning', 'afternoon', etc.) on a given date.
-- An endpoint `/ledger/user/{user_id}/messages` to fetch messages for a specific user,
-    with optional filtering by time period and date.
-- An endpoint `/active` to retrieve all unique user IDs with messages in the database.
-The module uses FastAPI for routing, SQLite for data storage, and shared models and
-logging configuration for consistent data handling and logging.
+This module provides API endpoints for retrieving user messages from the ledger service.
+Endpoints:
+- GET /user/{user_id}/messages: Retrieve messages for a specific user, optionally filtered by time period and date.
+- GET /active: Retrieve a list of unique user IDs that have messages in the database.
+Functions:
+- get_period_range(period: str, date_str: Optional[str] = None): 
+    Converts a period string and optional date into a start and end datetime range.
+- get_user_messages(
+    user_id: str,
+    period: Optional[str] = None,
+    date: Optional[str] = None
+    Retrieves messages for a specific user, with optional filtering by time period and date.
+- trigger_summaries_for_inactive_users():
+    Retrieves a list of unique user IDs from the user messages database.
+Dependencies:
+- FastAPI for API routing.
+- sqlite3 for database access.
+- CanonicalUserMessage model for message serialization.
+- Shared logging configuration.
+- JSON for configuration and message parsing.
+Note:
+- Time period filtering supports 'night', 'morning', 'afternoon', 'evening', and 'day'.
+- Tool messages and assistant messages with empty content are filtered out from results.
+
 """
 
 from shared.models.ledger import CanonicalUserMessage
@@ -18,7 +33,7 @@ logger = get_logger(f"ledger{__name__}")
 import sqlite3
 from typing import List, Optional
 from datetime import datetime, time, timedelta
-from fastapi import APIRouter, Path, Body, Query
+from fastapi import APIRouter, Path, Query
 import json
 
 router = APIRouter()

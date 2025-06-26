@@ -13,13 +13,12 @@ from shared.models.imessage import OutgoingiMessage
 from shared.models.discord import SendDMRequest
 from shared.models.summary import Summary
 
-import shared.consul
-
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
 
 import httpx
 import json
+import os
 
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
@@ -52,9 +51,9 @@ async def _send_discord_dm(user_id: str, message: str):
             content=message
         )
 
-        discord_address, discord_port = shared.consul.get_service_address('discord')
+        discord_port = os.getenv("DISCORD_PORT", 4209)
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-            response = await client.post(f"http://{discord_address}:{discord_port}/dm", json=dm.model_dump())
+            response = await client.post(f"http://discord:{discord_port}/dm", json=dm.model_dump())
             response.raise_for_status()
             logger.info(f"✅ Notification sent to {user_id} via Discord")
 
@@ -87,13 +86,14 @@ async def _send_imessage(user_id: str, message: str):
         HTTPException: If there is a general error in sending the iMessage notification.
     """
     try:
-        imessage_address, imessage_port = shared.consul.get_service_address('imessage')
+
+        imessage_port = os.getenv("IMESSAGE_PORT", 4204)
         imessage = OutgoingiMessage(
             address=user_id,
             message=message
         )
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-            response = await client.post(f"http://{imessage_address}:{imessage_port}/imessage/send", json=imessage.model_dump())
+            response = await client.post(f"http://imessage:{imessage_port}/imessage/send", json=imessage.model_dump())
             response.raise_for_status()
             logger.info(f"✅ Notification sent to {user_id} via iMessage")
 
@@ -127,9 +127,9 @@ async def _get_contact(user_id: str) -> Contact:
         HTTPException: If there is a general error in retrieving the contact information.
     """
     try:
-        contacts_address, contacts_port = shared.consul.get_service_address('contacts')
+        contacts_port = os.getenv("CONTACTS_PORT", 4202)
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-            response = await client.get(f"http://{contacts_address}:{contacts_port}/contact/{user_id}")
+            response = await client.get(f"http://contacts:{contacts_port}/contact/{user_id}")
             response.raise_for_status()
             return response.json()
 
@@ -157,9 +157,9 @@ async def get_recent_summaries(user_id: str, limit: int = 4) -> str:
     """
 
     try:
-        chromadb_address, chromadb_port = shared.consul.get_service_address('chromadb')
+        chromadb_port = os.getenv("CHROMADB_PORT", 4206)
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-            response = await client.get(f"http://{chromadb_address}:{chromadb_port}/summary?user_id={user_id}&limit={limit}")
+            response = await client.get(f"http://chromadb:{chromadb_port}/summary?user_id={user_id}&limit={limit}")
             response.raise_for_status()
             summaries_list = response.json()
     except httpx.HTTPStatusError as e:

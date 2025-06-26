@@ -16,8 +16,6 @@ Key Features:
 from shared.models.proxy import ProxyResponse, ProxyOneShotRequest
 from shared.models.openai import OpenAICompletionRequest, OpenAICompletionResponse, OpenAICompletionChoice, OpenAIUsage
 
-from shared.consul import get_service_address
-
 from shared.log_config import get_logger
 logger = get_logger(f"api.{__name__}")
 
@@ -25,6 +23,7 @@ import uuid
 import datetime
 import json
 import httpx
+import os
 from dateutil import parser
 from typing import Optional, List
 import tiktoken
@@ -99,9 +98,10 @@ async def openai_v1_completions(request: OpenAICompletionRequest, request_data: 
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         for i in range(n):
             try:
-                brain_address, brain_port = get_service_address('brain')
+                brain_port = os.getenv("BRAIN_PORT", 4207)
+
                 response = await client.post(
-                    f"http://{brain_address}:{brain_port}/api/singleturn", 
+                    f"http://brain:{brain_port}/api/singleturn", 
                     json=proxy_request_data
                 )
                 response.raise_for_status()

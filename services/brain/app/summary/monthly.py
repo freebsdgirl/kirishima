@@ -11,8 +11,6 @@ from app.config import SUMMARY_MONTHLY_MAX_TOKENS
 
 from shared.models.summary import SummaryCreateRequest, SummaryMetadata, Summary, CombinedSummaryRequest
 
-import shared.consul
-
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
 
@@ -22,6 +20,7 @@ import httpx
 from datetime import datetime
 from calendar import monthrange
 import json
+import os
 
 from fastapi import HTTPException, status, APIRouter
 router = APIRouter()
@@ -77,13 +76,13 @@ async def create_monthly_summary(request: SummaryCreateRequest):
     try:
         summaries = []
 
-        chromadb_address, chromadb_port = shared.consul.get_service_address('chromadb')
+        chromadb_port = os.getenv("CHROMADB_PORT", 4206)
     
         timestamp_begin = request_date.replace(day=1).strftime("%Y-%m-%d 00:00:00")
         last_day = monthrange(request_date.year, request_date.month)[1]
         timestamp_end = request_date.replace(day=last_day).strftime("%Y-%m-%d 23:59:59")
 
-        url = f"http://{chromadb_address}:{chromadb_port}/summary?type=daily"
+        url = f"http://chromadb:{chromadb_port}/summary?type=daily"
         url += f"&timestamp_begin={timestamp_begin}&timestamp_end={timestamp_end}"
 
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
@@ -129,10 +128,10 @@ async def create_monthly_summary(request: SummaryCreateRequest):
             max_tokens=SUMMARY_MONTHLY_MAX_TOKENS
         )
 
-        proxy_address, proxy_port = shared.consul.get_service_address('proxy')
+        proxy_port = os.getenv("PROXY_PORT", 4205)
         try:
             async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-                response = await client.post(f"http://{proxy_address}:{proxy_port}/summary/user/combined", json=payload.model_dump())
+                response = await client.post(f"http://proxy:{proxy_port}/summary/user/combined", json=payload.model_dump())
                 response.raise_for_status()
         except httpx.HTTPStatusError as e:
             logger.error(f"HTTP error occurred: {e.response.status_code} - {e.response.text}")
@@ -163,11 +162,11 @@ async def create_monthly_summary(request: SummaryCreateRequest):
         logger.debug(f"Monthly summary created for user {user_id}: {summary}")
 
         # write the summary to chromadb for weekly
-        chromadb_address, chromadb_port = shared.consul.get_service_address('chromadb')
+        chromadb_port = os.getenv("CHROMADB_PORT", 4206)
 
         try:
             async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-                response = await client.post(f"http://{chromadb_address}:{chromadb_port}/summary", json=summary.model_dump())
+                response = await client.post(f"http://chromadb:{chromadb_port}/summary", json=summary.model_dump())
                 response.raise_for_status()
 
                 summary = response.json()

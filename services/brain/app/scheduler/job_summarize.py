@@ -31,9 +31,9 @@ logger = get_logger(f"brain.{__name__}")
 
 from typing import List
 from datetime import datetime, timedelta
-import shared.consul
 import httpx
 import json
+import os
 
 from fastapi import HTTPException, status
 
@@ -74,11 +74,11 @@ async def delete_user_buffer_from_summaries(request: List[Summary]):
         logger.debug(f"Deleting buffer for user {user_id}")
         # call ledger's delete /user/{user_id} endpoint
         
-        ledger_address, ledger_port = shared.consul.get_service_address('ledger')
+        ledger_port = os.getenv("LEDGER_PORT", 4203)
 
         try:
             async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-                response = await client.delete(f"http://{ledger_address}:{ledger_port}/user/{user_id}")
+                response = await client.delete(f"http://ledger:{ledger_port}/user/{user_id}")
                 response.raise_for_status()
                 logger.debug(f"Buffer deleted for user {user_id}")
 

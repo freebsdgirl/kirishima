@@ -1,4 +1,20 @@
+"""
+Main application entry point for the Ledger service.
 
+- Initializes the buffer database.
+- Sets up FastAPI application with custom middleware.
+- Includes routers for system, documentation, and user-related endpoints (delete, get, sync).
+- Registers additional list routes.
+- Loads configuration from JSON file and conditionally enables tracing if specified.
+
+Modules imported:
+    - User routers: delete, get, sync
+    - Setup: buffer database initialization
+    - Shared: docs exporter, routes, middleware, tracing
+
+Environment:
+    - Expects configuration at '/app/config/config.json'
+"""
 from app.user.delete import router as user_delete_router
 from app.user.get import router as user_get_router
 from app.user.sync import router as user_sync_router

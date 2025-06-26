@@ -20,15 +20,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy your application code
 COPY app/ ./app
 
-# Install Consul
-ENV CONSUL_VERSION=1.20.5
-RUN curl -OL https://releases.hashicorp.com/consul/${CONSUL_VERSION}/consul_${CONSUL_VERSION}_linux_amd64.zip && \
-    unzip consul_${CONSUL_VERSION}_linux_amd64.zip && \
-    mv consul /usr/local/bin/consul && \
-    rm consul_${CONSUL_VERSION}_linux_amd64.zip
-
-COPY discord-service.json.template /consul/config/
-
 # Expose the service port (for uvicorn)
 EXPOSE ${SERVICE_PORT}
 

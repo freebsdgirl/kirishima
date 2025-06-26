@@ -13,6 +13,9 @@ from shared.models.models import OpenAIModelList
 from shared.log_config import get_logger
 logger = get_logger(f"api.{__name__}")
 
+import json
+from datetime import datetime
+
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import RedirectResponse
 router = APIRouter()
@@ -38,12 +41,18 @@ async def openai_completions() -> RedirectResponse:
 @router.get("/v1/models", response_model=OpenAIModelList)
 async def list_models():
     """
-    List available models based on modes in config.json, using mode names as model ids.
+    Retrieve and list available language models from the configuration file.
+
+    Reads model configurations from 'config.json', constructs a list of models with their
+    unique identifiers, creation timestamps, and ownership information. Supports different
+    providers like OpenAI and Ollama, with custom ownership attribution.
+
     Returns:
-        OpenAIModelList: A list of models in OpenAI-compatible format.
+        OpenAIModelList: A list of available models with their metadata.
+
+    Raises:
+        HTTPException: If there is an error reading the configuration file.
     """
-    import json
-    from datetime import datetime
     
     try:
         with open('/app/config/config.json', 'r') as f:

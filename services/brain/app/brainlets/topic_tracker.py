@@ -1,4 +1,22 @@
-from typing import List, Dict, Any
+"""
+Tracks the current topic of conversation for a user based on recent chat history.
+
+This async function analyzes the last several user and assistant messages to determine the ongoing topic,
+using a language model and optionally referencing the most recent topic stored in a SQLite database.
+If a significant topic change is detected, it records the new topic in the database.
+
+Args:
+    brainlets_output (Dict[str, Any]): Output from previous brainlet processing steps (not used directly).
+    message (MultiTurnRequest): The incoming multi-turn message object containing user ID and message history.
+
+Returns:
+    dict: {"topic": <new_topic>} if a new topic is detected and stored.
+    str: An empty string if the topic has not changed.
+
+Raises:
+    None explicitly, but database and file I/O errors are caught and suppressed.
+"""
+from typing import Dict, Any
 import json
 import sqlite3
 from pathlib import Path
@@ -8,6 +26,24 @@ import uuid
 from shared.models.proxy import MultiTurnRequest
 
 async def topic_tracker(brainlets_output: Dict[str, Any], message: MultiTurnRequest):
+    """
+    Tracks the current topic of conversation for a user based on recent chat history.
+    
+    This async function analyzes the last several user and assistant messages to determine the ongoing topic,
+    using a language model and optionally referencing the most recent topic stored in a SQLite database.
+    If a significant topic change is detected, it records the new topic in the database.
+    
+    Args:
+        brainlets_output (Dict[str, Any]): Output from previous brainlet processing steps (not used directly).
+        message (MultiTurnRequest): The incoming multi-turn message object containing user ID and message history.
+    
+    Returns:
+        dict: {"topic": <new_topic>} if a new topic is detected and stored.
+        str: An empty string if the topic has not changed.
+    
+    Raises:
+        None explicitly, but database and file I/O errors are caught and suppressed.
+    """
     # Load config (for db path and model selection)
     with open('/app/config/config.json') as f:
         _config = json.load(f)

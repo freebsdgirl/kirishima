@@ -11,7 +11,6 @@ Key functionalities:
 - Optionally processes the LLM response through the intents service for admin users.
 - Handles error cases and returns appropriate HTTP responses.
 Dependencies:
-- shared.consul: Service discovery for microservices.
 - shared.config: Configuration constants.
 - shared.log_config: Logging setup.
 - httpx: Asynchronous HTTP client.
@@ -25,12 +24,9 @@ Routes:
 from shared.models.contacts import Contact
 from shared.models.discord import DiscordDirectMessage
 from shared.models.proxy import ProxyDiscordDMRequest, ProxyResponse
-from shared.models.intents import IntentRequest
 from shared.models.memory import MemoryListQuery
 from shared.models.summary import Summary
 from shared.models.notification import LastSeen
-
-import shared.consul
 
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
@@ -42,6 +38,7 @@ from app.last_seen import update_last_seen
 
 import httpx
 import json
+import os
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, status
@@ -77,11 +74,11 @@ async def discord_message_incoming(message: DiscordDirectMessage):
     # get the user id from the contacts service
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         try:
-            contacts_address, contacts_port = shared.consul.get_service_address('contacts')
+            contacts_port = os.getenv("CONTACTS_PORT", 4202)
 
             # look up the user by discord_id
             contact_data = await client.get(
-                f"http://{contacts_address}:{contacts_port}/search",
+                f"http://contacts:{contacts_port}/search",
                 params={"key": "discord_id", "value": str(message.author_id)}
             )
 
@@ -200,10 +197,10 @@ async def discord_message_incoming(message: DiscordDirectMessage):
     
     # get a list of summaries for the user 
     try:
-        chromadb_address, chromadb_port = shared.consul.get_service_address('chromadb')
 
+        chromadb_port = os.getenv("CHROMADB_PORT", 4203)
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-            response = await client.get(f"http://{chromadb_address}:{chromadb_port}/summary?user_id={user_id}&limit=4")
+            response = await client.get(f"http://chromadb:{chromadb_port}/summary?user_id={user_id}&limit=4")
             response.raise_for_status()
             summaries = response.json()
 

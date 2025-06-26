@@ -2,33 +2,32 @@
 This module provides synchronization logic for user message buffers in the ledger service.
 
 It exposes a FastAPI router with an endpoint to synchronize a user's message buffer with the server-side ledger,
-handling deduplication, message edits, and appending new messages. The synchronization process supports both API
-and non-API platforms, and ensures the server buffer accurately reflects the latest client state.
-
-Key Features:
-- Deduplication of consecutive user messages to prevent duplicates after errors or retries.
-- Handling of assistant message edits, updating the server buffer when the assistant's response changes.
-- Appending new messages to the buffer, with logic to seed new buffers and handle edge cases.
-- Optional result limiting to control the number of messages returned.
-- Integration points for background summary creation (currently commented out).
-
-Dependencies:
-- FastAPI for API routing and request handling.
-- SQLite for persistent message storage.
-- Pydantic models for message validation and serialization.
-- Logging for debug and traceability.
+handling deduplication, consecutive user messages, assistant message edits, and appending new messages.
+The module interacts with a SQLite database to persist and update message history.
 
 Functions:
-- _open_conn: Opens a SQLite connection with WAL mode enabled.
-- sync_user_buffer: FastAPI endpoint to synchronize the user's message buffer, applying deduplication,
-    edit detection, and append logic based on the incoming snapshot.
+    _open_conn(): Opens a SQLite connection using configuration from a JSON file.
+    ensure_first_user(messages): Ensures the returned message list starts with a user message.
+    sync_user_buffer(user_id, snapshot, background_tasks, limit): FastAPI endpoint to synchronize a user's message buffer.
 
-Table:
-- user_messages: Stores user and assistant messages with metadata for synchronization.
+Key Features:
+    - Deduplication of user and assistant messages
+    - Handling of consecutive user messages (e.g., after server errors)
+    - Editing of assistant messages if the content changes
+    - Appending new messages to the ledger
+    - Optional limiting of returned message history
+    - Ensures the message buffer always starts with a user message
 
-Usage:
-Import this module and include its router in your FastAPI application to enable message buffer synchronization
-for user conversations in the ledger service.
+Models:
+    - RawUserMessage: Incoming message format from the client
+    - CanonicalUserMessage: Server-side canonical message format
+
+Database Table:
+    - user_messages: Stores message history for each user
+
+Logging:
+    - Uses a shared logger for debug and operational messages
+
 """
 
 from shared.models.ledger import RawUserMessage, CanonicalUserMessage

@@ -13,15 +13,12 @@ logging relevant information and raising appropriate HTTPExceptions for FastAPI 
 
 Dependencies:
     - shared.models.scheduler: SchedulerJobRequest, JobResponse, SchedulerCallbackRequest
-    - shared.consul: Service discovery for scheduler address/port
     - shared.log_config: Logging configuration
     - httpx: Asynchronous HTTP client
     - fastapi: API routing and exception handling
     - shared.config: Configuration for TIMEOUT
     - app.scheduler.job_summarize: Function to summarize user buffers
 """
-import shared.consul
-
 from shared.models.scheduler import SchedulerJobRequest, SchedulerCallbackRequest
 
 from shared.log_config import get_logger
@@ -30,6 +27,8 @@ logger = get_logger(f"brain.{__name__}")
 import httpx
 import inspect
 import json
+import os
+
 
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
@@ -144,16 +143,9 @@ async def scheduler_add_job(request: SchedulerJobRequest) -> dict:
 
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         try:
-            scheduler_address, scheduler_port = shared.consul.get_service_address('scheduler')
-            if not scheduler_address or not scheduler_port:
-                logger.error("scheduler service address or port is not available.")
+            scheduler_port = os.getenv("SCHEDULER_PORT", 4201)
 
-                raise HTTPException(
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail="scheduler service is unavailable."
-                )
-
-            response = await client.post(f"http://{scheduler_address}:{scheduler_port}/jobs", json=request.model_dump())
+            response = await client.post(f"http://scheduler:{scheduler_port}/jobs", json=request.model_dump())
             response.raise_for_status()
 
             logger.info(f"Job added successfully: {response.json()}")
@@ -202,16 +194,9 @@ async def scheduler_list_jobs():
 
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         try:
-            scheduler_address, scheduler_port = shared.consul.get_service_address('scheduler')
-            if not scheduler_address or not scheduler_port:
-                logger.error("scheduler service address or port is not available.")
+            scheduler_port = os.getenv("SCHEDULER_PORT", 4201)
 
-                raise HTTPException(
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail="scheduler service is unavailable."
-                )
-
-            response = await client.get(f"http://{scheduler_address}:{scheduler_port}/jobs")
+            response = await client.get(f"http://scheduler:{scheduler_port}/jobs")
             response.raise_for_status()
 
             return response.json()
@@ -252,16 +237,10 @@ async def scheduler_delete_job(job_id: str) -> dict:
 
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         try:
-            scheduler_address, scheduler_port = shared.consul.get_service_address('scheduler')
-            if not scheduler_address or not scheduler_port:
-                logger.error("scheduler service address or port is not available.")
+            
+            scheduler_port = os.getenv("SCHEDULER_PORT", 4201)
 
-                raise HTTPException(
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail="scheduler service is unavailable."
-                )
-
-            response = await client.delete(f"http://{scheduler_address}:{scheduler_port}/jobs/{job_id}")
+            response = await client.delete(f"http://scheduler:{scheduler_port}/jobs/{job_id}")
             response.raise_for_status()
 
             logger.info(f"Job deleted successfully: {response.json()}")

@@ -1,28 +1,32 @@
 """
 This module provides FastAPI endpoints for handling OpenAI-compatible chat completion requests,
-including multi-turn conversation support and special task routing.
+including both multi-turn conversations and special single-turn task routing.
+
 Endpoints:
-    - POST /chat/completions: Redirects to the versioned chat completions endpoint for compatibility.
-    - POST /v1/chat/completions: Processes chat completion requests, supporting both standard multi-turn
-      conversations and special task routing for prompts prefixed with '### Task'.
-Key Features:
-    - Redirects legacy '/chat/completions' requests to '/v1/chat/completions'.
-    - Detects and routes special '### Task' prompts to a single-turn completions handler.
-    - Forwards multi-turn chat requests to an internal 'brain' service for processing.
-    - Calculates token usage using the tiktoken library for accurate usage reporting.
-    - Returns responses formatted to match OpenAI's ChatCompletion API schema.
-    - Handles and logs errors, returning appropriate HTTP status codes for various failure scenarios.
+    - POST /chat/completions: Redirects to /v1/chat/completions for backward compatibility.
+    - POST /v1/chat/completions: Processes chat completion requests, supporting:
+        1. Special task routing for messages starting with '### Task'
+        2. Multi-turn conversation handling via internal brain service
+
+Features:
+    - Redirects legacy endpoints to versioned endpoints.
+    - Detects and routes special single-turn tasks to the completions endpoint.
+    - Forwards multi-turn chat requests to an internal brain service.
+    - Handles error scenarios with appropriate HTTP responses.
+    - Formats responses to be compatible with OpenAI's API schema.
+    - Logs request and response details for debugging and traceability.
+
 Dependencies:
     - FastAPI for API routing and response handling.
     - httpx for asynchronous HTTP requests to internal services.
-    - tiktoken for token counting.
-    - Shared models and configuration for request/response validation and service discovery.
+    - Shared models for request and response validation.
+    - Custom logging configuration for structured logging.
+    - Configuration loaded from JSON for runtime parameters (e.g., timeout).
+
 """
 
 from shared.models.proxy import MultiTurnRequest, ProxyResponse
 from shared.models.api import ChatCompletionRequest, ChatCompletionResponse, ChatCompletionChoice, ChatUsage, CompletionRequest
-
-import shared.consul
 
 from app.completions.singleturn import openai_v1_completions
 
@@ -31,6 +35,7 @@ logger = get_logger(f"api.{__name__}")
 
 import uuid
 import httpx
+import os
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, status
@@ -139,9 +144,11 @@ async def chat_completions(data: ChatCompletionRequest):
     )
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         try:
-            brain_address, brain_port = shared.consul.get_service_address('brain')
+            # get brain's port from environment
+            brain_port = os.getenv("BRAIN_PORT", 4207)
+
             response = await client.post(
-                f"http://{brain_address}:{brain_port}/api/multiturn",
+                f"http://brain:{brain_port}/api/multiturn",
                 json=multiturn_request.model_dump()
             )
             response.raise_for_status()
@@ -151,17 +158,17 @@ async def chat_completions(data: ChatCompletionRequest):
                 status_code=http_err.response.status_code,
                 detail=f"Error from multi-turn brain: {http_err.response.text}"
             )
-        except httpx.RequestError as req_err:
-            logger.error(f"Request error when forwarding to brain: {req_err}")
+        except httpx.RequestError as e:
+            logger.error(f"Request error when forwarding to brain: {e}")
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=f"Connection error to brain: {req_err}"
+                detail=f"Connection error to brain: {e}"
             )
         except Exception as e:
             logger.exception(f"Error retrieving service address for brain: {e}")
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=f"Error retrieving service address for brain: {e}"
+                detail=f"Error contacting brain: {e}"
             )
     try:
         proxy_response = ProxyResponse.model_validate(response.json())

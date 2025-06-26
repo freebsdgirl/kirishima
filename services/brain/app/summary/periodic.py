@@ -21,8 +21,6 @@ from app.config import SUMMARY_PERIODIC_MAX_TOKENS
 
 from shared.models.summary import SummaryCreateRequest, SummaryMetadata, Summary, SummaryRequest, CombinedSummaryRequest
 
-import shared.consul
-
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
 
@@ -34,6 +32,8 @@ import json
 
 from fastapi import HTTPException, status, APIRouter
 router = APIRouter()
+
+import os
 
 from transformers import AutoTokenizer
 from shared.models.ledger import CanonicalUserMessage
@@ -67,9 +67,9 @@ async def create_summary(request: SummaryCreateRequest) -> List[Summary]:
     """
     logger.debug(f"Creating periodic summary for period: {request.period} and date: {request.date}")
     # connect to the ledger service to get a list of user_ids
-    ledger_address, ledger_port = shared.consul.get_service_address('ledger')
     try:
-        response = httpx.get(f"http://{ledger_address}:{ledger_port}/active", timeout=TIMEOUT)
+        ledger_port = os.getenv("LEDGER_PORT", 4203)
+        response = httpx.get(f"http://ledger:{ledger_port}/active", timeout=TIMEOUT)
         response.raise_for_status()
 
     except Exception as e:
@@ -97,7 +97,7 @@ async def create_summary(request: SummaryCreateRequest) -> List[Summary]:
             )
 
         try:
-            response = httpx.get(f"http://{ledger_address}:{ledger_port}/user/{user_id}/messages", params=params, timeout=TIMEOUT)
+            response = httpx.get(f"http://ledger:{ledger_port}/user/{user_id}/messages", params=params, timeout=TIMEOUT)
             response.raise_for_status()
             messages = response.json()
         except Exception as e:
@@ -139,7 +139,7 @@ async def create_summary(request: SummaryCreateRequest) -> List[Summary]:
         message_chunks = chunk_messages(canon_msgs, max_tokens)
         summaries = []
 
-        proxy_address, proxy_port = shared.consul.get_service_address('proxy')
+        proxy_port = os.getenv("PROXY_PORT", 4205)
         for chunk in message_chunks:
             payload = SummaryRequest(
                 messages=chunk,
@@ -148,7 +148,7 @@ async def create_summary(request: SummaryCreateRequest) -> List[Summary]:
             )
             try:
                 async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-                    response = await client.post(f"http://{proxy_address}:{proxy_port}/summary/user", json=payload.model_dump())
+                    response = await client.post(f"http://proxy:{proxy_port}/summary/user", json=payload.model_dump())
                     response.raise_for_status()
                 summary_data = response.json()
                 metadata = SummaryMetadata(
@@ -171,7 +171,7 @@ async def create_summary(request: SummaryCreateRequest) -> List[Summary]:
             )
             try:
                 async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-                    response = await client.post(f"http://{proxy_address}:{proxy_port}/summary/user/combined", json=combined_payload.model_dump())
+                    response = await client.post(f"http://proxy:{proxy_port}/summary/user/combined", json=combined_payload.model_dump())
                     response.raise_for_status()
                 summary_data = response.json()
                 metadata = SummaryMetadata(
@@ -193,9 +193,9 @@ async def create_summary(request: SummaryCreateRequest) -> List[Summary]:
         logger.debug(f"Final summary for user {user_id}: {final_summary}")
 
         try:
-            chromadb_address, chromadb_port = shared.consul.get_service_address('chromadb')
+            chromadb_port = os.getenv("CHROMADB_PORT", 4206)
             async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-                response = await client.post(f"http://{chromadb_address}:{chromadb_port}/summary", json=final_summary.model_dump())
+                response = await client.post(f"http://chromadb:{chromadb_port}/summary", json=final_summary.model_dump())
                 response.raise_for_status()
             summaries_created.append(response.json())
 

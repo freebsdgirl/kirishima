@@ -1,3 +1,16 @@
+"""
+This module initializes and configures a FastAPI application integrated with a Discord bot using discord.py.
+It sets up middleware, includes API routers, and conditionally enables tracing based on configuration.
+The Discord bot is configured with specific intents, event handlers, and is started in the background
+alongside the FastAPI app. The module also registers message and registration handlers for the bot.
+
+Key components:
+- FastAPI app setup with middleware and routers for system, docs, and message endpoints.
+- Conditional tracing setup based on configuration.
+- Discord bot initialization with custom intents and event handlers.
+- Registration of bot command/message handlers.
+- Background startup of the Discord bot within the FastAPI event loop.
+"""
 from app.config import DISCORD_TOKEN
 
 from app.registration import setup as registration_setup

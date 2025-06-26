@@ -16,8 +16,6 @@ Modules:
     - fastapi: Provides the APIRouter and HTTPException utilities for building API routes.
 """
 
-import shared.consul
-
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
 
@@ -25,6 +23,7 @@ from shared.models.memory import MemorySearch, MemoryEntryFull, MemoryListQuery,
 
 import httpx
 import json
+import os
 
 from fastapi import APIRouter, HTTPException, status, Depends
 
@@ -53,19 +52,14 @@ async def list_memory(query: MemoryListQuery = Depends()):
     logger.debug(f"/memory/list Request:\n{query.model_dump_json(indent=4)}")
 
     try:
-        chromadb_host, chromadb_port = shared.consul.get_service_address('chromadb')
-        if not chromadb_host or not chromadb_port:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="ChromaDB service is unavailable."
-            )
+        chromadb_port = os.getenv("CHROMADB_PORT", 4206)
 
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
             params = query.model_dump(exclude_none=True)
             # Remove 'limit' from params sent to ChromaDB if present
             limit = params.pop('limit', None)
             response = await client.get(
-                f"http://{chromadb_host}:{chromadb_port}/memory",
+                f"http://chromadb:{chromadb_port}/memory",
                 params=params
             )
 
@@ -116,13 +110,7 @@ async def search_semantic(query: SemanticSearchQuery = Depends()):
     logger.debug(f"/memory/semantic Request:\n{query.model_dump_json(indent=4)}")
 
     try:
-        chromadb_host, chromadb_port = shared.consul.get_service_address('chromadb')
-
-        if not chromadb_host or not chromadb_port:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="ChromaDB service is unavailable."
-            )
+        chromadb_port = os.getenv("CHROMADB_PORT", 4206)
 
         params = query.model_dump(exclude_none=True)
         params['text'] = params.pop('search')
@@ -131,7 +119,7 @@ async def search_semantic(query: SemanticSearchQuery = Depends()):
 
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
             response = await client.get(
-                f"http://{chromadb_host}:{chromadb_port}/memory/semantic",
+                f"http://chromadb:{chromadb_port}/memory/semantic",
                 params=payload.model_dump(exclude_none=True)
             )
             response.raise_for_status()

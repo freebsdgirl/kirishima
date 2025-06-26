@@ -1,10 +1,9 @@
-import shared.consul
-
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
 
 import httpx
 import json
+import os
 
 from shared.models.contacts import Contact
 from shared.models.imessage import iMessage, ProxyiMessageRequest
@@ -37,11 +36,11 @@ async def imessage_incoming(message: iMessage):
     # get the user id from the contacts service
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         try:
-            contacts_address, contacts_port = shared.consul.get_service_address('contacts')
+            contacts_port = os.getenv("CONTACTS_PORT", 4202)
 
             # look up the user by imessage
             contact_data = await client.get(
-                f"http://{contacts_address}:{contacts_port}/search",
+                f"http://contacts:{contacts_port}/search",
                 params={"key": "imessage", "value": str(message.author_id)}
             )
 
@@ -160,10 +159,10 @@ async def imessage_incoming(message: iMessage):
     
     # get a list of summaries for the user 
     try:
-        chromadb_address, chromadb_port = shared.consul.get_service_address('chromadb')
+        chromadb_port = os.getenv("CHROMADB_PORT", 4206)
 
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-            response = await client.get(f"http://{chromadb_address}:{chromadb_port}/summary?user_id={user_id}&limit=4")
+            response = await client.get(f"http://chromadb:{chromadb_port}/summary?user_id={user_id}&limit=4")
             response.raise_for_status()
             summaries = response.json()
 

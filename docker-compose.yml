@@ -22,7 +22,6 @@ services:
       - STICKYNOTES_PORT=${STICKYNOTES_PORT}
       - TTS_PORT=${TTS_PORT}
     depends_on:
-      - consul
       - graylog
       - brain
     ports:
@@ -67,7 +66,6 @@ services:
       - STICKYNOTES_PORT=${STICKYNOTES_PORT}
       - TTS_PORT=${TTS_PORT}
     depends_on:
-      - consul
       - graylog
       - chromadb
     ports:
@@ -114,7 +112,6 @@ services:
       - STICKYNOTES_PORT=${STICKYNOTES_PORT}
       - TTS_PORT=${TTS_PORT}
     depends_on:
-      - consul
       - graylog
     ports:
       - "${CHROMADB_PORT}:${CHROMADB_PORT}"
@@ -158,7 +155,6 @@ services:
       - STICKYNOTES_PORT=${STICKYNOTES_PORT}
       - TTS_PORT=${TTS_PORT}
     depends_on:
-      - consul
       - graylog
     ports:
       - "${CONTACTS_PORT}:${CONTACTS_PORT}"
@@ -203,7 +199,6 @@ services:
       - STICKYNOTES_PORT=${STICKYNOTES_PORT}
       - TTS_PORT=${TTS_PORT}
     depends_on:
-      - consul
       - graylog
     ports:
       - "${DISCORD_PORT}:${DISCORD_PORT}"
@@ -251,7 +246,6 @@ services:
       - STICKYNOTES_PORT=${STICKYNOTES_PORT}
       - TTS_PORT=${TTS_PORT}
     depends_on:
-      - consul
       - graylog
       - brain
     ports:
@@ -296,7 +290,6 @@ services:
       - STICKYNOTES_PORT=${STICKYNOTES_PORT}
       - TTS_PORT=${TTS_PORT}
     depends_on:
-      - consul
       - graylog
     ports:
       - "${LEDGER_PORT}:${LEDGER_PORT}"
@@ -343,7 +336,6 @@ services:
       - STICKYNOTES_PORT=${STICKYNOTES_PORT}
       - TTS_PORT=${TTS_PORT}
     depends_on:
-      - consul
       - graylog
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -390,7 +382,6 @@ services:
       - TTS_PORT=${TTS_PORT}
     depends_on:
       - brain
-      - consul
       - graylog
     ports:
       - "${SCHEDULER_PORT}:${SCHEDULER_PORT}"
@@ -434,7 +425,6 @@ services:
       - STICKYNOTES_PORT=${STICKYNOTES_PORT}
       - TTS_PORT=${TTS_PORT}
     depends_on:
-      - consul
       - graylog
     ports:
       - "${SMARTHOME_PORT}:${SMARTHOME_PORT}"
@@ -478,7 +468,6 @@ services:
       - STICKYNOTES_PORT=${STICKYNOTES_PORT}
       - TTS_PORT=${TTS_PORT}
     depends_on:
-      - consul
       - graylog
     ports:
       - "${STICKYNOTES_PORT}:${STICKYNOTES_PORT}"
@@ -496,18 +485,6 @@ services:
       driver: gelf
       options:
         gelf-address: "tcp://localhost:12201"
-    networks:
-      - shared-net
-
-  consul:
-    image: hashicorp/consul
-    command: agent -server -bootstrap -ui -client=0.0.0.0
-    environment:
-      - TZ=America/Los_Angeles
-    ports:
-      - "8500:8500"  # for accessing the Consul UI/API
-    volumes:
-      - consul_data:/consul/data
     networks:
       - shared-net
 

@@ -1,5 +1,6 @@
 import httpx
 import json
+import os
 
 with open('/app/config/config.json') as f:
     _config = json.load(f)
@@ -20,7 +21,9 @@ def tts(action: str):
         HTTPException: If the action is not recognized or if there is an error communicating with the TTS service.
     """
     try:
-        url = f"http://host.docker.internal:4208/tts/{action}"
+        tts_port = os.getenv("TTS_PORT", 4208)
+
+        url = f"http://host.docker.internal:{tts_port}/tts/{action}"
         with httpx.Client(timeout=TIMEOUT) as client:
             response = client.post(url)
             response.raise_for_status()

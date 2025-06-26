@@ -16,7 +16,6 @@ Main endpoint:
 """
 from app.util import get_devices, get_entities_for_device, get_states_for_entity_ids, get_options_for_entity, ha_ws_call, get_ws_url
 
-import shared.consul
 from shared.models.openai import OpenAICompletionRequest
 from shared.models.smarthome import UserRequest
 
@@ -127,9 +126,9 @@ The devices are as follows:
     )
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         try:
-            address, port = shared.consul.get_service_address('api')
+            api_port = os.getenv("API_PORT", 4200)
             response = await client.post(
-                f"http://{address}:{port}/v1/completions",
+                f"http://api:{api_port}/v1/completions",
                 json=request.model_dump()
             )
             response.raise_for_status()
@@ -287,9 +286,9 @@ Example output:"""+"""
 
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         try:
-            address, port = shared.consul.get_service_address('api')
+            api_port = os.getenv("API_PORT", 4200)
             response = await client.post(
-                f"http://{address}:{port}/v1/completions",
+                f"http://api:{api_port}/v1/completions",
                 json=request.model_dump()
             )
             response.raise_for_status()

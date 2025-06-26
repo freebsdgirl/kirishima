@@ -15,8 +15,6 @@ Functions:
 
 """
 
-import shared.consul
-
 from shared.models.contacts import Contact
 
 from shared.log_config import get_logger
@@ -25,6 +23,7 @@ logger = get_logger(f"brain.{__name__}")
 import httpx
 import re
 import json
+import os
 
 from fastapi import HTTPException, status
 
@@ -50,9 +49,9 @@ async def get_admin_user_id() -> str:
     """
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         try:
-            contacts_address, contacts_port = shared.consul.get_service_address('contacts')
+            contacts_port = os.getenv("CONTACTS_PORT", 4202)
             contact_response = await client.get(
-                f"http://{contacts_address}:{contacts_port}/search",
+                f"http://contacts:{contacts_port}/search",
                 params={"q": "@ADMIN"}
             )
             
@@ -96,8 +95,8 @@ async def get_user_alias(user_id: str) -> str:
     """
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         try:
-            contacts_address, contacts_port = shared.consul.get_service_address('contacts')
-            contact_response = await client.get(f"http://{contacts_address}:{contacts_port}/contact/{user_id}")
+            contacts_port = os.getenv("CONTACTS_PORT", 4202)
+            contact_response = await client.get(f"http://contacts:{contacts_port}/contact/{user_id}")
             contact_response.raise_for_status()
 
             model = Contact.model_validate(contact_response.json())
@@ -163,16 +162,11 @@ async def post_to_service(service_name, endpoint, payload, error_prefix, timeout
         HTTPException: If service is unavailable, connection fails, or HTTP error occurs.
     """
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-        address, port = shared.consul.get_service_address(service_name)
-        if not address or not port:
-            logger.error(f"{service_name.capitalize()} service address or port is not available.")
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=f"{service_name.capitalize()} service is unavailable."
-            )
+        service_env = service_name.upper()
+        port = os.getenv(f"{service_env}_PORT")
 
         try:
-            response = await client.post(f"http://{address}:{port}{endpoint}", json=payload)
+            response = await client.post(f"http://{service_name}:{port}{endpoint}", json=payload)
             response.raise_for_status()
             return response
 

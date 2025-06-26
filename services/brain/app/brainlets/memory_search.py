@@ -1,25 +1,23 @@
-""" example return:
-{
-    "memory_search": [
-        {
-            "role": "assistant",
-            "content": "",
-            "tool_calls": {
-                "id": "call_1M6VOGLfYfQLbvRjZNNRsyXw",
-                "type": "function",
-                "function": {
-                    "name": "memory_search",
-                    "arguments": "{\"keywords\":[\"mother\"]}"
-                }
-            }
-        },
-        {
-            "role": "tool",
-            "content": "{\"status\": \"ok\", \"memories\": []}",
-            "tool_call_id": "call_1M6VOGLfYfQLbvRjZNNRsyXw"
-        }
-    ]
-}
+"""
+Performs a memory search based on the most recent user and assistant messages in a conversation.
+
+This function:
+- Loads configuration for database path and model selection.
+- Filters the conversation messages to include only those from the user or assistant with non-empty content.
+- Builds a human-readable chat log from the filtered messages.
+- Constructs a prompt to extract keywords from the conversation using a language model.
+- Retrieves model parameters from the configuration.
+- Sends the prompt to a language model to obtain relevant keywords.
+- Uses the extracted keywords to perform a memory search via a tool function.
+- Constructs and returns a structured result containing the assistant's function call and the tool's response.
+
+Args:
+    brainlets_output (Dict[str, Any]): Output from previous brainlets (not used in this function).
+    message (MultiTurnRequest): The incoming multi-turn request containing the conversation messages.
+
+Returns:
+    dict or str: A dictionary containing the assistant's function call and the tool's response if memories are found,
+                 otherwise a string indicating no memories were found.
 """
 from typing import Dict, Any
 from shared.models.proxy import MultiTurnRequest
@@ -35,6 +33,20 @@ from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
 
 async def memory_search(brainlets_output: Dict[str, Any], message: MultiTurnRequest):
+    """
+    Performs a memory search based on the most recent conversation messages.
+    
+    This function extracts keywords from the conversation using a language model,
+    then uses those keywords to search for relevant memories.
+    
+    Args:
+        brainlets_output (Dict[str, Any]): Output from previous brainlets (not used in this function).
+        message (MultiTurnRequest): The incoming multi-turn request containing conversation messages.
+    
+    Returns:
+        dict or str: A dictionary containing the assistant's function call and tool's response if memories are found,
+                     otherwise a string indicating no memories were found.
+    """
     # Load config (for db path and model selection)
     with open('/app/config/config.json') as f:
         _config = json.load(f)

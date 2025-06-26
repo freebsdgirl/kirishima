@@ -1,14 +1,16 @@
 """
-This module defines API endpoints for listing areas, devices, and entities in a Home Assistant-powered smart home system.
+This module defines API endpoints for listing and retrieving information about areas, devices, and entities
+in a Home Assistant-based smart home system.
 
-Endpoints:
+Routes:
     - GET /areas: Retrieves a list of all area names.
-    - GET /devices: Retrieves a list of available smart home devices/entities, optionally filtered.
-    - GET /area/{area}/devices: Retrieves a list of devices in a specified area.
+    - GET /devices: Retrieves a list of available smart home devices, optionally filtered.
+    - GET /area/{area}/devices: Retrieves devices located in a specific area.
     - GET /device/{device_id}/entities: Retrieves all entities associated with a specific device.
-    - GET /entities: Retrieves a list of all entity names.
+    - GET /entities: Retrieves a list of all entities.
+    - GET /entity/{entity_id}: Retrieves details for a specific entity by its ID.
 
-Each endpoint returns a list of relevant items, leveraging utility functions from the app.util module.
+Each endpoint interacts with utility functions from the `app.util` module to fetch and return the requested data.
 """
 from fastapi import APIRouter
 

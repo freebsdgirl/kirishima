@@ -15,8 +15,6 @@ Dependencies:
 - fastapi: For API routing and exception handling.
 """
 
-import shared.consul
-
 from shared.models.memory import MemoryEntry
 
 from shared.log_config import get_logger
@@ -24,6 +22,7 @@ logger = get_logger(f"brain.{__name__}")
 
 import httpx
 import json
+import os
 
 from fastapi import APIRouter, HTTPException, status, Body
 router = APIRouter()
@@ -52,16 +51,11 @@ async def delete_memory(request: MemoryEntry = Body(...)):
     logger.debug(f"/memory DELETE Request: memory={request.memory}, mode={request.mode}")
 
     try:
-        chromadb_host, chromadb_port = shared.consul.get_service_address('chromadb')
-        if not chromadb_host or not chromadb_port:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="ChromaDB service is unavailable."
-            )
+        chromadb_port = os.getenv("CHROMADB_PORT", 4206)
 
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
             response = await client.get(
-                f"http://{chromadb_host}:{chromadb_port}/memory",
+                f"http://chromadb:{chromadb_port}/memory",
                 params={"mode": request.mode}
             )
 
@@ -86,7 +80,7 @@ async def delete_memory(request: MemoryEntry = Body(...)):
             # Only delete the first match
             m = matches[0]
             mem_id = m["id"]
-            del_resp = await client.delete(f"http://{chromadb_host}:{chromadb_port}/memory/{mem_id}")
+            del_resp = await client.delete(f"http://chromadb:{chromadb_port}/memory/{mem_id}")
 
             if del_resp.status_code != status.HTTP_204_NO_CONTENT:
                 logger.error(f"Failed to delete memory id={mem_id}: {del_resp.status_code} {del_resp.text}")

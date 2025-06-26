@@ -1,8 +1,22 @@
 """
-This module defines the FastAPI router and endpoint for handling single-turn completion requests
-to the Ollama language model service. It receives a ProxyOneShotRequest, constructs an OllamaRequest
-payload, enqueues the request as a blocking ProxyTask, and returns the generated response as a ProxyResponse.
-Includes error handling for timeouts and logs incoming requests for debugging purposes.
+This module defines the FastAPI router and endpoint for handling single-turn language model
+completion requests via the `/api/singleturn` route. It supports forwarding requests to
+different model providers (such as Ollama and OpenAI), normalizing the request and response
+formats, and managing asynchronous task execution with timeout handling.
+
+Key Components:
+- Imports shared models and utilities for request/response schemas, logging, and queue management.
+- Loads configuration (e.g., timeout) from a JSON file.
+- Defines a POST endpoint `/api/singleturn` that:
+    - Accepts a ProxyOneShotRequest payload.
+    - Resolves the appropriate provider and constructs a provider-specific request.
+    - Enqueues the request as a blocking task in the appropriate queue.
+    - Waits asynchronously for the result, with timeout handling.
+    - Normalizes the provider-specific response to a ProxyResponse.
+    - Handles errors and task cleanup.
+
+    HTTPException: For unknown providers or if the task times out.
+
 """
 
 from shared.models.proxy import ProxyOneShotRequest, ProxyResponse, OllamaRequest
@@ -54,8 +68,11 @@ async def from_api_completions(message: ProxyOneShotRequest) -> ProxyResponse:
     #provider, model, options = resolve_model_provider_options(message.model)
     #logger.debug(f"Resolved provider/model/options: {provider}, {model}, {options}")
 
-    if message.model == "nemo:latest":
-        message.provider = "ollama"
+    if not message.provider:
+        if message.model == "nemo:latest":
+            message.provider = "ollama"
+        else:
+            message.provider = "openai"
 
     # Branch on provider and construct provider-specific request
     if message.provider == "ollama":

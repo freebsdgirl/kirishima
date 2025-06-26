@@ -1,16 +1,26 @@
 """
-stt_service.py
-A speech-to-text (STT) and text-to-speech (TTS) service integrating Vosk, Whisper, and external LLM/TTS APIs.
-This module provides a main loop for real-time speech recognition and conversational interaction. It listens to microphone input, detects utterances using Vosk, transcribes them with Whisper, sends the transcription to a language model (LLM) for a response, and plays back the response using a TTS service. Audio files are managed for each utterance and response, with optional debugging controls for file retention.
-Key Components:
-- Audio input and streaming using sounddevice.
-- Speech recognition using Vosk for utterance detection.
-- Transcription using OpenAI Whisper.
-- Conversational response via HTTP API to an LLM.
-- Text-to-speech synthesis via HTTP API and playback.
-- Temporary audio file management and cleanup.
-- Configurable via environment variables and constants.
-Intended for use as a standalone service or as part of a larger voice assistant system.
+Speech-to-Text (STT) and Text-to-Speech (TTS) Service
+This module provides a continuous speech interface using Vosk for real-time speech detection,
+Whisper for transcription, and integrates with external LLM and TTS services for conversational
+interaction. It records microphone input, detects utterances, transcribes speech, sends user
+input to a language model, and plays back the generated response using TTS.
+Main Features:
+- Real-time microphone audio capture and utterance detection using Vosk.
+- Audio file saving and management for each detected utterance.
+- Transcription of utterances using OpenAI Whisper.
+- Integration with an external LLM for generating responses.
+- Integration with a TTS service for audio playback of responses.
+- Automatic management of microphone stream during playback.
+- Debug mode for retaining audio files.
+- DEBUG: If set, disables deletion of temporary audio files.
+Dependencies:
+- vosk
+- whisper
+- sounddevice
+- soundfile
+- requests
+Usage:
+Run as a standalone script to start the continuous STT-TTS loop.
 """
 import sys
 import os

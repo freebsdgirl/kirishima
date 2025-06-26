@@ -1,18 +1,25 @@
 """
-This module provides an API endpoint for deleting user messages from the ledger buffer database.
-It allows deletion of all messages for a specific user, or only those within a specified time period and date.
+This module provides an API endpoint for deleting user messages from the ledger database.
 
 Functions:
-    _open_conn(): Opens a SQLite connection to the buffer database with WAL journal mode.
-    get_period_range(period: str, date_str: Optional[str] = None): 
-        Returns the start and end datetime objects for a given period and optional date.
+    _open_conn(): Opens a SQLite database connection using configuration from a JSON file.
+    get_period_range(period: str, date_str: Optional[str] = None): Calculates the start and end datetime for a given period and date.
     delete_user_buffer(user_id: str, period: Optional[str], date: Optional[str]) -> DeleteSummary:
-        FastAPI route handler to delete user messages, filtered by period and date if provided.
+        FastAPI route handler to delete messages for a specific user, optionally filtered by time period and date.
 
 Routes:
-    DELETE /ledger/user/{user_id}:
-        Deletes all messages for the specified user, or only those in a given period and date.
-        Returns a summary of the number of deleted messages.
+    DELETE /user/{user_id}:
+        Deletes all messages for a user, or only those in a specified period and date.
+        If no period is specified, retains the 10 most recent messages for the user.
+
+Dependencies:
+    - shared.models.ledger.DeleteSummary: Response model for deletion summary.
+    - shared.log_config.get_logger: Logger configuration.
+    - fastapi.APIRouter, Path, Query: FastAPI routing and parameter utilities.
+    - sqlite3, json, datetime, typing.Optional
+
+Constants:
+    TABLE: Name of the user messages table in the database.
 """
 
 from shared.models.ledger import  DeleteSummary
@@ -32,6 +39,15 @@ TABLE = "user_messages"
 
 
 def _open_conn() -> sqlite3.Connection:
+    """
+    Opens a SQLite database connection using the path specified in the configuration file.
+
+    Reads the database path from '/app/config/config.json' under the key ["db"]["ledger"],
+    establishes a connection with a 5-second timeout, and sets the journal mode to WAL.
+
+    Returns:
+        sqlite3.Connection: An open connection to the specified SQLite database.
+    """
     with open('/app/config/config.json') as f:
         _config = json.load(f)
 
@@ -42,6 +58,20 @@ def _open_conn() -> sqlite3.Connection:
 
 
 def get_period_range(period: str, date_str: Optional[str] = None):
+    """
+    Returns the start and end datetime objects for a given period of the day.
+
+    Args:
+        period (str): The period of the day. Must be one of "night", "morning", "afternoon", "evening", or "day".
+        date_str (Optional[str], optional): The date in "YYYY-MM-DD" format. If not provided, uses the current date,
+            or for "evening" and "day" periods, defaults to the previous day.
+
+    Returns:
+        Tuple[datetime, datetime]: A tuple containing the start and end datetime objects for the specified period.
+
+    Raises:
+        ValueError: If the provided period is not one of the accepted values.
+    """
     # Determine default date based on period if not provided
     if date_str is None:
         now = datetime.now()

@@ -4,8 +4,8 @@ from shared.models.smarthome import UserRequest
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
 
-import shared.consul
 import json
+import os
 
 async def smarthome(user_request: str, device: str = None) -> str:
     """
@@ -27,10 +27,10 @@ async def smarthome(user_request: str, device: str = None) -> str:
 
     data = UserRequest(full_request=user_request, name=device)
     try:
-        smarthome_address, smarthome_port = shared.consul.get_service_address('smarthome')
+        smarthome_port = os.getenv("SMARTHOME_PORT", 4211)
         async with httpx.AsyncClient(timeout=60) as client:
             response = await client.post(
-                f'http://{smarthome_address}:{smarthome_port}/user_request',
+                f'http://smarthome:{smarthome_port}/user_request',
                 json=data.model_dump()
             )
             response.raise_for_status()

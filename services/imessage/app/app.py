@@ -20,8 +20,6 @@ Environment Variables:
 
 from shared.models.imessage import iMessage, OutgoingiMessage
 
-import shared.consul
-
 from shared.docs_exporter import router as docs_router
 from shared.routes import router as routes_router, register_list_routes
 
@@ -235,10 +233,10 @@ async def receive_webhook(request: Request):
 
         # Forward the standardized payload to Brain's /message/incoming endpoint
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-            brain_address, brain_port = shared.consul.get_service_address('brain')
+            brain_port = os.getenv('BRAIN_PORT', 4207)
 
             brain_response = await client.post(
-                f"http://{brain_address}:{brain_port}/imessage/incoming",
+                f"http://brain:{brain_port}/imessage/incoming",
                 json=payload.model_dump()
             )
 

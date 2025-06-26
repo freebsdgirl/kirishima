@@ -23,8 +23,8 @@ logger = get_logger(f"brain.{__name__}")
 from shared.models.embedding import EmbeddingRequest
 
 import httpx
-import shared.consul
 import json
+import os
 
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
@@ -65,16 +65,11 @@ async def embedding(input: EmbeddingRequest) -> list:
         )
 
     try:
-        chromadb_host, chromadb_port = shared.consul.get_service_address('chromadb')
-        if not chromadb_host or not chromadb_port:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="ChromaDB service is unavailable."
-            )
+        chromadb_port = os.getenv("CHROMADB_PORT", 4206)
 
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
             response = await client.post(
-                f"http://{chromadb_host}:{chromadb_port}/embedding",
+                f"http://chromadb:{chromadb_port}/embedding",
                 json={"input": request['input']}
             )
 

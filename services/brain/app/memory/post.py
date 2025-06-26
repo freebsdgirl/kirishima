@@ -5,16 +5,12 @@ It defines a FastAPI router with a POST endpoint `/memory` that:
 - Generates an embedding for the provided memory entry using ChromaDB.
 - Stores the complete memory entry, including the mode and embedding, in ChromaDB.
 Dependencies:
-    - shared.config: Provides configuration constants such as TIMEOUT.
-    - shared.consul: Service discovery for retrieving service addresses.
     - shared.models.memory: Data models for memory entries.
     - shared.log_config: Logger configuration.
     - httpx: For making asynchronous HTTP requests.
     - fastapi: For API routing and exception handling.
     HTTPException: For errors in service communication, embedding generation, or memory storage.
 """
-
-import shared.consul
 
 from shared.models.memory import MemoryEntry, MemoryEntryFull
 
@@ -23,6 +19,7 @@ logger = get_logger(f"brain.{__name__}")
 
 import httpx
 import json
+import os
 
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
@@ -57,9 +54,8 @@ async def create_memory(request: MemoryEntry) -> MemoryEntryFull:
     payload = request.model_dump()
 
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-        brain_address, brain_port = shared.consul.get_service_address('brain')
-        
-        response = await client.get(f"http://{brain_address}:{brain_port}/mode")
+        brain_port = os.getenv("BRAIN_PORT", 4200)
+        response = await client.get(f"http://brain:{brain_port}/mode")
         response.raise_for_status()
 
         json_response = response.json()
@@ -68,16 +64,10 @@ async def create_memory(request: MemoryEntry) -> MemoryEntryFull:
     payload["mode"] = mode
 
     try:
-        chromadb_host, chromadb_port = shared.consul.get_service_address('chromadb')
-        if not chromadb_host or not chromadb_port:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="ChromaDB service is unavailable."
-            )
-
+        chromadb_port = os.getenv("CHROMADB_PORT", 4206)
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
             response = await client.post(
-                f"http://{chromadb_host}:{chromadb_port}/embedding",
+                f"http://chromadb:{chromadb_port}/embedding",
                 json={"input": payload['memory']}
             )
 
@@ -99,16 +89,9 @@ async def create_memory(request: MemoryEntry) -> MemoryEntryFull:
     
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         try:
-            chromadb_address, chromadb_port = shared.consul.get_service_address('chromadb')
-            if not chromadb_address or not chromadb_port:
-                logger.error("ChromaDB service address or port is not available.")
+            chromadb_port = os.getenv("CHROMADB_PORT", 4206)
 
-                raise HTTPException(
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail="ChromaDB service is unavailable."
-                )
-
-            response = await client.post(f"http://{chromadb_address}:{chromadb_port}/memory", json=payload)
+            response = await client.post(f"http://chromadb:{chromadb_port}/memory", json=payload)
             response.raise_for_status()
     
         except httpx.HTTPStatusError as e:

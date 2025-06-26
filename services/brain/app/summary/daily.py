@@ -20,7 +20,6 @@ from app.config import SUMMARY_DAILY_MAX_TOKENS
 
 from shared.models.summary import SummaryCreateRequest, SummaryMetadata, Summary, CombinedSummaryRequest
 
-import shared.consul
 
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
@@ -29,6 +28,7 @@ from app.util import get_user_alias
 
 import httpx
 import json
+import os
 
 from fastapi import HTTPException, status, APIRouter
 router = APIRouter()
@@ -73,11 +73,11 @@ async def create_daily_summary(request: SummaryCreateRequest):
     try:
         summaries = []
 
-        chromadb_address, chromadb_port = shared.consul.get_service_address('chromadb')
+        chromadb_port = os.getenv("CHROMADB_PORT", 4206)
 
         for summary_type in ["night", "morning", "afternoon", "evening"]:
             try:
-                url = f"http://{chromadb_address}:{chromadb_port}/summary?type={summary_type}"
+                url = f"http://chromadb:{chromadb_port}/summary?type={summary_type}"
 
                 url += f"&timestamp_begin={request.date}%2000:00:00&timestamp_end={request.date}%2023:59:59"
 
@@ -125,10 +125,10 @@ async def create_daily_summary(request: SummaryCreateRequest):
             max_tokens=SUMMARY_DAILY_MAX_TOKENS
         )
 
-        proxy_address, proxy_port = shared.consul.get_service_address('proxy')
+        proxy_port = os.getenv("PROXY_PORT", 4205)
         try:
             async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-                response = await client.post(f"http://{proxy_address}:{proxy_port}/summary/user/combined", json=payload.model_dump())
+                response = await client.post(f"http://proxy:{proxy_port}/summary/user/combined", json=payload.model_dump())
                 response.raise_for_status()
         except httpx.HTTPStatusError as e:
             logger.error(f"HTTP error occurred: {e.response.status_code} - {e.response.text}")
@@ -158,12 +158,11 @@ async def create_daily_summary(request: SummaryCreateRequest):
         )
         logger.debug(f"Summary created for user {user_id}: {summary}")
 
-        # write the summary to chromadb for daily/weekly/monthly
-        chromadb_address, chromadb_port = shared.consul.get_service_address('chromadb')
+        chromadb_port = os.getenv("CHROMADB_PORT", 4206)
 
         try:
             async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-                response = await client.post(f"http://{chromadb_address}:{chromadb_port}/summary", json=summary.model_dump())
+                response = await client.post(f"http://chromadb:{chromadb_port}/summary", json=summary.model_dump())
                 response.raise_for_status()
 
                 summary = response.json()
@@ -188,7 +187,7 @@ async def create_daily_summary(request: SummaryCreateRequest):
         for summary in user_summaries:
             try:
                 async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-                    response = await client.delete(f"http://{chromadb_address}:{chromadb_port}/summary/{summary['id']}")
+                    response = await client.delete(f"http://chromadb:{chromadb_port}/summary/{summary['id']}")
                     response.raise_for_status()
                     logger.debug(f"Deleted summary {summary['id']} from chromadb")
 

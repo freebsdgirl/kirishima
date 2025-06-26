@@ -1,27 +1,30 @@
 """
 Text-to-Speech (TTS) FastAPI Service using ChatterboxTTS
 This module provides a FastAPI-based web service for converting text to speech using the ChatterboxTTS model.
-It supports streaming audio responses, configurable voice prompts, and model parameters for speech synthesis.
-The service includes endpoints compatible with OpenAI's TTS API, as well as endpoints for listing available voices and model configurations.
+It supports synchronous playback, streaming of generated audio, and OpenAI-compatible endpoints for integration.
+The service loads TTS voice prompts from a configurable directory and allows customization of speech generation
+parameters such as temperature, exaggeration, and classifier-free guidance weight.
 Features:
-- Loads the ChatterboxTTS model on application startup for efficient inference.
-- Converts input text into speech audio (WAV format) using customizable voice prompts and generation parameters.
-- Streams generated audio files to clients and optionally plays them on the server.
-- Provides endpoints for listing available voice prompts and model configurations.
-- Logs generated audio files and associated text for traceability.
-Endpoints:
-- POST /tts/speak: Converts text to speech, streams the audio file, and plays it on the server.
-- POST /v1/audio/speech: OpenAI-compatible endpoint for TTS with configurable voice and model options.
-- GET /v1/audio/voices: Lists available voice prompts.
-- GET /v1/audio/models: Lists predefined model configurations.
+- Asynchronous model loading and initialization on application startup.
+- Sentence-level TTS generation and playback with configurable gaps.
+- StreamingResponse endpoints for serving generated WAV audio files.
+- OpenAI-compatible API endpoints for easy integration.
+- Dynamic listing of available voice prompts and model configurations.
+- Logging of generated audio files and associated text.
 Dependencies:
-- FastAPI, torchaudio, chatterbox.tts, nltk, sounddevice, soundfile, uvicorn
+- FastAPI, torchaudio, sounddevice, soundfile, nltk, threading, uvicorn, and ChatterboxTTS.
 Directory Structure:
-- Output audio files and logs are stored in directories relative to the parent of this script's directory.
+- Output audio files and logs are stored in directories relative to the parent of this script's location.
 - Voice prompts are expected as WAV files in the 'prompts' directory.
+Environment:
+- Designed to run on systems with CUDA-enabled devices for optimal TTS performance.
 Usage:
-- Run as a standalone service with `python tts_service.py` or via Uvicorn.
-- Configure voice prompts and model parameters as needed for different speech synthesis styles.
+- Run as a standalone FastAPI application or import as a module.
+- Endpoints:
+    - POST /tts/speak: Generate and stream TTS audio from input text.
+    - POST /v1/audio/speech: OpenAI-compatible TTS endpoint.
+    - GET /v1/audio/voices: List available voice prompts.
+    - GET /v1/audio/models: List available TTS model configurations.
 """
 import os
 import time

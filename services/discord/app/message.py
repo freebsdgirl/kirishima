@@ -20,8 +20,6 @@ Dependencies:
 - shared modules for configuration, logging, and data models.
 - Discord.py for bot event handling.
 """
-import shared.consul
-
 from shared.models.discord import DiscordDirectMessage, SendDMRequest
 
 from shared.log_config import get_logger
@@ -29,6 +27,7 @@ logger = get_logger(f"discord.{__name__}")
 
 import httpx
 import json
+import os
 
 from fastapi import HTTPException, status, APIRouter, Request
 router = APIRouter()
@@ -131,10 +130,10 @@ def setup(bot):
 
                 async with httpx.AsyncClient(timeout=TIMEOUT) as client:
                     try:
-                        brain_address, brain_port = shared.consul.get_service_address('brain')
+                        brain_port = os.getenv("BRAIN_PORT", 4207)
                     
                         response = await client.post(
-                            f"http://{brain_address}:{brain_port}/discord/message/incoming", json=discord_message.model_dump())
+                            f"http://brain:{brain_port}/discord/message/incoming", json=discord_message.model_dump())
                         response.raise_for_status()
                         proxy_response = response.json()
                         print(f"RESPONSE {proxy_response}")

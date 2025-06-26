@@ -45,16 +45,19 @@ async def openai_completions(model_id: str) -> RedirectResponse:
 @router.get("/v1/models/{model_id}", response_model=OpenAIModel)
 async def get_model(model_id: str):
     """
-    Return model info for the requested mode (e.g., nsfw, default, summarize) from config.json.
-
+    Retrieve model details from configuration file for a specific model ID.
+    
+    Reads model configuration from config.json, extracts model details based on the provided model_id,
+    and returns an OpenAIModel object with model information.
+    
     Args:
-        model_id (str): The mode to look up (e.g., 'nsfw', 'default', 'summarize').
-
+        model_id (str): The unique identifier of the model to retrieve.
+    
     Returns:
-        OpenAIModel: The model info for the requested mode.
-
+        OpenAIModel: A model object containing model details like ID, creation timestamp, and ownership.
+    
     Raises:
-        HTTPException: If there's an error fetching or parsing the model data.
+        HTTPException: If config.json cannot be read (500 error) or the specified model is not found (404 error).
     """
     try:
         with open('/app/config/config.json', 'r') as f:

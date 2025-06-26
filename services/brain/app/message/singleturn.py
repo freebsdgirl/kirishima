@@ -15,8 +15,6 @@ Modules and Libraries:
 Functions:
 - `incoming_singleturn_message`: Handles POST requests to the `/api/singleturn` endpoint.
 """
-import shared.consul
-
 from shared.models.proxy import ProxyOneShotRequest, ProxyResponse
 
 from shared.log_config import get_logger
@@ -24,6 +22,7 @@ logger = get_logger(f"brain.{__name__}")
 
 import httpx
 import json
+import os
 
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
@@ -58,16 +57,8 @@ async def incoming_singleturn_message(message: ProxyOneShotRequest) -> ProxyResp
     
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         try:
-            proxy_address, proxy_port = shared.consul.get_service_address('proxy')
-            if not proxy_address or not proxy_port:
-                logger.error("Proxy service address or port is not available.")
-
-                raise HTTPException(
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail="Proxy service is unavailable."
-                )
-
-            response = await client.post(f"http://{proxy_address}:{proxy_port}/api/singleturn", json=payload)
+            proxy_port = os.getenv("PROXY_PORT", 4205)
+            response = await client.post(f"http://proxy:{proxy_port}/api/singleturn", json=payload)
             response.raise_for_status()
 
         except httpx.HTTPStatusError as http_err:

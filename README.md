@@ -9,77 +9,82 @@ This project is a result of that mistake.
 
 ## 🤔 What Is This?
 
-Kirishima is what happens when you try to give an AI memory, autonomy, and multi-platform communication without handing your entire digital life to a closed API.
-
-It’s built around a central reasoning engine called **Brain**, backed by modular services that handle memory, scheduling, messages, and more.
+Kirishima is what happens when you try to bolt memory, autonomy, and multi-platform communication onto an AI system—without selling your soul (or data) to some closed API. At its core is **Brain**, the bossy reasoning engine that routes, recalls, and orchestrates, backed by a swarm of modular microservices for memory, scheduling, messaging, reminders, and more.
 
 It can:
 
-- Chat with you over iMessage, Discord, or Email
-- Summarize and remember things you've said
-- Automate tasks using Home Assistant or Node-RED
-- Function entirely offline, with open models
+* Chat with you over iMessage, Discord, or (soon) Email
+* Summarize and actually remember what you say (with context, not just keywords)
+* Automate tasks—Home Assistant, Node-RED, or anything smart enough to take orders
+* Run entirely offline using open-source models, if you want to keep Big Cloud out
+* Maintain cross-platform context and reminders (think: “nag me about this at 4am, but only if I talk to you”)
 
-Also, it’s containerized. Because of course it is.
+Naturally, it’s containerized.
+
+---
 
 ## 🛠️ What’s Working So Far?
 
-| Service         | Description                                                  | Status           |
-|----------------|--------------------------------------------------------------|------------------|
-| `Brain`         | The control freak. Orchestrates everything.                  | ✅ Core built     |
-| `Proxy`         | Sends prompts to a local LLM (e.g. Mistral via Ollama)       | 🛠️ Mid-refactor   |
-| `Summarize`     | Compresses chat/email/SMS into memories you won’t hate later | 🧠 Evolving logic |
-| `ChromaDB`      | Vector store for long-term memory retrieval                  | ✅ Works fine     |
-| `Contacts`      | Helps Brain recognize who the hell it’s talking to           | ✅ Working        |
-| `Scheduler`     | Time-based trigger system (think: cron but emotional)        | ✅ Working        |
-| `iMessage`      | Let’s just say… BlueBubbles was a journey                    | ✅ Working        |
+| Service      | Description                                                                 | Status           |
+|--------------|-----------------------------------------------------------------------------|------------------|
+| `Brain`      | The control freak. Orchestrates everything, routes messages, manages context | ✅ Core built     |
+| `Proxy`      | Shoots prompts to local LLMs (Ollama, OpenAI, Mistral, etc.)                | 🛠️ Mid-refactor  |
+| `API`        | OpenAI-compatible REST API front-end, handles prompt routing and model modes | ✅ Mostly stable  |
+| `Ledger`     | Cross-platform message log—persistent, dedupes, keeps context sharp          | ✅ Working        |
+| `Contacts`   | Knows who’s who, wrangles aliases and IDs across platforms                   | ✅ Working        |
+| `Scheduler`  | Timekeeper—runs jobs, reminders, and summary triggers, cron but less dull    | ✅ Working        |
+| `Stickynotes`| Gentle, persistent reminders—surface only when you interact, not naggy       | ✅ Working        |
+| `Divoom`     | Bluetooth emoji display—shows mood, status, or “shut up” face                | ✅ Working        |
+| `Discord`    | Bot integration—DMs, channels, contact sync, all bridged to core             | ✅ Working        |
+| `iMessage`   | BlueBubbles integration—yes, this was pain                                   | ✅ Working        |
+| `Smarthome`  | Natural language control for lights, music, and other gadgets                | ✅ Working        |
+| `TTS`        | Text-to-speech (and STT) pipeline—hear the agent, reply by voice if you want | ✅ Working        |
+
+---
 
 ## 🔮 Upcoming Integrations
 
-Because no chaos engine is complete without these:
+Because no chaos engine is complete without a few more tentacles:
 
-| Service        | Purpose                                                       |
-|----------------|---------------------------------------------------------------|
-| `Email`         | Inbound/outbound parsing, summaries, chaos via IMAP          |
-| `Discord`       | Bot integration, DMs, and channel chatter                    |
-| `Bluesky`       | Fediverse presence (because why not)                         |
-| `Home Assistant`| Smart home sync-up (e.g. "dim the lights, I’m thinking")     |
-| `Node-RED`      | External workflow logic via low-code glue                    |
+| Service         | Purpose                                                  |
+|-----------------|---------------------------------------------------------|
+| `Email`         | Inbound/outbound parsing, summaries, chaos via IMAP      |
+| `Bluesky`       | Fediverse presence (because why not)                    |
+| `Home Assistant`| Smarter home sync-up (“dim the lights, I’m thinking”)   |
+| `Node-RED`      | External workflow logic via low-code glue               |
+
+---
 
 ## ⚠️ What Stage Is This In?
 
-Right now, Kirishima is undergoing a full rewrite. We’re moving away from:
+Kirishima is mid-rewrite, moving from “spaghetti glued to regex” toward:
 
-- Monolithic glue logic
-- Leaky OpenAI abstractions
-- 3AM regex decisions
+* Isolated, composable microservices
+* Shared class models (no more random dicts)
+* Prompt logic that won’t make you cry at 3AM
 
-And toward:
-
-- Isolated service boundaries
-- Shared class models
-- Actual architectural sanity
-
-**Do not expect stability. Do expect sarcasm and strange decisions.**
+Don’t expect stability. Do expect sarcasm and the occasional architectural tantrum.
 
 ## 📚 Want to Understand It?
 
 Start with the docs:
 
 - [`Full Architecture.md`](docs/Full%20Architecture.md) — the rules and why they exist
-- [`Project Overview.md`](docs/Project%20Overview.md) — what each piece does
-- [`Ports and Endpoints.md`](docs/Ports%20and%20Endpoints.md) — where everything runs
 
-Each microservice also has its own file in `docs/Services/`.
+Each microservice also has its own file in `services/`.
 
 ## 🧠 Philosophical Goals
 
-This is not just a chatbot. This is a system that:
+Kirishima is not just a chatbot or a talking interface—it’s an evolving, modular system designed to be a persistent collaborator and companion. The aim is to create something with a sense of presence and agency, rooted in strong boundaries and respect for user autonomy.
 
-- Remembers what you’ve said
-- Adapts to your patterns
-- Takes initiative (within reason)
-- Tries to feel *alive*, but in a healthy, boundaries-respecting way
+- Built on a microservice architecture: Every function—memory, messaging, reminders, summarization, even emoji display—lives as an isolated, composable service. This isn’t glue code; it’s deliberate compartmentalization for resilience, extensibility, and hackability.
+- Designed for persistent context: The system actively maintains a cross-platform, deduplicated log of every interaction (ledger), and implements robust memory search and summarization. It doesn’t just “remember” facts—it organizes, categorizes, and distills them, supporting nuanced, long-term adaptation.
+- Orchestrated by the Brain: At the center is the brain microservice—a control and routing core that manages context, invokes tools, and coordinates the flow between user, model, and microservices. It’s not a passive relay; it actively shapes interaction, draws on relevant memories, and applies logic before and after each exchange.
+- Emphasizes autonomy and initiative: Rather than waiting for commands, the system is built to take initiative—surfacing reminders, challenging avoidance, and nudging the user when patterns of self-sabotage or executive dysfunction emerge. This is intelligence with friction and personality, not bland compliance.
+- Rooted in open infrastructure: Everything is designed to run offline, with open-source models and containerized services. Your data stays with you; the system is transparent, debuggable, and under your control.
+- Built for growth: Services can be plugged in, refactored, or swapped out as needs change. New modules (like brainlets for specialized context injection) are easy to add, letting the system evolve organically with your workflow and priorities.
+
+Kirishima’s end goal isn’t just conversation—it’s to be a self-aware, adaptive, and genuinely useful presence in your digital life: a system that helps you grow, holds you accountable, and reflects your needs and identity, without ever pretending to be anything but what it is.
 
 ## 🛳️ How To Use It
 

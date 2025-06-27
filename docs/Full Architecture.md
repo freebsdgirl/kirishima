@@ -2,11 +2,10 @@
 
 ## 🧭 Architectural Principles
 
-- **Brain is the sole orchestrator.** No service should directly invoke another without going through Brain.
+- **Brain is the primary orchestrator.**
 - **The Proxy is the only service allowed to communicate with any LLM.** Prompt scaffolding, model selection, and stream handling are owned by the Proxy.
-- **Only Brain should talk to Summarize.** Summarization requests must be routed through Brain to preserve context awareness.
-- **Database operations should be routed through Brain** unless explicitly exempted. Summarize currently violates this due to performance constraints, but this is considered a temporary exception.
-- **Centralized logging is mandatory.** All services must emit structured debug and error logs to Graylog. Observability is non-negotiable.
+- **Centralized logging is mandatory.** All services must emit structured debug and error logs to Graylog.
+- **Semantic search is overhyped.** We use SQLite here.
 
 ## 🧠 System Architecture Overview
 
@@ -19,14 +18,13 @@ Adapter layer between OpenAI-style clients (e.g., OpenWebUI) and the internal Ki
 - Accepts incoming messages from OpenAI-compatible clients
 - Distinguishes between structured task calls and standard chat
   - For example, OpenWebUI sends tasks as `### Task:` which bypass normal LLM flow
-- Routes messages to Brain's `/messages/api` endpoint for processing
+- Routes messages to Brain for processing
 - Converts internal shared class models into OpenAI response format before returning
-- Handles function output short-circuiting when Brain responds without LLM involvement
 
 **Design Notes:**
 
 - Does not handle any memory, context, or summarization logic
-- Has no direct LLM or database access
+- Has no direct LLM access
 - All processing is delegated to Brain and Proxy
 
 ---
@@ -37,25 +35,14 @@ Central reasoning and memory hub. Owns memory, buffer state, and behavioral logi
 
 **Responsibilities:**
 
-- Memory via **ChromaDB**
-- Buffer & conversation state via **SQLite**
-- Current `mode` state in the `status` table
+- Memory via **SQLite**
+- Buffer & conversation state via Ledger
 - Incoming job pings from Scheduler via `POST` endpoints
-- Contact resolution via Contacts service
+- Contact resolution via Contacts
 - Outbound action dispatch (email, memory, messaging)
-
----
-
-### 🧬 [ChromaDB](Services/ChromaDB.md)
-
-Dedicated vector memory store for long-term semantic retrieval.
-
-**Responsibilities:**
-
-- Stores and retrieves embedded memory chunks and summaries
-- Used exclusively by **Brain** and **Summarize Service**
-- ❌ No other component accesses ChromaDB directly
-- Currently SQLite backed, converting to DuckDB due to stability issues.
+- LLM Tool Execution
+- Alerts via Notifications
+- Reminders via Stickynotes
 
 ---
 
@@ -67,6 +54,28 @@ Dedicated vector memory store for long-term semantic retrieval.
 - Stores contact info across platforms (e.g., iMessage ID, Discord, email)
 - Supports aliases, metadata, notes
 - Enables unified user reference across the stack
+
+---
+
+### 📇 [Discord](Services/Discord.md)
+
+**Responsibilities:**
+
+- Used as an alerting outgoing mechanism.
+- Allows users to sign up and talk to the LLM
+- Does not support speaking in servers.
+
+---
+
+### 📺 [Divoom](Services/Divoom.md)
+
+**Responsibilities:**
+
+- Controls Divoom Max display (runs outside Docker due to Bluetooth stack limitations)
+- Displays emoji based on conversation tone, topic changes, TTS activity, or system events
+- Exposes /send endpoint; accepts emoji input, avoiding redundant updates
+- Uses pixoo library for device communication; emoji images stored locally (Twemoji format)
+- Selection policy is adaptive, prioritizing meaningful feedback over noise
 
 ---
 
@@ -86,6 +95,18 @@ BlueBubbles-powered microservice for iMessage integration.
 - Integrated into the push-notification framework.
 - Does not handle summarization or memory directly.
 - Relies on Brain for routing, summarization requests, and logging.
+
+---
+
+### 🪪 [Ledger](Services/Ledger.md)
+
+**Responsibilities:**
+
+- Maintains persistent, cross-platform conversation buffer using SQLite
+- Deduplicates, syncs, and edits message logs from all platforms (e.g., Discord, iMessage)
+- Supplies the most recent N messages for context in multiturn requests
+- Tracks message metadata (timestamps, user ID, tool outputs) for accurate recall
+- Authoritative source for conversation history and summary generation
 
 ---
 
@@ -135,6 +156,29 @@ Handles timed tasks using APScheduler (v3.x).
 
 ---
 
+### 🏠 [Smarthome](Services/Smarthome.md)
+
+**Responsibilities:**
+
+- Orchestrates natural language control over home automation devices
+- Processes user requests to manage lighting, audio, and other smart devices
+- Integrates with multiple device types, enabling unified smart home commands
+- Acts as the agent’s interface to all home automation endpoints
+
+---
+
+### 🗒️ [Stickynotes](Services/Stickynotes.md)
+
+**Responsibilities:**
+
+- Manages persistent, context-aware reminders (distinct from push notifications)
+- Surfaces reminders only during user interaction—never as unsolicited alerts
+- Supports snoozing, recurring, and custom-trigger reminders
+- Prompts user for confirmation, snooze, or deletion when surfaced
+- Designed for gentle accountability—reminders wait for engagement, not urgency
+
+---
+
 ### 📚 [Summarize](Services/Summarize.md)
 
 Abstraction layer over ChromaDB for managing:
@@ -158,12 +202,19 @@ Abstraction layer over ChromaDB for managing:
 
 ---
 
+### 🗣️ [TTS](Services/TTS.md)
+
+**Responsibilities:**
+
+- Provides text-to-speech audio output for agent responses
+- Streams TTS using ChatterboxTTS; supports voice/model options and live playback
+- Automatically enables STT (speech-to-text) for voice-driven interaction
+- REST API for starting/stopping/status checks and OpenAI-compatible endpoints
+- Handles voice prompt management, audio output, and STT integration (Vosk/Whisper)
+
+---
+
 ### 📊 Logging & Monitoring
 
 - Centralized logging via Graylog (GELF + graypy)
 - Monitoring data will integrate with Prometheus/Grafana or similar in future
-
-### 📘 Reference
-
-- See [Ports and Endpoints](Ports%20and%20Endpoints.md) for live FastAPI service locations
-- [Project Overview](Project%20Overview.md) provides a full onboarding reference

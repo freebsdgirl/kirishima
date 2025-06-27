@@ -18,7 +18,8 @@ It can:
 * Automate tasks—Home Assistant, Node-RED, or anything smart enough to take orders
 * Run entirely offline using open-source models, if you want to keep Big Cloud out
 * Maintain cross-platform context and reminders (think: “nag me about this at 4am, but only if I talk to you”)
-
+* Create, comment on, assign, and track GitHub issues directly from conversation—bug reports, TODOs, and dev notes are surfaced and managed by the AI itself, keeping the development loop tight and snappy
+  
 Naturally, it’s containerized.
 
 ---

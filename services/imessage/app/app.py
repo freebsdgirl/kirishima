@@ -6,36 +6,26 @@ Features:
 - Forwards incoming messages to the Brain service for further processing and automated replies.
 - Handles chat creation if a chat does not exist when sending a message.
 - Includes system and documentation routes, logging, tracing, and request body caching middleware.
-Classes:
-    BlueBubblesClient: Client for interacting with the BlueBubbles server to send and receive iMessages.
-    OutgoingMessage: Pydantic model representing an outgoing iMessage payload.
 Endpoints:
-    POST /imessage/send: Sends an iMessage to a specified recipient.
-    POST /imessage/recv: Receives and processes incoming iMessage webhooks from BlueBubbles.
-Environment Variables:
-    BLUEBUBBLES_HOST: Hostname of the BlueBubbles server (default: 'localhost').
-    BLUEBUBBLES_PORT: Port of the BlueBubbles server (default: '3000').
-    BLUEBUBBLES_PASSWORD: Password for authenticating with BlueBubbles (default: 'bluebubbles').
-"""
+    POST /send: Sends an iMessage to a specified recipient.
+    POST /recv: Receives and processes incoming iMessage webhooks from BlueBubbles.
+Environment Variables:"""
 
 from shared.models.imessage import iMessage, OutgoingiMessage
+from shared.models.proxy import MultiTurnRequest
+from shared.models.contacts import Contact
 
 from shared.docs_exporter import router as docs_router
 from shared.routes import router as routes_router, register_list_routes
 
 from shared.log_config import get_logger
 logger = get_logger(__name__)
-
-from pydantic import BaseModel
+ 
 import requests
 import httpx
 import json
 from datetime import datetime
 
-import os
-bluebubbles_host = os.getenv('BLUEBUBBLES_HOST', 'localhost')
-bluebubbles_port = os.getenv('BLUEBUBBLES_PORT', '3000')
-bluebubbles_password = os.getenv('BLUEBUBBLES_PASSWORD', 'bluebubbles')
 
 from shared.models.middleware import CacheRequestBodyMiddleware
 from fastapi import FastAPI, HTTPException, Request, status
@@ -49,14 +39,22 @@ app.include_router(docs_router, tags=["docs"])
 register_list_routes(app)
 
 import json
+import os
+
 with open('/app/config/config.json') as f:
     _config = json.load(f)
+
 if _config['tracing_enabled']:
     from shared.tracing import setup_tracing
     setup_tracing(app, service_name="imessage")
 
 TIMEOUT = _config["timeout"]
 
+bb_config = _config["bluebubbles"]
+
+bluebubbles_host = bb_config["host"]
+bluebubbles_port = bb_config["port"]
+bluebubbles_password = bb_config["password"]
 
 class BlueBubblesClient:
     """
@@ -131,7 +129,7 @@ bb_client = BlueBubblesClient(
 )
 
 
-@app.post("/imessage/send")
+@app.post("/send")
 def send_message(payload: OutgoingiMessage):
     """
     Send an iMessage to a specified recipient via BlueBubbles server.
@@ -162,7 +160,7 @@ def send_message(payload: OutgoingiMessage):
         )
 
 
-@app.post("/imessage/recv")
+@app.post("/recv")
 async def receive_webhook(request: Request):
     """
     Handle incoming iMessage webhook from BlueBubbles server.
@@ -182,87 +180,141 @@ async def receive_webhook(request: Request):
     """
     try:
         payload = await request.json()
-        logger.debug(f"Received webhook payload: {payload}")
-
-        # Check for the type and log all payloads regardless
-        payload_type = payload.get("type")
-        if payload_type != "new-message":
-            logger.debug("Ignoring payload because type is not 'new-message'")
-            return {
-                "status": "ignored",
-                "reason": "Not a new-message payload"
-            }
-
-        # Extract the inner data from the payload
-        data = payload.get("data", {})
-
-        is_from_me = data.get("isFromMe", False)
-
-        if is_from_me:
-            logger.debug("Ignoring message from self (isFromMe=True)")
-            return {
-                "status": "ignored",
-                "reason": "Self-authored message"
-            }
-
-        # Extract sender details from the 'handle'
-        handle = data.get("handle", {})
-        sender_id = handle.get("address")
-        text = data.get("text")
-
-        # Convert the dateCreated (in ms) to an ISO 8601 timestamp
-        date_created = data.get("dateCreated")
-        if date_created:
-            timestamp = datetime.fromtimestamp(date_created / 1000).isoformat()
-        else:
-            timestamp = datetime.now().isoformat()
-
-        # Determine a chat identifier from the 'chats' array, or fallback to the message guid
-        chats = data.get("chats", [])
-        if chats and isinstance(chats, list) and chats[0].get("guid"):
-            chat_id = chats[0]["guid"]
-        else:
-            chat_id = data.get("guid", "")
-
-        payload = iMessage(
-            id=chat_id,
-            author_id=sender_id,
-            timestamp=str(timestamp),
-            content=text
-        )
-
-        # Forward the standardized payload to Brain's /message/incoming endpoint
-        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-            brain_port = os.getenv('BRAIN_PORT', 4207)
-
-            brain_response = await client.post(
-                f"http://brain:{brain_port}/imessage/incoming",
-                json=payload.model_dump()
-            )
-
-        logger.debug(
-            f"Forwarded payload to Brain: {payload} "
-            f"with response: {brain_response.status_code} {brain_response.text}"
-        )
-
-        # Send the reply back via BlueBubbles
-        if brain_response.status_code == status.HTTP_200_OK:
-            try:
-                reply_payload = brain_response.json()
-                kirishima_reply = reply_payload.get("response", {})
-
-                if kirishima_reply:
-                    bb_client.send_message(sender_id, kirishima_reply)
-                    logger.info(f"✅ Sent Kirishima's reply to {sender_id}")
-
-            except Exception as e:
-                logger.exception("⚠️ Failed to extract or send reply from Brain")
-
-        logger.debug("Forwarded payload to Brain successfully")
-
     except Exception as e:
-        logger.exception("Failed to process webhook payload")
+        logger.exception("Failed to parse JSON payload from webhook request")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid payload"
+            detail="Invalid JSON payload"
         )
+
+    logger.debug(f"Received webhook payload: {payload}")
+
+    payload_type = payload.get("type")
+    if payload_type != "new-message":
+        return {
+            "status": "ignored",
+            "reason": "Not a new-message payload"
+        }
+
+    data = payload.get("data", {})
+    is_from_me = data.get("isFromMe", False)
+    if is_from_me:
+        return {
+            "status": "ignored",
+            "reason": "Self-authored message"
+        }
+
+    handle = data.get("handle", {})
+    sender_id = handle.get("address")
+    text = data.get("text")
+
+    date_created = data.get("dateCreated")
+    if date_created:
+        try:
+            timestamp = datetime.fromtimestamp(date_created / 1000).isoformat()
+        except Exception as e:
+            logger.warning(f"Failed to parse dateCreated: {date_created}")
+            timestamp = datetime.now().isoformat()
+    else:
+        timestamp = datetime.now().isoformat()
+
+    chats = data.get("chats", [])
+    if chats and isinstance(chats, list) and chats[0].get("guid"):
+        chat_id = chats[0]["guid"]
+    else:
+        chat_id = data.get("guid", "")
+
+    imessage = iMessage(
+        id=chat_id,
+        author_id=sender_id,
+        timestamp=str(timestamp),
+        content=text
+    )
+
+    # Contact lookup
+    contacts_port = os.getenv('CONTACTS_PORT', 4205)
+    try:
+        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+            contacts_response = await client.get(
+                f"http://contacts:{contacts_port}/search",
+                params={"key": "imessage", "value": sender_id}
+            )
+    except Exception as e:
+        logger.exception(f"Exception during contact lookup for sender_id={sender_id}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Failed to contact Contacts service"
+        )
+
+    if contacts_response.status_code != status.HTTP_200_OK:
+        logger.error(f"Failed to resolve sender address: {contacts_response.status_code} {contacts_response.text}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to resolve sender address: {contacts_response.status_code} {contacts_response.text}"
+        )
+
+    try:
+        contacts_data = contacts_response.json()
+    except Exception as e:
+        logger.exception("Failed to parse Contacts service response as JSON")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Contacts service returned invalid JSON"
+        )
+    if not contacts_data:
+        logger.warning(f"No contact found for address: {sender_id}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Contact not found"
+        )
+    contact: Contact = contacts_data
+    user_id = contact.get("id")
+    if not user_id:
+        logger.error(f"Contact {sender_id} does not have a user_id")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Contact does not have a user_id: {sender_id}"
+        )
+
+    payload = MultiTurnRequest(
+        model="imessage",
+        platform="imessage",
+        messages=[
+            {
+                "role": "user",
+                "content": imessage.content
+            }
+        ],
+        user_id=user_id
+    )
+
+    # Forward to Brain
+    brain_port = os.getenv('BRAIN_PORT', 4207)
+    try:
+        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+            brain_response = await client.post(
+                f"http://brain:{brain_port}/api/multiturn",
+                json=payload.model_dump()
+            )
+    except Exception as e:
+        logger.exception("Exception during forwarding to Brain service")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Failed to contact Brain service"
+        )
+
+    # Send reply if available
+    if brain_response.status_code == status.HTTP_200_OK:
+        try:
+            reply_payload = brain_response.json()
+            kirishima_reply = reply_payload.get("response", {})
+            if kirishima_reply:
+                try:
+                    bb_client.send_message(sender_id, kirishima_reply)
+                    logger.info(f"✅ Sent Kirishima's reply to {sender_id}")
+                except Exception as e:
+                    logger.exception("Failed to send reply via BlueBubbles")
+        except Exception as e:
+            logger.exception("Failed to extract or send reply from Brain response")
+
+    return {"status": "processed"}

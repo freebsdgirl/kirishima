@@ -18,7 +18,7 @@ Configuration:
 Logging:
 - Uses a structured logger for debugging and error reporting throughout the workflow.
 """
-
+ 
 from shared.models.proxy import MultiTurnRequest, ProxyResponse
 from shared.models.memory import MemoryListQuery
 
@@ -96,7 +96,8 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
         message.messages = sanitize_messages(message.messages)
 
     # get username
-    message.user_id = await get_admin_user_id()
+    if not message.user_id:
+        message.user_id = await get_admin_user_id()
     username = await get_user_alias(message.user_id)
     platform = message.platform or "api"
 

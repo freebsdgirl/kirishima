@@ -20,8 +20,9 @@ Dependencies:
 - shared modules for configuration, logging, and data models.
 - Discord.py for bot event handling.
 """
-from shared.models.discord import DiscordDirectMessage, SendDMRequest
-
+from shared.models.discord import SendDMRequest
+from shared.models.proxy import MultiTurnRequest
+from shared.models.contacts import Contact
 from shared.log_config import get_logger
 logger = get_logger(f"discord.{__name__}")
 
@@ -120,43 +121,93 @@ def setup(bot):
             if message.guild is None:
                 print(f"Received DM from {message.author.name} ({message.author.id}): {message.clean_content}")
                 logger.debug(f"Received DM from {message.author.name} ({message.author.id}): {message.clean_content}")
+                
+                # Contact lookup
+                contacts_port = os.getenv('CONTACTS_PORT', 4205)
+                try:
+                    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+                        contacts_response = await client.get(
+                            f"http://contacts:{contacts_port}/search",
+                            params={"key": "discord_id", "value": message.author.id}
+                        )
+                except Exception as e:
+                    logger.exception(f"Exception during contact lookup for sender_id={message.author.id}")
+                    raise HTTPException(
+                        status_code=status.HTTP_502_BAD_GATEWAY,
+                        detail="Failed to contact Contacts service"
+                    )
 
-                discord_message = DiscordDirectMessage(
-                    message_id=message.id,
-                    content=message.clean_content,
-                    author_id=message.author.id,
-                    display_name=message.author.display_name
+                if contacts_response.status_code != status.HTTP_200_OK:
+                    logger.error(f"Failed to resolve sender address: {contacts_response.status_code} {contacts_response.text}")
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=f"Failed to resolve sender address: {contacts_response.status_code} {contacts_response.text}"
+                    )
+
+                try:
+                    contacts_data = contacts_response.json()
+                except Exception as e:
+                    logger.exception("Failed to parse Contacts service response as JSON")
+                    raise HTTPException(
+                        status_code=status.HTTP_502_BAD_GATEWAY,
+                        detail="Contacts service returned invalid JSON"
+                    )
+                if not contacts_data:
+                    logger.warning(f"No contact found for address: {message.author.id}")
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="Contact not found"
+                    )
+                contact: Contact = contacts_data
+                user_id = contact.get("id")
+                if not user_id:
+                    logger.error(f"Contact {message.author.id} does not have a user_id")
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=f"Contact does not have a user_id: {message.author.id}"
+                    )
+
+                request = MultiTurnRequest(
+                    model="discord",
+                    platform="discord",
+                    messages=[{
+                        "role": "user",
+                        "content": message.clean_content
+                    }],
+                    user_id=user_id
                 )
 
-                async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-                    try:
+
+                
+                try:
+                    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
                         brain_port = os.getenv("BRAIN_PORT", 4207)
                     
                         response = await client.post(
-                            f"http://brain:{brain_port}/discord/message/incoming", json=discord_message.model_dump())
+                            f"http://brain:{brain_port}/api/multiturn", json=request.model_dump())
                         response.raise_for_status()
                         proxy_response = response.json()
                         print(f"RESPONSE {proxy_response}")
                         await ctx.send(proxy_response['response'])
 
-                    except httpx.HTTPStatusError as http_err:
-                        logger.error(f"HTTP error forwarding from ledger: {http_err.response.status_code} - {http_err.response.text}")
+                except httpx.HTTPStatusError as http_err:
+                    logger.error(f"HTTP error forwarding from brain: {http_err.response.status_code} - {http_err.response.text}")
 
-                        raise HTTPException(
-                            status_code=http_err.response.status_code,
-                            detail=f"Error from ledger: {http_err.response.text}"
-                        )
+                    raise HTTPException(
+                        status_code=http_err.response.status_code,
+                        detail=f"Error from brain: {http_err.response.text}"
+                    )
 
-                    except httpx.RequestError as req_err:
-                        logger.error(f"Request error when contacting ledger: {req_err}")
+                except httpx.RequestError as req_err:
+                    logger.error(f"Request error when contacting brain: {req_err}")
 
-                        raise HTTPException(
-                            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail=f"Connection error: {req_err}"
-                        )
-                    
-                    except Exception as e:
-                        logger.exception("Error retrieving service address for ledger:", e)
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=f"Connection error: {req_err}"
+                    )
+                
+                except Exception as e:
+                    logger.exception("Error retrieving service address for brain:", e)
                 
             await bot.process_commands(message)  # Ensure commands still work
         except Exception as e:

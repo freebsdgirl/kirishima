@@ -41,7 +41,6 @@ from app.summary.weekly import router as weekly_summary_router
 from app.summary.monthly import router as monthly_summary_router
 
 from app.embedding import router as embedding_router
-from app.discord.dm import router as discord_dm_router
 
 from app.notification.callback import router as notification_callback_router
 from app.notification.get import router as notification_get_router
@@ -79,7 +78,6 @@ app.include_router(message_multiturn_router, tags=["message"])
 app.include_router(message_singleturn_router, tags=["message"])
 
 app.include_router(embedding_router, tags=["embedding"])
-app.include_router(discord_dm_router, tags=["discord"])
 
 app.include_router(notification_callback_router, tags=["notification"])
 app.include_router(notification_get_router, tags=["notification"])

@@ -35,12 +35,13 @@ def memory_add(memory: str, keywords: list, topic: str, priority: float):
                 (memory_id, user_id, memory, created_at, priority)
             )
             for tag in keywords:
+                tag_lower = tag.lower()
                 cursor.execute(
                     """
                     INSERT OR IGNORE INTO memory_tags (memory_id, tag)
                     VALUES (?, ?)
                     """,
-                    (memory_id, tag)
+                    (memory_id, tag_lower)
                 )
             conn.commit()
      

@@ -80,7 +80,7 @@ def verify_database():
             cursor = conn.cursor()
             cursor.execute("PRAGMA journal_mode=WAL;")
             cursor.execute("PRAGMA foreign_keys = ON;")
-            cursor.execute("CREATE TABLE IF NOT EXISTS memories (id TEXT PRIMARY KEY, user_id TEXT, memory TEXT, created_at TEXT, access_count INTEGER DEFAULT 0, last_accessed TEXT, priority FLOAT)")
+            cursor.execute("CREATE TABLE IF NOT EXISTS memories (id TEXT PRIMARY KEY, user_id TEXT, memory TEXT, created_at TEXT, access_count INTEGER DEFAULT 0, last_accessed TEXT, priority FLOAT, reviewed INTEGER DEFAULT 0)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_id ON memories (user_id)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_created_at ON memories (created_at)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_priority ON memories (priority)")

@@ -74,6 +74,8 @@ TEMPLATE = '''
         form, label, select, input, button { font-size: 12px; }
         td.memory-col { white-space: pre-line; word-break: break-word; }
         td.keywords-col { white-space: pre-line; word-break: break-word; }
+        .approve-form { margin: 0; display: inline; }
+        .approve-checkbox { transform: scale(1.2); margin: 0 0.5em 0 0; }
     </style>
     <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -81,6 +83,7 @@ TEMPLATE = '''
         const cells = document.querySelectorAll('td.copyable');
         cells.forEach(cell => {
             cell.addEventListener('click', function(e) {
+                if (e.target.tagName === 'INPUT') return; // Don't trigger on checkbox click
                 cells.forEach(c => c.classList.remove('selected'));
                 this.classList.add('selected');
                 navigator.clipboard.writeText(this.innerText);
@@ -123,7 +126,8 @@ TEMPLATE = '''
         <label><input type="checkbox" name="show_reviewed" value="1" {% if request.args.get('show_reviewed') %}checked{% endif %}> Show reviewed</label>
         <button type="submit">Filter</button>
     </form>
-    <p style="font-size: 11px;"><em>Click a cell to copy its contents, or click a column header to copy the entire column.</em></p>
+    <p style="font-size: 11px;"><em>Click a cell to copy its contents, or click a column header to copy the entire column. Check the box to approve a memory.</em></p>
+    <form method="post" id="approve-form">
     <table>
         <thead>
             <tr>
@@ -137,7 +141,8 @@ TEMPLATE = '''
                 <th class="copy-col">Reviewed</th>
                 <th class="copy-col">Keywords</th>
                 <th class="copy-col">Topic</th>
-                <th>Action</th>
+                <th>Approve</th>
+                <th>Edit</th>
             </tr>
         </thead>
         <tbody>
@@ -153,26 +158,28 @@ TEMPLATE = '''
                 <td class="copyable">{{ 'Yes' if m[7] else 'No' }}</td>
                 <td class="copyable keywords-col">{{ m[8] or '' }}</td>
                 <td class="copyable">{{ m[9] or '' }}</td>
+                <td style="text-align: center;">
+                    <input type="checkbox" class="approve-checkbox" name="approve_ids" value="{{ m[0] }}" {% if m[7] %}checked disabled{% endif %} onchange="this.form.submit()">
+                </td>
                 <td>
-                {% if not m[7] %}
-                    <form method="post" style="display:inline">
-                        <input type="hidden" name="review_id" value="{{ m[0] }}">
-                        <button class="mark-btn" type="submit">Mark Reviewed</button>
-                    </form>
-                {% endif %}
+                    <a href="{{ url_for('edit_memory', memory_id=m[0]) }}">Edit</a>
                 </td>
             </tr>
         {% endfor %}
         </tbody>
     </table>
+    </form>
 </body>
 </html>
 '''
 
 @app.route('/', methods=['GET', 'POST'])
 def review():
-    if request.method == 'POST' and request.form.get('review_id'):
-        mark_reviewed(request.form['review_id'])
+    if request.method == 'POST':
+        approve_ids = request.form.getlist('approve_ids')
+        for memory_id in approve_ids:
+            mark_reviewed(memory_id)
+        return redirect(url_for('review', **request.args))
     keyword = request.args.get('keyword') or None
     topic = request.args.get('topic') or None
     show_reviewed = bool(request.args.get('show_reviewed'))

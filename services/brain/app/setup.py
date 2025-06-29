@@ -95,5 +95,15 @@ def verify_database():
             """)
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_memory_id ON memory_tags (memory_id)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_tag ON memory_tags (tag)")
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS memory_topic (
+                    memory_id TEXT,
+                    topic TEXT,
+                    PRIMARY KEY (memory_id, topic),
+                    FOREIGN KEY (memory_id) REFERENCES memories(id) ON DELETE CASCADE
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_memory_id ON memory_topic (memory_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_topic ON memory_topic (topic)")
             # Commit and close
             conn.commit()

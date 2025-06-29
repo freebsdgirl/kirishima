@@ -3,32 +3,46 @@ import json
 from pathlib import Path
 from typing import List
 
-def memory_search(keywords: List[str]):
+def memory_search(keywords: List[str] = None, topic: str = None):
     """
-    Search for memories that have tags exactly matching any of the provided keywords (case-insensitive).
+    Search for memories by keywords (tags) or by topic. Only one of keywords or topic may be provided.
     Args:
-        keywords (List[str]): List of keywords to search for.
+        keywords (List[str], optional): List of keywords to search for.
+        topic (str, optional): Topic to search for.
     Returns:
-        dict: Status and list of matching memory IDs.
+        dict: Status and list of matching memory records.
     """
+    if (keywords and topic) or (not keywords and not topic):
+        return {"status": "error", "error": "Provide either keywords or topic, but not both."}
     try:
         with open('/app/config/config.json') as f:
             _config = json.load(f)
         MEMORIES_DB = _config['db']['memories']
-        # Normalize keywords to lowercase
-        keywords_norm = [k.lower() for k in keywords]
         with sqlite3.connect(MEMORIES_DB) as conn:
             cursor = conn.cursor()
-            q_marks = ','.join('?' for _ in keywords_norm)
-            cursor.execute(f"""
-                SELECT m.id, m.created_at, m.priority, COUNT(mt.tag) as match_count
-                FROM memories m
-                JOIN memory_tags mt ON m.id = mt.memory_id
-                WHERE lower(mt.tag) IN ({q_marks})
-                GROUP BY m.id
-                ORDER BY match_count DESC, m.priority DESC, m.created_at DESC
-            """, keywords_norm)
-            rows = cursor.fetchall()
+            if keywords:
+                # Normalize keywords to lowercase
+                keywords_norm = [k.lower() for k in keywords]
+                q_marks = ','.join('?' for _ in keywords_norm)
+                cursor.execute(f"""
+                    SELECT m.id, m.created_at, m.priority, COUNT(mt.tag) as match_count
+                    FROM memories m
+                    JOIN memory_tags mt ON m.id = mt.memory_id
+                    WHERE lower(mt.tag) IN ({q_marks})
+                    GROUP BY m.id
+                    ORDER BY match_count DESC, m.priority DESC, m.created_at DESC
+                """, keywords_norm)
+                rows = cursor.fetchall()
+            else:
+                # topic search
+                cursor.execute("""
+                    SELECT m.id, m.created_at, m.priority
+                    FROM memories m
+                    JOIN memory_topic mt ON m.id = mt.memory_id
+                    WHERE mt.topic = ?
+                    ORDER BY m.created_at DESC
+                """, (topic,))
+                rows = cursor.fetchall()
             memory_ids = [row[0] for row in rows]
             if not memory_ids:
                 return {"status": "ok", "memories": []}

@@ -50,6 +50,11 @@
             "description": "Tags/keywords associated with the memory.",
             "example": ["Slam Jackson", "dog", "pet", "golden doodle"]
           },
+          "topic": {
+            "type": "string",
+            "description": "The topic of the memory, used for categorization. Must match one of the predefined topics: Health, Career, Family, Personal, Technical Projects, Social, Finance, Self-care, Environment, Hobbies, Admin, Philosophy",
+            "example": "Family"
+          },
           "priority": {
             "type": "number",
             "description": "Priority level of the memory, where 0.0 is low priority and 1.0 is high priority.",
@@ -58,7 +63,7 @@
             "example": 0.5
           }
         },
-        "required": ["message","tags","priority"]
+        "required": ["message","tags","topic","priority"]
       }
     }
   },
@@ -95,7 +100,7 @@
     "type": "function",
     "function": {
       "name": "memory_search",
-      "description": "Search for memories by a list of keywords (exact, case-insensitive match). Returns memories ordered by number of matches, priority, and recency.",
+      "description": "Search for memories by a list of keywords (exact, case-insensitive match) or topics. Returns memories ordered by number of matches, priority, and recency.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -103,9 +108,13 @@
             "type": "array",
             "items": {"type": "string"},
             "description": "List of keywords to search for."
+          },
+          "topic": {
+            "type": "string",
+            "description": "The topic to filter memories by. Must match one of the predefined topics: Health, Career, Family, Personal, Technical Projects, Social, Finance, Self-care, Environment, Hobbies, Admin, Philosophy"
           }
         },
-        "required": ["keywords"]
+        "required": []
       }
     }
   },

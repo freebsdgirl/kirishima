@@ -24,19 +24,23 @@ def memory_list():
             tag_map = {}
             for memory_id, tag in tags:
                 tag_map.setdefault(memory_id, []).append(tag)
+            # Fetch all topics
+            cursor.execute("SELECT memory_id, topic FROM memory_topic")
+            topics = cursor.fetchall()
+            # Map memory_id to list of topics
+            topic_map = {}
+            for memory_id, topic in topics:
+                topic_map.setdefault(memory_id, []).append(topic)
             # Build result list
             result = []
             for row in memories:
                 mem_id = row[0]
                 result.append({
                     "id": mem_id,
-                    "user_id": row[1],
                     "memory": row[2],
                     "created_at": row[3],
-                    "access_count": row[4],
-                    "last_accessed": row[5],
-                    "priority": row[6],
-                    "keywords": tag_map.get(mem_id, [])
+                    "keywords": tag_map.get(mem_id, []),
+                    "topics": topic_map.get(mem_id, [])
                 })
         return {"status": "ok", "memories": result}
     except Exception as e:

@@ -3,17 +3,20 @@ import json
 from pathlib import Path
 from typing import List
 
-def memory_search(keywords: List[str] = None, topic: str = None):
+def memory_search(keywords: List[str] = None, topic: str = None, memory_id: str = None):
     """
-    Search for memories by keywords (tags) or by topic. Only one of keywords or topic may be provided.
+    Search for memories by keywords (tags), by topic, or by memory_id. Only one of keywords, topic, or memory_id may be provided.
     Args:
         keywords (List[str], optional): List of keywords to search for.
         topic (str, optional): Topic to search for.
+        memory_id (str, optional): Memory ID to search for.
     Returns:
         dict: Status and list of matching memory records.
     """
-    if (keywords and topic) or (not keywords and not topic):
-        return {"status": "error", "error": "Provide either keywords or topic, but not both."}
+    # Only one of keywords, topic, or memory_id may be provided
+    provided = [x is not None and x != [] for x in [keywords, topic, memory_id]]
+    if sum(provided) != 1:
+        return {"status": "error", "error": "Provide exactly one of keywords, topic, or memory_id."}
     try:
         with open('/app/config/config.json') as f:
             _config = json.load(f)
@@ -33,8 +36,8 @@ def memory_search(keywords: List[str] = None, topic: str = None):
                     ORDER BY match_count DESC, m.priority DESC, m.created_at DESC
                 """, keywords_norm)
                 rows = cursor.fetchall()
-            else:
-                # topic search
+                memory_ids = [row[0] for row in rows]
+            elif topic:
                 cursor.execute("""
                     SELECT m.id, m.created_at, m.priority
                     FROM memories m
@@ -43,7 +46,30 @@ def memory_search(keywords: List[str] = None, topic: str = None):
                     ORDER BY m.created_at DESC
                 """, (topic,))
                 rows = cursor.fetchall()
-            memory_ids = [row[0] for row in rows]
+                memory_ids = [row[0] for row in rows]
+            else:  # memory_id
+                cursor.execute("SELECT id, user_id, memory, created_at, access_count, last_accessed, priority FROM memories WHERE id = ?", (memory_id,))
+                row = cursor.fetchone()
+                if not row:
+                    return {"status": "ok", "memories": []}
+                memories = [{
+                    "id": row[0],
+                    "user_id": row[1],
+                    "memory": row[2],
+                    "created_at": row[3],
+                    "access_count": row[4],
+                    "last_accessed": row[5],
+                    "priority": row[6],
+                }]
+                # Update access_count and last_accessed for this memory
+                from datetime import datetime
+                now_local = datetime.now().isoformat()
+                cursor.execute(
+                    "UPDATE memories SET access_count = access_count + 1, last_accessed = ? WHERE id = ?",
+                    (now_local, memory_id)
+                )
+                conn.commit()
+                return {"status": "ok", "memories": memories}
             if not memory_ids:
                 return {"status": "ok", "memories": []}
             # Fetch all memory records for the found IDs

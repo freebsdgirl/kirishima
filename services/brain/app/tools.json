@@ -32,89 +32,45 @@
   {
     "type": "function",
     "function": {
-      "name": "memory_add",
-      "description": "Add a new memory.",
+      "name": "memory",
+      "description": "Perform memory operations: add, delete, list, or search for memories.",
       "parameters": {
         "type": "object",
         "properties": {
+          "action": {
+            "type": "string",
+            "description": "Action to perform: 'add', 'delete', 'list', or 'search'.",
+            "enum": ["add", "delete", "list", "search"]
+          },
           "memory": {
             "type": "string",
-            "description": "The memory to save.",
+            "description": "The memory to save. Required for 'add'.",
             "example": "Slam Jackson is Randi's dog. He is a golden doodle."
-          },
-          "tags": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "description": "Tags/keywords associated with the memory.",
-            "example": ["Slam Jackson", "dog", "pet", "golden doodle"]
           },
           "topic": {
             "type": "string",
-            "description": "The topic of the memory, used for categorization. Must match one of the predefined topics: Health, Career, Family, Personal, Technical Projects, Social, Finance, Self-care, Environment, Hobbies, Admin, Philosophy",
+            "description": "The topic of the memory, used for categorization. Must match one of the predefined topics: Health, Career, Family, Personal, Technical Projects, Social, Finance, Self-care, Environment, Hobbies, Admin, Philosophy. Required for 'add' and 'search'.",
             "example": "Family"
           },
           "priority": {
             "type": "number",
-            "description": "Priority level of the memory, where 0.0 is low priority and 1.0 is high priority.",
+            "description": "Priority level of the memory, where 0.0 is low priority and 1.0 is high priority. Required for 'add'.",
             "minimum": 0.0,
             "maximum": 1.0,
             "example": 0.5
-          }
-        },
-        "required": ["message","tags","topic","priority"]
-      }
-    }
-  },
-  {
-    "type": "function",
-    "function": {
-      "name": "memory_delete",
-      "description": "Delete a memory and its tags by memory ID.",
-      "parameters": {
-        "type": "object",
-        "properties": {
+          },
           "memory_id": {
             "type": "string",
-            "description": "The ID of the memory to delete."
-          }
-        },
-        "required": ["memory_id"]
-      }
-    }
-  },
-  {
-    "type": "function",
-    "function": {
-      "name": "memory_list",
-      "description": "List all memories along with their keywords.",
-      "parameters": {
-        "type": "object",
-        "properties": {},
-        "required": []
-      }
-    }
-  },
-  {
-    "type": "function",
-    "function": {
-      "name": "memory_search",
-      "description": "Search for memories by a list of keywords (exact, case-insensitive match) or topics. Returns memories ordered by number of matches, priority, and recency.",
-      "parameters": {
-        "type": "object",
-        "properties": {
+            "description": "The ID of the memory to delete. Required for 'delete', optional for 'search'."
+          },
           "keywords": {
             "type": "array",
             "items": {"type": "string"},
-            "description": "List of keywords to search for."
-          },
-          "topic": {
-            "type": "string",
-            "description": "The topic to filter memories by. Must match one of the predefined topics: Health, Career, Family, Personal, Technical Projects, Social, Finance, Self-care, Environment, Hobbies, Admin, Philosophy"
+            "description": "Tags/keywords associated with the memory. Required for 'add', optional for 'search'.",
+            "example": ["Slam Jackson", "dog", "pet", "golden doodle"]
           }
         },
-        "required": []
+        "required": ["action"]
       }
     }
   },

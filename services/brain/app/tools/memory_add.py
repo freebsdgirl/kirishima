@@ -8,7 +8,7 @@ with open('/app/config/config.json') as f:
     _config = json.load(f)
 MEMORIES_DB = _config['db']['memories']
 
-def memory_add(memory: str, tags: list, topic: str, priority: float):
+def memory_add(memory: str, keywords: list, topic: str, priority: float):
     """
     Add a new memory and its tags to the memories database.
     Args:
@@ -34,7 +34,7 @@ def memory_add(memory: str, tags: list, topic: str, priority: float):
                 """,
                 (memory_id, user_id, memory, created_at, priority)
             )
-            for tag in tags:
+            for tag in keywords:
                 cursor.execute(
                     """
                     INSERT OR IGNORE INTO memory_tags (memory_id, tag)

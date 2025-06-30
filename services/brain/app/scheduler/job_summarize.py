@@ -114,10 +114,7 @@ async def summarize_user_buffer_night():
 
     try: 
         logger.debug(f"Creating night summary for date: {payload.date}")
-        summaries = await create_summary(payload)
-        if summaries:
-            logger.debug(f"Deleting user buffer for night summary for date: {payload.date}")
-            await delete_user_buffer_from_summaries(summaries)
+        await create_summary(payload)
 
     except Exception as e:
         logger.error(f"Failed to trigger summarize_user_buffer_night(): {e}")
@@ -144,10 +141,7 @@ async def summarize_user_buffer_morning():
 
     try: 
         logger.debug(f"Creating morning summary for date: {payload.date}")
-        summaries = await create_summary(payload)
-        if summaries:
-            logger.debug(f"Deleting user buffer for morning summary for date: {payload.date}")
-            await delete_user_buffer_from_summaries(summaries)
+        await create_summary(payload)
 
     except Exception as e:
         logger.error(f"Failed to trigger summarize_user_buffer_morning(): {e}")
@@ -174,10 +168,7 @@ async def summarize_user_buffer_afternoon():
 
     try: 
         logger.debug(f"Creating afternoon summary for date: {payload.date}")
-        summaries = await create_summary(payload)
-        if summaries:
-            logger.debug(f"Deleting user buffer for afternoon summary for date: {payload.date}")
-            await delete_user_buffer_from_summaries(summaries)
+        await create_summary(payload)
 
     except Exception as e:
         logger.error(f"Failed to trigger summarize_user_buffer_afternoon(): {e}")
@@ -205,21 +196,8 @@ async def summarize_user_buffer_evening():
         date=(datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
     )
 
-    #try: 
-    #    logger.debug(f"Creating evening summary for date: {payload.date}")
-    #    summaries = await create_summary(payload)
-    #    if summaries:
-    #        logger.debug(f"Deleting user buffer for evening summary for date: {payload.date}")
-    #        await delete_user_buffer_from_summaries(summaries)
 
-    #except Exception as e:
-    #    logger.error(f"Failed to trigger summarize_user_buffer_evening(): {e}")
-    #    raise HTTPException(
-    #        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-    #        detail="Failed to trigger summarize_user_buffer_evening()"
-    #    )
-    
-    # next, create the summary for the day
+    # create the summary for the day
     try:
        payload = SummaryCreateRequest(
             period="daily",

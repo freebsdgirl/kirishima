@@ -17,11 +17,14 @@ CREATE TABLE IF NOT EXISTS user_messages (
     model           TEXT,
     tool_calls      TEXT,
     function_call   TEXT,
+    topic_id        TEXT, -- Foreign key to topics.id (nullable)
     created_at      DATETIME NOT NULL DEFAULT (STRFTIME('%Y-%m-%d %H:%M:%f','now','localtime')),
     updated_at      DATETIME NOT NULL DEFAULT (STRFTIME('%Y-%m-%d %H:%M:%f','now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS idx_user_msgs_order
     ON user_messages(user_id, id);
+CREATE INDEX IF NOT EXISTS idx_user_msgs_topic
+    ON user_messages(topic_id);
 
 --------------------------------------------------------------------
 
@@ -67,6 +70,16 @@ CREATE TABLE IF NOT EXISTS conversation_summaries (
 );
 CREATE INDEX IF NOT EXISTS idx_conv_summaries_period
     ON conversation_summaries(conversation_id, period, id);
+
+--------------------------------------------------------------------
+
+-- Topics table
+CREATE TABLE IF NOT EXISTS topics (
+    id          TEXT PRIMARY KEY, -- UUID
+    name        TEXT,
+    description TEXT,
+    created_at  DATETIME NOT NULL DEFAULT (STRFTIME('%Y-%m-%d %H:%M:%f','now','localtime'))
+);
 """
 
 

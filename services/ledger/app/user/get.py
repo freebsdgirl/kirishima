@@ -1,28 +1,17 @@
 """
-This module provides API endpoints for retrieving user messages from the ledger service.
+This module provides FastAPI endpoints for retrieving and filtering user messages
+from the ledger database. It includes utilities for time period filtering, 
+fetching all messages, untagged messages, and the timestamp of the last message 
+for a user. The endpoints support filtering by period, date, and explicit 
+timestamp ranges, and ensure that tool messages and empty assistant messages 
+are excluded from results.
 Endpoints:
-- GET /user/{user_id}/messages: Retrieve messages for a specific user, optionally filtered by time period and date.
-- GET /active: Retrieve a list of unique user IDs that have messages in the database.
-Functions:
-- get_period_range(period: str, date_str: Optional[str] = None): 
-    Converts a period string and optional date into a start and end datetime range.
-- get_user_messages(
-    user_id: str,
-    period: Optional[str] = None,
-    date: Optional[str] = None
-    Retrieves messages for a specific user, with optional filtering by time period and date.
-- trigger_summaries_for_inactive_users():
-    Retrieves a list of unique user IDs from the user messages database.
-Dependencies:
-- FastAPI for API routing.
-- sqlite3 for database access.
-- CanonicalUserMessage model for message serialization.
-- Shared logging configuration.
-- JSON for configuration and message parsing.
-Note:
-- Time period filtering supports 'night', 'morning', 'afternoon', 'evening', and 'day'.
-- Tool messages and assistant messages with empty content are filtered out from results.
-
+- /user/{user_id}/messages: Retrieve messages for a user, with optional time filtering.
+- /active: List all unique user IDs with messages in the database.
+- /user/{user_id}/messages/untagged: Retrieve untagged messages for a user.
+- /user/{user_id}/messages/last: Get the timestamp of the user's most recent message.
+Utility Functions:
+- get_period_range: Convert a period string and optional date into a datetime range.
 """
 
 from shared.models.ledger import CanonicalUserMessage
@@ -184,7 +173,6 @@ async def trigger_summaries_for_inactive_users():
     Returns:
         List[str]: A list of unique user IDs found in the user messages database.
     """
-
     with open('/app/config/config.json') as f:
         _config = json.load(f)
 
@@ -204,7 +192,18 @@ async def trigger_summaries_for_inactive_users():
 @router.get("/user/{user_id}/messages/untagged", response_model=List[CanonicalUserMessage])
 def get_user_untagged_messages(user_id: str = Path(...)) -> List[CanonicalUserMessage]:
     """
-    Retrieve all messages for a user that do not have a topic_id assigned (topic_id IS NULL).
+    Retrieve all untagged messages for a given user from the database.
+
+    This function fetches messages from the `user_messages` table where the `user_id` matches
+    the provided value and `topic_id` is NULL (untagged). The messages are ordered by their `id`.
+    It filters out messages where the role is 'tool' or where the role is 'assistant' and the content is empty.
+
+    Args:
+        user_id (str): The ID of the user whose untagged messages are to be retrieved.
+
+    Returns:
+        List[CanonicalUserMessage]: A list of CanonicalUserMessage objects representing the user's untagged messages,
+        excluding tool messages and assistant messages with empty content.
     """
     with open('/app/config/config.json') as f:
         _config = json.load(f)
@@ -225,3 +224,26 @@ def get_user_untagged_messages(user_id: str = Path(...)) -> List[CanonicalUserMe
             )
         ]
         return messages
+
+
+@router.get("/user/{user_id}/messages/last", response_model=str)
+def get_last_message_timestamp(user_id: str = Path(...)) -> str:
+    """
+    Retrieves the timestamp of the most recent message sent by a specific user.
+
+    Args:
+        user_id (str): The unique identifier of the user.
+
+    Returns:
+        str: The timestamp of the latest message sent by the user in the 'created_at' field,
+             or an empty string if no messages are found.
+    """
+    with open('/app/config/config.json') as f:
+        _config = json.load(f)
+    db = _config["db"]["ledger"]
+    with sqlite3.connect(db, timeout=5.0) as conn:
+        conn.execute("PRAGMA journal_mode=WAL;")
+        cur = conn.cursor()
+        cur.execute("SELECT created_at FROM user_messages WHERE user_id = ? ORDER BY created_at DESC LIMIT 1", (user_id,))
+        row = cur.fetchone()
+        return row[0] if row else ""

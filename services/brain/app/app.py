@@ -46,6 +46,8 @@ from app.notification.callback import router as notification_callback_router
 from app.notification.get import router as notification_get_router
 from app.notification.post import router as notification_post_router
 
+from app.memories.review_log import router as memories_review_log_router
+
 from shared.docs_exporter import router as docs_router
 from shared.routes import router as routes_router, register_list_routes
 
@@ -73,6 +75,8 @@ app.include_router(scheduler_router, tags=["scheduler"])
 app.include_router(memory_delete_router, tags=["memory"])
 app.include_router(memory_get_router, tags=["memory"])
 app.include_router(memory_post_router, tags=["memory"])
+
+app.include_router(memories_review_log_router, tags=["memory"])
 
 app.include_router(message_multiturn_router, tags=["message"])
 app.include_router(message_singleturn_router, tags=["message"])

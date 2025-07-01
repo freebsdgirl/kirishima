@@ -96,14 +96,26 @@ def verify_database():
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_memory_id ON memory_tags (memory_id)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_tag ON memory_tags (tag)")
             cursor.execute("""
-                CREATE TABLE IF NOT EXISTS memory_topic (
+                CREATE TABLE IF NOT EXISTS memory_category (
                     memory_id TEXT,
-                    topic TEXT,
-                    PRIMARY KEY (memory_id, topic),
+                    category TEXT,
+                    PRIMARY KEY (memory_id, category),
                     FOREIGN KEY (memory_id) REFERENCES memories(id) ON DELETE CASCADE
                 )
             """)
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_memory_id ON memory_topic (memory_id)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_topic ON memory_topic (topic)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_memory_id ON memory_category (memory_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_category ON memory_category (category)")
+
+            # create table to map memory ids to topic ids
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS memory_topics (
+                    memory_id TEXT,
+                    topic_id TEXT,
+                    PRIMARY KEY (memory_id, topic_id),
+                    FOREIGN KEY (memory_id) REFERENCES memories(id) ON DELETE CASCADE
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_memory_id ON memory_topics (memory_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_topic_id ON memory_topics (topic_id)")   
             # Commit and close
             conn.commit()

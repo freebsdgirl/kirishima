@@ -18,6 +18,7 @@ Environment:
 from app.user.delete import router as user_delete_router
 from app.user.get import router as user_get_router
 from app.user.sync import router as user_sync_router
+from app.topic import router as topics_router
 
 from app.setup import init_buffer_db
 
@@ -37,6 +38,7 @@ app.include_router(docs_router, tags=["docs"])
 app.include_router(user_delete_router, tags=["user"])
 app.include_router(user_get_router, tags=["user"])
 app.include_router(user_sync_router, tags=["user"])
+app.include_router(topics_router, tags=["topics"])
 
 register_list_routes(app)
 

@@ -151,10 +151,11 @@ def get_user_messages(
         # New: filter by start/end if provided
         if start and end:
             try:
-                start_dt = datetime.fromisoformat(start)
-                end_dt = datetime.fromisoformat(end)
+                # Accept 'YYYY-MM-DD HH:MM:SS.sss' (to milliseconds)
+                start_dt = datetime.strptime(start, "%Y-%m-%d %H:%M:%S.%f")
+                end_dt = datetime.strptime(end, "%Y-%m-%d %H:%M:%S.%f")
             except Exception:
-                raise ValueError("Invalid start or end timestamp format. Use ISO 8601.")
+                raise ValueError("Invalid start or end timestamp format. Use 'YYYY-MM-DD HH:MM:SS.sss'.")
             def parse_created_at(dt_str):
                 return datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S.%f")
             messages = [
@@ -198,3 +199,29 @@ async def trigger_summaries_for_inactive_users():
         user_ids = [row[0] for row in cur.fetchall()]
         logger.debug(f"Found {len(user_ids)} unique user IDs in the database.")
         return user_ids
+
+
+@router.get("/user/{user_id}/messages/untagged", response_model=List[CanonicalUserMessage])
+def get_user_untagged_messages(user_id: str = Path(...)) -> List[CanonicalUserMessage]:
+    """
+    Retrieve all messages for a user that do not have a topic_id assigned (topic_id IS NULL).
+    """
+    with open('/app/config/config.json') as f:
+        _config = json.load(f)
+    db = _config["db"]["ledger"]
+    with sqlite3.connect(db, timeout=5.0) as conn:
+        conn.execute("PRAGMA journal_mode=WAL;")
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM user_messages WHERE user_id = ? AND topic_id IS NULL ORDER BY id", (user_id,))
+        columns = [col[0] for col in cur.description]
+        raw_messages = [dict(zip(columns, row)) for row in cur.fetchall()]
+        messages = [CanonicalUserMessage(**msg) for msg in raw_messages]
+        # Filter out tool messages and assistant messages with empty content
+        messages = [
+            msg for msg in messages
+            if not (
+                getattr(msg, 'role', None) == 'tool' or
+                (getattr(msg, 'role', None) == 'assistant' and not getattr(msg, 'content', None))
+            )
+        ]
+        return messages

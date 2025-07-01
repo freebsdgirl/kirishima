@@ -8,13 +8,13 @@ with open('/app/config/config.json') as f:
     _config = json.load(f)
 MEMORIES_DB = _config['db']['memories']
 
-def memory_add(memory: str, keywords: list, topic: str, priority: float):
+def memory_add(memory: str, keywords: list, category: str, priority: float):
     """
     Add a new memory and its tags to the memories database.
     Args:
         memory (str): The memory text to save.
         tags (list): List of tags/keywords associated with the memory.
-        topic (str): The topic associated with the memory
+        category (str): The category associated with the memory
         priority (float): Priority level (0.0 to 1.0).
     Returns:
         str: The ID of the new memory, or an error dict on failure.
@@ -45,22 +45,22 @@ def memory_add(memory: str, keywords: list, topic: str, priority: float):
                 )
             conn.commit()
      
-            if topic:
-                # verify topic matches one of the allowed topics
-                allowed_topics = [
+            if category:
+                # verify category matches one of the allowed categories
+                allowed_categories = [
                     "Health", "Career", "Family", "Personal", "Technical Projects",
                     "Social", "Finance", "Self-care", "Environment", "Hobbies",
                     "Admin", "Philosophy"
                 ]
-                if topic not in allowed_topics:
-                    return {"status": "error", "error": f"Invalid topic: {topic}. Allowed topics are: {', '.join(allowed_topics)}"}
+                if category not in allowed_categories:
+                    return {"status": "error", "error": f"Invalid category: {category}. Allowed categories are: {', '.join(allowed_categories)}"}
                     
                 cursor.execute(
                         """
-                        INSERT INTO memory_topic (memory_id, topic)
+                        INSERT INTO memory_category (memory_id, category)
                         VALUES (?, ?)
                         """,
-                        (memory_id, topic)  # Stub: replace with actual topic logic
+                        (memory_id, category)
                     )
                 conn.commit()
         return {"status": "memory created", "id": memory_id}

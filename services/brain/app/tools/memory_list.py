@@ -24,13 +24,13 @@ def memory_list():
             tag_map = {}
             for memory_id, tag in tags:
                 tag_map.setdefault(memory_id, []).append(tag)
-            # Fetch all topics
-            cursor.execute("SELECT memory_id, topic FROM memory_topic")
-            topics = cursor.fetchall()
-            # Map memory_id to list of topics
-            topic_map = {}
-            for memory_id, topic in topics:
-                topic_map.setdefault(memory_id, []).append(topic)
+            # Fetch all categories
+            cursor.execute("SELECT memory_id, category FROM memory_category")
+            categories = cursor.fetchall()
+            # Map memory_id to list of categories
+            category_map = {}
+            for memory_id, category in categories:
+                category_map.setdefault(memory_id, []).append(category)
             # Build result list
             result = []
             for row in memories:
@@ -40,7 +40,7 @@ def memory_list():
                     "memory": row[2],
                     "created_at": row[3],
                     "keywords": tag_map.get(mem_id, []),
-                    "topics": topic_map.get(mem_id, [])
+                    "categories": category_map.get(mem_id, [])
                 })
         return {"status": "ok", "memories": result}
     except Exception as e:

@@ -47,9 +47,9 @@
             "description": "The memory to save. Required for 'add'.",
             "example": "Slam Jackson is Randi's dog. He is a golden doodle."
           },
-          "topic": {
+          "category": {
             "type": "string",
-            "description": "The topic of the memory, used for categorization. Must match one of the predefined topics: Health, Career, Family, Personal, Technical Projects, Social, Finance, Self-care, Environment, Hobbies, Admin, Philosophy. Required for 'add' and 'search'.",
+            "description": "The category of the memory, used for categorization. Must match one of the predefined categories: Health, Career, Family, Personal, Technical Projects, Social, Finance, Self-care, Environment, Hobbies, Admin, Philosophy. Required for 'add' and 'search'.",
             "example": "Family"
           },
           "priority": {

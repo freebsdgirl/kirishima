@@ -76,10 +76,10 @@ CREATE INDEX IF NOT EXISTS idx_conv_summaries_period
 -- Topics table
 CREATE TABLE IF NOT EXISTS topics (
     id          TEXT PRIMARY KEY, -- UUID
-    name        TEXT,
-    description TEXT,
-    created_at  DATETIME NOT NULL DEFAULT (STRFTIME('%Y-%m-%d %H:%M:%f','now','localtime'))
+    name        TEXT
 );
+
+
 """
 
 

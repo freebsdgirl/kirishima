@@ -3,18 +3,18 @@ import json
 from pathlib import Path
 from typing import List
 
-def memory_search(keywords: List[str] = None, topic: str = None, memory_id: str = None):
+def memory_search(keywords: List[str] = None, category: str = None, memory_id: str = None):
     """
-    Search for memories by keywords (tags), by topic, or by memory_id. Only one of keywords, topic, or memory_id may be provided.
+    Search for memories by keywords (tags), by category, or by memory_id. Only one of keywords, category, or memory_id may be provided.
     Args:
         keywords (List[str], optional): List of keywords to search for.
-        topic (str, optional): Topic to search for.
+        category (str, optional): category to search for.
         memory_id (str, optional): Memory ID to search for.
     Returns:
         dict: Status and list of matching memory records.
     """
     # Only one of keywords, topic, or memory_id may be provided
-    provided = [x is not None and x != [] for x in [keywords, topic, memory_id]]
+    provided = [x is not None and x != [] for x in [keywords, category, memory_id]]
     if sum(provided) != 1:
         return {"status": "error", "error": "Provide exactly one of keywords, topic, or memory_id."}
     try:
@@ -37,14 +37,14 @@ def memory_search(keywords: List[str] = None, topic: str = None, memory_id: str 
                 """, keywords_norm)
                 rows = cursor.fetchall()
                 memory_ids = [row[0] for row in rows]
-            elif topic:
+            elif category:
                 cursor.execute("""
                     SELECT m.id, m.created_at, m.priority
                     FROM memories m
-                    JOIN memory_topic mt ON m.id = mt.memory_id
-                    WHERE mt.topic = ?
+                    JOIN memory_category mt ON m.id = mt.memory_id
+                    WHERE mt.category = ?
                     ORDER BY m.created_at DESC
-                """, (topic,))
+                """, (category,))
                 rows = cursor.fetchall()
                 memory_ids = [row[0] for row in rows]
             else:  # memory_id

@@ -275,3 +275,18 @@ Output should be in JSON matching the format:
             logger.info(f"Completed processing for user {user_id}.")
 
     return {"message": "Review log completed successfully."}
+
+"""
+create this job with:
+
+import httpx
+
+request = {
+    "external_url": "http://brain:4207/memories/review_log",
+    "trigger": "interval",
+    "interval_minutes": 30,
+    "metadata": {}
+}
+
+response = httpx.post("http://127.0.0.1:4201/jobs", json=request)
+"""

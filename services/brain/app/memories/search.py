@@ -1,3 +1,15 @@
+"""
+This module provides an API endpoint for searching memory records in a SQLite database.
+It allows searching by keywords (tags), category, topic ID, or memory ID, but only one search criterion may be used per request.
+The endpoint supports filtering by a minimum number of matching keywords and returns detailed memory information for matching records.
+It also updates access statistics for each accessed memory.
+
+Functions:
+    memory_search(keywords: List[str], category: str, topic_id: str, memory_id: str, min_keywords: int) -> dict:
+        FastAPI route handler for searching memories by keywords, category, topic ID, or memory ID.
+        Returns a dictionary with the search status and a list of matching memory records.
+"""
+
 import sqlite3
 import json
 from typing import List
@@ -9,53 +21,51 @@ from fastapi import APIRouter, HTTPException, status, Query
 
 router = APIRouter()
 
-def get_db():
-    try:
-        with open('/app/config/config.json') as f:
-            _config = json.load(f)
-        db = _config["db"]["brain"]
-        # Try to open a connection to check if DB is accessible
-        with sqlite3.connect(db, timeout=1.0) as conn:
-            pass
-        return db
-    except (FileNotFoundError, KeyError, json.JSONDecodeError) as e:
-        raise HTTPException(status_code=500, detail=f"Configuration error: {e}")
-    except sqlite3.OperationalError as e:
-        raise HTTPException(status_code=500, detail=f"Database error: {e}")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Unexpected error: {e}")
 
 @router.get("/memories/search", response_model=dict)
 def memory_search(
-    keywords: List[str] = Query(None),
-    category: str = Query(None),
-    memory_id: str = Query(None),
-    min_keywords: int = Query(2, alias="min_keywords")
+    keywords: List[str] = Query(None, description="List of keywords to search for."),
+    category: str = Query(None, description="Category to search for."),
+    topic_id: str = Query(None, description="The topic ID to search for."),
+    memory_id: str = Query(None, description="Memory ID to search for."),
+    min_keywords: int = Query(2, description="Minimum number of matching keywords required.")
 ):
     """
     Search for memories by keywords (tags), by category, or by memory_id. Only one of keywords, category, or memory_id may be provided.
     Args:
         keywords (List[str], optional): List of keywords to search for.
         category (str, optional): category to search for.
+        topic_id (str, optional): The topic ID to search for.
         memory_id (str, optional): Memory ID to search for.
         min_keywords (int, optional): Minimum number of matching keywords required. Defaults to 2.
     Returns:
         dict: Status and list of matching memory records.
     """
     # Only one of keywords, topic, or memory_id may be provided
-    provided = [x is not None and x != [] for x in [keywords, category, memory_id]]
-    logger.debug(f"Search parameters - keywords: {keywords}, category: {category}, memory_id: {memory_id}, min_keywords: {min_keywords}")
+    provided = [
+        (keywords is not None and isinstance(keywords, list) and len(keywords) > 0),
+        (category is not None and isinstance(category, str) and category != ""),
+        (topic_id is not None and isinstance(topic_id, str) and topic_id != ""),
+        (memory_id is not None and isinstance(memory_id, str) and memory_id != "")
+    ]
+    logger.debug(f"Search parameters - keywords: {keywords}, category: {category}, topic_id: {topic_id}, memory_id: {memory_id}, min_keywords: {min_keywords}, provided: {provided}")
     if sum(provided) != 1:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Provide exactly one of keywords, category, or memory_id."
+            detail="Provide exactly one of keywords, category, topic_id, or memory_id."
         )
     # At least min_keywords keywords must be provided if using keywords
-    if keywords and len(keywords) < min_keywords:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"At least {min_keywords} keywords must be provided."
-        )
+    # FastAPI will always pass min_keywords as an int, but if running outside FastAPI, ensure it's an int
+    if keywords is not None and isinstance(keywords, list):
+        try:
+            min_keywords_int = int(min_keywords)
+        except Exception:
+            min_keywords_int = 2
+        if len(keywords) < min_keywords_int:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"At least {min_keywords_int} keywords must be provided."
+            )
     try:
         with open('/app/config/config.json') as f:
             _config = json.load(f)
@@ -66,7 +76,11 @@ def memory_search(
                 # Normalize keywords to lowercase
                 keywords_norm = [k.lower() for k in keywords]
                 q_marks = ','.join('?' for _ in keywords_norm)
-                current_min_keywords = min_keywords
+                try:
+                    min_keywords_int = int(min_keywords)
+                except Exception:
+                    min_keywords_int = 2
+                current_min_keywords = min_keywords_int
                 while current_min_keywords > 0:
                     cursor.execute(f"""
                         SELECT m.id, m.created_at, m.priority, COUNT(mt.tag) as match_count
@@ -83,10 +97,10 @@ def memory_search(
                         break
                     current_min_keywords -= 1
                 if not rows:
-                    logger.warning(f"No memories found matching keywords: {keywords_norm} with at least {min_keywords} matches.")
+                    logger.warning(f"No memories found matching keywords: {keywords_norm} with at least {min_keywords_int} matches.")
                     raise HTTPException(
                         status_code=status.HTTP_404_NOT_FOUND,
-                        detail=f"No memories found matching keywords: {keywords_norm} with at least {min_keywords} matches."
+                        detail=f"No memories found matching keywords: {keywords_norm} with at least {min_keywords_int} matches."
                     )
                 memory_ids = [row[0] for row in rows]
             elif category:
@@ -100,6 +114,32 @@ def memory_search(
                 rows = cursor.fetchall()
                 logger.debug(f"Found {len(rows)} memories matching category: {category}")
                 memory_ids = [row[0] for row in rows]
+            elif topic_id:
+                # get the memory ids from memory_topics
+                cursor.execute("SELECT memory_id FROM memory_topics WHERE topic_id = ?", (topic_id,))
+                memory_ids = [row[0] for row in cursor.fetchall()]
+                logger.debug(f"Found {len(memory_ids)} memories for topic_id: {topic_id}")
+                if not memory_ids:
+                    logger.warning(f"No memories found for topic_id: {topic_id}")
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"No memories found for topic_id: {topic_id}"
+                    )
+                # Fetch all memory records for the found IDs
+                q_marks_mem = ','.join('?' for _ in memory_ids)
+                cursor.execute(f"SELECT id, user_id, memory, created_at, access_count, last_accessed, priority FROM memories WHERE id IN ({q_marks_mem})", memory_ids)
+                memories = [
+                    {
+                        "id": row[0],
+                        "user_id": row[1],
+                        "memory": row[2],
+                        "created_at": row[3],
+                        "access_count": row[4],
+                        "last_accessed": row[5],
+                        "priority": row[6],
+                    }
+                    for row in cursor.fetchall()
+                ]
             else:  # memory_id
                 cursor.execute("SELECT id, user_id, memory, created_at, access_count, last_accessed, priority FROM memories WHERE id = ?", (memory_id,))
                 row = cursor.fetchone()

@@ -3,11 +3,10 @@ This consoldiates all the memory-related tools into a single tool with multiple 
 
 """
 
-from .memory_add import memory_add
-from .memory_delete import memory_delete
-from .memory_list import memory_list
 from app.memories.search import memory_search
-from typing import List
+from app.memories.add import memory_add
+from app.memories.delete import memory_delete
+from app.memories.list import memory_list
 
 def memory(action: str, **kwargs):
     """

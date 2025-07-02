@@ -27,7 +27,7 @@ import uuid
 from shared.models.proxy import ProxyOneShotRequest
 from app.message.singleturn import incoming_singleturn_message
 
-from app.tools.memory_search import memory_search as memory_search_tool
+from app.memories.search import memory_search as memory_search_tool
 
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")

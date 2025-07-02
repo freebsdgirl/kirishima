@@ -22,7 +22,6 @@ Logging:
 from shared.models.proxy import MultiTurnRequest, ProxyResponse
 from shared.models.memory import MemoryListQuery
 
-from app.memory.get import list_memory
 from app.util import get_admin_user_id, post_to_service, get_user_alias, sanitize_messages
 
 from shared.log_config import get_logger
@@ -88,10 +87,6 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
     # Memories only apply to ollama requests - we should not be sending them to openai requests.
     memories = []
     if message.provider == "ollama":
-        # get a list of memories
-        memory_query = MemoryListQuery(component="proxy", limit=100, mode=message.model)
-        memories = await list_memory(memory_query)
-    
         # sanitize proxy messages
         message.messages = sanitize_messages(message.messages)
 

@@ -1,25 +1,28 @@
 """
-This module provides an API endpoint for reviewing conversation logs, identifying major conversational topics and extracting relevant memories for each user.
+This module provides an endpoint for reviewing conversation logs, identifying major conversational topics, and extracting relevant memories for each user.
 
-The main endpoint `/review_log` is designed to be called periodically (e.g., every 3 hours) by a scheduler. It performs the following steps:
+The main endpoint `/memories/review_log` is designed to be called periodically (e.g., every 3 hours) by a scheduler. It performs the following steps for each user:
 - Retrieves the list of users from the contacts service.
-- For each user, fetches untagged messages and the most recent conversation topic.
-- Aggregates messages for analysis, including those from the most recent topic if available.
-- Constructs a prompt and sends it to an LLM (via the API service) to identify conversational shifts (topics) and extract memories.
+- For each user, fetches untagged messages from the ledger service.
+- If there are enough untagged messages, retrieves the most recent topic and its messages.
+- Constructs a prompt with the conversation log and sends it to an LLM (via the API service) to analyze conversational shifts and extract memories.
+- Parses the LLM's JSON response to obtain topics and associated memories.
 - For each identified topic:
     - Creates a new topic in the ledger service.
-    - Assigns relevant messages to the new topic based on timestamps.
-    - Adds extracted memories to the memory service, associating them with the topic.
-- Handles errors gracefully and logs progress and issues throughout the process.
+    - Assigns relevant messages to the topic based on timestamps.
+    - Adds extracted memories to the memory service and associates them with the topic.
 
-Returns a summary message upon completion.
+The endpoint handles errors gracefully, logs progress and issues, and returns a summary message upon completion.
+
+Example usage:
+- This endpoint is intended to be triggered by a job scheduler using an HTTP POST request as described in the module's comments.
 """
 
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
 
-from app.tools.memory_add import memory_add
-from app.tools.memory_topic import memory_topic
+from app.memories.add import memory_add
+from app.memories.topic import memory_topic
 from shared.models.openai import OpenAICompletionRequest
 
 import httpx

@@ -36,7 +36,7 @@ TIMEOUT = _config["timeout"]
 
 
 
-@router.get("/review_log", status_code=status.HTTP_200_OK)
+@router.get("/memories/review_log", status_code=status.HTTP_200_OK)
 async def review_log():
     """
     Review the log of conversations and identify topics and memories.

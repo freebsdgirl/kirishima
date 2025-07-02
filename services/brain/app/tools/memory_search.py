@@ -3,6 +3,9 @@ import json
 from pathlib import Path
 from typing import List
 
+from shared.log_config import get_logger
+logger = get_logger(f"brain.{__name__}")
+
 def memory_search(keywords: List[str] = None, category: str = None, memory_id: str = None):
     """
     Search for memories by keywords (tags), by category, or by memory_id. Only one of keywords, category, or memory_id may be provided.
@@ -33,9 +36,11 @@ def memory_search(keywords: List[str] = None, category: str = None, memory_id: s
                     JOIN memory_tags mt ON m.id = mt.memory_id
                     WHERE lower(mt.tag) IN ({q_marks})
                     GROUP BY m.id
+                    HAVING COUNT(mt.tag) >= 2
                     ORDER BY match_count DESC, m.priority DESC, m.created_at DESC
                 """, keywords_norm)
                 rows = cursor.fetchall()
+                logger.debug(f"Found {len(rows)} memories matching keywords: {keywords_norm}")
                 memory_ids = [row[0] for row in rows]
             elif category:
                 cursor.execute("""
@@ -46,12 +51,14 @@ def memory_search(keywords: List[str] = None, category: str = None, memory_id: s
                     ORDER BY m.created_at DESC
                 """, (category,))
                 rows = cursor.fetchall()
+                logger.debug(f"Found {len(rows)} memories matching category: {category}")
                 memory_ids = [row[0] for row in rows]
             else:  # memory_id
                 cursor.execute("SELECT id, user_id, memory, created_at, access_count, last_accessed, priority FROM memories WHERE id = ?", (memory_id,))
                 row = cursor.fetchone()
+                logger.debug(f"Searching for memory_id: {memory_id}, found: {row is not None}")
                 if not row:
-                    return {"status": "ok", "memories": []}
+                    return {"status": "error", "memory not found": memory_id}
                 memories = [{
                     "id": row[0],
                     "user_id": row[1],

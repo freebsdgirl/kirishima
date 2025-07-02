@@ -3,11 +3,11 @@ This consoldiates all the memory-related tools into a single tool with multiple 
 
 """
 
-from .memory_search import memory_search
 from .memory_add import memory_add
 from .memory_delete import memory_delete
 from .memory_list import memory_list
-
+from app.memories.search import memory_search
+from typing import List
 
 def memory(action: str, **kwargs):
     """
@@ -18,7 +18,7 @@ def memory(action: str, **kwargs):
     :return: Result of the specified memory action.
     """
     if action == "search":
-        return memory_search(**kwargs)
+        return memory_search(**kwargs, min_keywords=2)
     elif action == "add":
         return memory_add(**kwargs)
     elif action == "delete":
@@ -27,4 +27,3 @@ def memory(action: str, **kwargs):
         return memory_list(**kwargs)
     else:
         raise ValueError(f"Unknown action: {action}")
-

@@ -214,6 +214,17 @@ def get_user_untagged_messages(user_id: str = Path(...)) -> List[CanonicalUserMe
         cur.execute("SELECT * FROM user_messages WHERE user_id = ? AND topic_id IS NULL ORDER BY id", (user_id,))
         columns = [col[0] for col in cur.description]
         raw_messages = [dict(zip(columns, row)) for row in cur.fetchall()]
+        for msg in raw_messages:
+            if msg.get("tool_calls"):
+                try:
+                    msg["tool_calls"] = json.loads(msg["tool_calls"])
+                except Exception:
+                    msg["tool_calls"] = None
+            if msg.get("function_call"):
+                try:
+                    msg["function_call"] = json.loads(msg["function_call"])
+                except Exception:
+                    msg["function_call"] = None
         messages = [CanonicalUserMessage(**msg) for msg in raw_messages]
         # Filter out tool messages and assistant messages with empty content
         messages = [

@@ -83,6 +83,9 @@ async def review_log():
             if not messages:
                 logger.info(f"No untagged messages found for user {user_id}.")
                 continue
+            if len(messages) <= 20:
+                logger.info(f"Only {len(messages)} untagged messages found for user {user_id}. Skipping analysis.")
+                continue
 
             logger.info(f"Found {len(messages)} untagged messages for user {user_id}.")
 

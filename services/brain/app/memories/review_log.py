@@ -83,7 +83,10 @@ async def review_log():
             if not messages:
                 logger.info(f"No untagged messages found for user {user_id}.")
                 continue
-            if len(messages) <= 20:
+
+            # Limit the number of messages to process
+            turns = _config["conversation"]["turns"]
+            if len(messages) <= turns:
                 logger.info(f"Only {len(messages)} untagged messages found for user {user_id}. Skipping analysis.")
                 continue
 

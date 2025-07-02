@@ -68,8 +68,7 @@ def ensure_first_user(messages):
 def sync_user_buffer(
     user_id: str = Path(..., description="Unique user identifier"),
     snapshot: List[RawUserMessage] = Body(..., embed=True),
-    background_tasks: BackgroundTasks = None,
-    limit: Optional[int] = 25
+    background_tasks: BackgroundTasks = None
 ) -> List[CanonicalUserMessage]:
     """
     Synchronize a user's message buffer with the server-side ledger.
@@ -91,6 +90,12 @@ def sync_user_buffer(
         List[CanonicalUserMessage]: Synchronized and processed message buffer
     """
     logger.debug(f"Syncing user buffer for {user_id}: {snapshot}")
+
+    # Load configuration to determine the message limit
+    with open('/app/config/config.json') as f:
+            _config = json.load(f)
+    # if turns isn't set, default to 15
+    limit = _config.get("ledger", {}).get("turns", 15)
 
     #if not snapshot:
     #    background_tasks.add_task(create_summaries, user_id)

@@ -1,34 +1,24 @@
 """
-This module provides FastAPI endpoints for managing scheduled jobs using APScheduler.
-Endpoints:
-    - POST /jobs: Add a new scheduled job (one-time or recurring).
-    - DELETE /jobs/{job_id}: Remove a scheduled job by its ID.
-    - GET /jobs: List all scheduled jobs.
-Functions:
-    - add_job(job_request: SchedulerJobRequest) -> JobResponse:
-        Creates a new scheduled job with the specified trigger and parameters.
-        Supports 'date' (one-time) and 'interval' (recurring) triggers.
-        Returns job details or raises HTTPException on error.
-    - remove_job(job_id: str) -> Dict[str, str]:
-        Removes a scheduled job by its unique identifier.
-        Returns a status message or raises HTTPException if the job is not found or on error.
-    - list_jobs() -> List[JobResponse]:
-        Retrieves a list of all scheduled jobs, including their IDs, next run times, trigger types, and metadata.
-Dependencies:
-    - FastAPI for API routing and HTTP exception handling.
-    - APScheduler for job scheduling.
-    - Shared models for request and response schemas.
-    - Logging for debug and error reporting.
+This module provides an API endpoint for adding scheduled jobs to the application's scheduler.
+It defines a FastAPI router with a POST endpoint `/jobs` that allows clients to create new jobs
+with various trigger types ('date', 'interval', or 'cron'). The endpoint validates input parameters,
+ensures job uniqueness, and returns details of the scheduled job upon success.
+Key Components:
+- Imports utility functions for scheduling and job execution.
+- Uses shared models for request and response validation.
+- Handles logging for debugging and error tracking.
+- Raises appropriate HTTP exceptions for invalid input, conflicts, and internal errors.
+Endpoint:
+    POST /jobs
+        - Accepts: SchedulerJobRequest (job details and trigger configuration)
+        - Returns: JobResponse (job ID, next run time, trigger type, metadata)
+        - Errors: 400 (bad request), 409 (conflict), 500 (internal error)
 """
-
 from app.util import scheduler, execute_job
 
 from shared.models.scheduler import SchedulerJobRequest, JobResponse
 
-from typing import Dict, List
 import uuid
-
-from apscheduler.jobstores.base import JobLookupError
 
 from shared.log_config import get_logger
 logger = get_logger(f"scheduler.{__name__}")
@@ -156,73 +146,3 @@ def add_job(job_request: SchedulerJobRequest) -> JobResponse:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
             detail=f"Error adding job: {str(e)}"
         )
-
-
-@router.delete("/jobs/{job_id}", response_model=Dict[str, str])
-def remove_job(job_id: str) -> Dict[str, str]:
-    """
-    Remove a scheduled job from the scheduler.
-
-    Args:
-        job_id (str): The unique identifier of the job to be removed.
-
-    Returns:
-        dict: A status response indicating successful job removal.
-
-    Raises:
-        HTTPException: If there is an error removing the job, with a 500 Internal Server Error.
-    """
-    logger.debug(f"DELETE /jobs/{job_id}")
-    try:
-        scheduler.remove_job(job_id)
-        return {
-            "status": "success", 
-            "message": f"Job {job_id} removed."
-        }
-    except JobLookupError:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Job {job_id} not found."
-        )
-    except Exception as e:
-        logger.error(f"Error removing job {job_id}: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )
-
-
-@router.get("/jobs", response_model=List[JobResponse])
-def list_jobs() -> List[JobResponse]:
-    """
-    Retrieve a list of all scheduled jobs in the scheduler.
-
-    Returns:
-        List[JobResponse]: A list of job details including job ID, next run time, 
-        trigger type, and associated metadata. Trigger types are identified as 
-        'date', 'interval', or 'cron'.
-    """
-    logger.debug("/jobs Request")
-    jobs = scheduler.get_jobs()
-    response = []
-
-    for job in jobs:
-        trigger_type = "unknown"
-
-        # Identify the trigger type by the trigger's class name.
-        trigger_class = job.trigger.__class__.__name__
-        if trigger_class == "DateTrigger":
-            trigger_type = "date"
-        elif trigger_class == "IntervalTrigger":
-            trigger_type = "interval"
-        elif trigger_class == "CronTrigger":
-            trigger_type = "cron"
-
-        response.append(JobResponse(
-            job_id=job.id,
-            next_run_time=job.next_run_time,
-            trigger=trigger_type,
-            metadata=job.kwargs.get("metadata", {})
-        ))
-
-    return response

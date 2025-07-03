@@ -15,7 +15,6 @@ Modules imported:
     - shared.log_config: Logger configuration.
     - app.util: Scheduler utilities.
     - shared.models.middleware: Middleware for caching request bodies.
-    - shared.config: Shared configuration, including tracing.
     - shared.tracing: Tracing setup (conditionally imported).
 
 Attributes:
@@ -25,8 +24,11 @@ Attributes:
 
 from shared.docs_exporter import router as docs_router
 from shared.routes import router as routes_router, register_list_routes
+
+from app.delete import router as delete_router
+from app.get import router as get_router
+from app.post import router as post_router
 from app.pause import router as pause_router
-from app.jobs import router as jobs_router
 
 from shared.log_config import get_logger
 logger = get_logger(f"scheduler.{__name__}")
@@ -42,7 +44,9 @@ app.add_middleware(CacheRequestBodyMiddleware)
 app.include_router(routes_router, tags=["system"])
 app.include_router(docs_router, tags=["docs"])
 app.include_router(pause_router, tags=["jobs"])
-app.include_router(jobs_router, tags=["jobs"])
+app.include_router(delete_router, tags=["jobs"])
+app.include_router(get_router, tags=["jobs"])
+app.include_router(post_router, tags=["jobs"])
 
 register_list_routes(app)
 

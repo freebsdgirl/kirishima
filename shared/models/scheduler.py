@@ -83,7 +83,8 @@ class JobResponse(BaseModel):
         trigger (str): Type of job trigger ('date' or 'interval').
         metadata (Dict[str, Any]): Additional metadata associated with the job.
     """
-    job_id: str                             = Field(..., description="Unique identifier for the scheduled job.")
+    job_id: str                             = Field(..., description="Unique identifier for the scheduled job."),
+    external_url: Optional[str]             = Field(None, description="The URL of the external service or endpoint to be triggered.")
     next_run_time: Optional[datetime]       = Field(None, description="Timestamp of the next scheduled")
     trigger: str                            = Field(..., description="Type of job trigger ('date' or 'interval').")
     metadata: Dict[str, Any]                = Field(..., description="Additional metadata associated with the job.")
@@ -92,6 +93,7 @@ class JobResponse(BaseModel):
         "json_schema_extra": {
             "example": {
                 "job_id": "1234567890",
+                "external_url": "https://example.com/api/job",
                 "next_run_time": "2023-10-01T12:00:00Z",
                 "trigger": "interval",
                 "metadata": {

@@ -50,7 +50,7 @@ def pause_job(job_id: str) -> Dict[str, str]:
         logger.error(f"Error pausing job {job_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            detail=f"Error pausing job {job_id}: {e}"
         )
 
 
@@ -80,5 +80,5 @@ def resume_job(job_id: str) -> Dict[str, str]:
         logger.error(f"Error resuming job {job_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            detail=f"Error resuming job {job_id}: {e}"
         )

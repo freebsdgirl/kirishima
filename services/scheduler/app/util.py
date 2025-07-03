@@ -1,10 +1,19 @@
 """
-This module configures and manages a background job scheduler for the application.
+This module configures and manages a background job scheduler using APScheduler with a persistent
+SQLAlchemy job store and a thread pool executor. It loads scheduler configuration from a JSON file,
+sets up job storage in a SQLite database, and defines job execution defaults to prevent coalescing
+and limit concurrent job instances.
 
-It sets up a persistent job store using SQLite, a thread pool executor for concurrent job execution,
-and default job settings to control execution behavior. The module provides a utility function to
-execute scheduled jobs by sending HTTP POST requests to external endpoints, including job metadata
-and execution timestamps in the payload. Logging is integrated for monitoring job execution and errors.
+The module provides:
+- Initialization of the BackgroundScheduler with custom job stores, executors, and job defaults.
+- A utility function `execute_job` to send job execution metadata to an external URL via HTTP POST,
+    logging the outcome of each execution attempt.
+
+Dependencies:
+- APScheduler for scheduling and job management.
+- SQLAlchemy for persistent job storage.
+- Requests for HTTP communication.
+- A shared logging configuration for consistent logging.
 """
 from shared.log_config import get_logger
 logger = get_logger(f"scheduler.{__name__}")

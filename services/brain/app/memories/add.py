@@ -28,7 +28,22 @@ router = APIRouter()
 
 def add_memory_db(memory: str, keywords: list, category: str, priority: float = 0.5, user_id: str = "c63989a3-756c-4bdf-b0c2-13d01e129e02"):
     """
-    Add a new memory and its tags to the memories database. Returns dict with status and id, or raises HTTPException on error.
+    Adds a new memory entry to the database, along with associated keywords and category.
+
+    Args:
+        memory (str): The memory text to be stored.
+        keywords (list): A list of keyword tags associated with the memory.
+        category (str): The category of the memory. Must be one of the allowed categories.
+        priority (float, optional): The priority score for the memory. Defaults to 0.5.
+        user_id (str, optional): The ID of the user adding the memory. Defaults to a preset UUID.
+
+    Raises:
+        HTTPException: If neither keywords nor category are provided.
+        HTTPException: If the provided category is not in the list of allowed categories.
+        HTTPException: If there is an error during the database operation.
+
+    Returns:
+        dict: A dictionary with the status of the operation and the ID of the newly created memory.
     """
     with open('/app/config/config.json') as f:
         _config = json.load(f)
@@ -101,4 +116,17 @@ def memory_add(
     priority: float = Query(0.5, description="Priority level for the memory, between 0.0 and 1.0, default is 0.5."),
     user_id: str = Query("c63989a3-756c-4bdf-b0c2-13d01e129e02", description="User ID for the memory, default is a stub user ID for testing.")
 ):
+    """
+    Adds a new memory entry to the database with associated metadata.
+
+    Parameters:
+        memory (str, optional): The memory text to save.
+        keywords (list, optional): List of tags/keywords associated with the memory.
+        category (str, optional): Category associated with the memory. Defaults to None.
+        priority (float, optional): Priority level for the memory, between 0.0 and 1.0. Defaults to 0.5.
+        user_id (str, optional): User ID for the memory. Defaults to a stub user ID for testing.
+
+    Returns:
+        The result of the add_memory_db function, typically the newly created memory entry or a status indicator.
+    """
     return add_memory_db(memory, keywords, category, priority, user_id)

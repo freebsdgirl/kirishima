@@ -26,40 +26,20 @@ from fastapi import APIRouter, HTTPException, status, Query
 router = APIRouter()
 
 
-# note that user_id needs to be provided, but we don't have it implmented in tools yet.
-@router.post("/memories/add", response_model=dict)
-def memory_add(
-    memory: str = Query(None, description="The memory text to save."),
-    keywords: list = Query(None, description="List of tags/keywords associated with the memory."),
-    category: str = Query(None, description="Category associated with the memory, default is None."),
-    priority: float = Query(0.5, description="Priority level for the memory, between 0.0 and 1.0, default is 0.5."),
-    user_id: str = Query("c63989a3-756c-4bdf-b0c2-13d01e129e02", description="User ID for the memory, default is a stub user ID for testing.")
-):
+def add_memory_db(memory: str, keywords: list, category: str, priority: float = 0.5, user_id: str = "c63989a3-756c-4bdf-b0c2-13d01e129e02"):
     """
-    Add a new memory and its tags to the memories database.
-    Args:
-        memory (str): The memory text to save.
-        tags (list): List of tags/keywords associated with the memory.
-        category (str): The category associated with the memory
-        priority (float): Priority level (0.0 to 1.0).
-        user_id (str): User ID for the memory, default is a stub user ID for testing.
-    Returns:
-        str: The ID of the new memory, or an error dict on failure.
+    Add a new memory and its tags to the memories database. Returns dict with status and id, or raises HTTPException on error.
     """
     with open('/app/config/config.json') as f:
         _config = json.load(f)
     MEMORIES_DB = _config['db']['memories']
-
-    # verify that both keywords and category are provided
     if not keywords and not category:
         logger.debug("No keywords or category provided.")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="At least one of keywords or category must be provided."
         )
-
     memory_id = str(uuid.uuid4())
-    # Use local time instead of UTC
     created_at = datetime.now().isoformat()
     try:
         with sqlite3.connect(MEMORIES_DB) as conn:
@@ -82,9 +62,7 @@ def memory_add(
                     (memory_id, tag_lower)
                 )
             conn.commit()
-     
             if category:
-                # verify category matches one of the allowed categories
                 allowed_categories = [
                     "Health", "Career", "Family", "Personal", "Technical Projects",
                     "Social", "Finance", "Self-care", "Environment", "Hobbies",
@@ -97,12 +75,12 @@ def memory_add(
                         detail=f"Invalid category: {category}. Allowed categories are: {', '.join(allowed_categories)}"
                     )
                 cursor.execute(
-                        """
-                        INSERT INTO memory_category (memory_id, category)
-                        VALUES (?, ?)
-                        """,
-                        (memory_id, category)
-                    )
+                    """
+                    INSERT INTO memory_category (memory_id, category)
+                    VALUES (?, ?)
+                    """,
+                    (memory_id, category)
+                )
                 conn.commit()
         logger.debug(f"Memory added with ID: {memory_id}, user_id: {user_id}, keywords: {keywords}, category: {category}, priority: {priority}, memory: {memory}")
         return {"status": "memory created", "id": memory_id}
@@ -112,3 +90,15 @@ def memory_add(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error adding memory: {str(e)}"
         )
+
+
+# note that user_id needs to be provided, but we don't have it implmented in tools yet.
+@router.post("/memories/add", response_model=dict)
+def memory_add(
+    memory: str = Query(None, description="The memory text to save."),
+    keywords: list = Query(None, description="List of tags/keywords associated with the memory."),
+    category: str = Query(None, description="Category associated with the memory, default is None."),
+    priority: float = Query(0.5, description="Priority level for the memory, between 0.0 and 1.0, default is 0.5."),
+    user_id: str = Query("c63989a3-756c-4bdf-b0c2-13d01e129e02", description="User ID for the memory, default is a stub user ID for testing.")
+):
+    return add_memory_db(memory, keywords, category, priority, user_id)

@@ -21,7 +21,7 @@ Example usage:
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
 
-from app.memories.add import memory_add
+from app.memories.add import add_memory_db
 from app.memories.topic import memory_topic
 from shared.models.openai import OpenAICompletionRequest
 
@@ -265,9 +265,9 @@ Output should be in JSON matching the format:
                     logger.info(f"Adding memory for user {user_id}: {memory_text} with keywords {keywords} and category {category}")
 
                     try:
-                        result = memory_add(memory=memory_text, keywords=keywords, category=category, priority=0.5)
+                        result = add_memory_db(memory=memory_text, keywords=keywords, category=category, priority=0.5)
                         if result['status'] != 'memory created':
-                            logger.error(f"Failed to add memory for user {user_id}: {result['error']}")
+                            logger.error(f"Failed to add memory for user {user_id}: {result.get('error', 'Unknown error')}")
                     except Exception as e:
                         logger.error(f"Error adding memory for user {user_id}: {e}")
 

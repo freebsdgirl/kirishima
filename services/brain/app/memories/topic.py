@@ -82,3 +82,56 @@ def memory_topic(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Unexpected error: {str(e)}"
         )
+
+
+@router.get("/memories/topic/{topic_id}")
+def get_memory_by_topic(topic_id: str):
+    """
+    Get all memories assigned to a specific topic.
+
+    Args:
+        topic_id (str): The ID of the topic to retrieve memories for.
+
+    Returns:
+        dict: A dictionary containing a list of memory IDs assigned to the topic.
+    
+    Raises:
+        HTTPException: 
+            - 404 Not Found: If no memories are found for the specified topic.
+            - 500 Internal Server Error: If an error occurs while fetching memories.
+    """
+    logger.debug(f"GET /memories/topic/{topic_id} Request")
+
+    try:
+        with open('/app/config/config.json') as f:
+            _config = json.load(f)
+        MEMORIES_DB = _config['db']['memories']
+
+        with sqlite3.connect(MEMORIES_DB) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT memory_id FROM memory_topics WHERE topic_id = ?",
+                (topic_id,)
+            )
+            memories = [row[0] for row in cursor.fetchall()]
+
+        if not memories:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No memories found for topic {topic_id}."
+            )
+
+        return memories
+
+    except sqlite3.Error as e:
+        logger.error(f"Database error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}"
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Unexpected error: {str(e)}"
+        )

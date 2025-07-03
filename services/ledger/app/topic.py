@@ -185,3 +185,32 @@ def get_recent_topics(
             if result:
                 topics.append({"id": tid, "name": result[0]})
         return topics
+
+
+# resolve a topic id to a name
+@router.get("/topics/id/{topic_id}", response_model=dict)
+def get_topic_by_id(topic_id: str):
+    """Get topic details by id."""
+    if not topic_exists(topic_id):
+        raise HTTPException(status_code=404, detail="Topic not found.")
+    db = get_db()
+    with sqlite3.connect(db, timeout=5.0) as conn:
+        conn.execute("PRAGMA journal_mode=WAL;")
+        cur = conn.cursor()
+        cur.execute("SELECT id, name FROM topics WHERE id = ?", (topic_id,))
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Topic not found.")
+        return {"id": row[0], "name": row[1]}
+
+# return a list of all topics and their ids
+@router.get("/topics", response_model=List[dict])
+def get_all_topics():
+    """Get a list of all topics with their ids."""
+    db = get_db()
+    with sqlite3.connect(db, timeout=5.0) as conn:
+        conn.execute("PRAGMA journal_mode=WAL;")
+        cur = conn.cursor()
+        cur.execute("SELECT id, name FROM topics ORDER BY name")
+        rows = cur.fetchall()
+        return [{"id": row[0], "name": row[1]} for row in rows]

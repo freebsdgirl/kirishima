@@ -48,6 +48,8 @@ from app.memories.add import router as memory_add_router
 from app.memories.delete import router as memory_delete_router
 from app.memories.list import router as memory_list_router
 from app.memories.topic import router as memory_topic_router
+from app.memories.dedup import router as memory_dedup_router
+from app.memories.patch import router as memory_patch_router
 
 from shared.docs_exporter import router as docs_router
 from shared.routes import router as routes_router, register_list_routes
@@ -79,6 +81,8 @@ app.include_router(memory_add_router, tags=["memory"])
 app.include_router(memory_delete_router, tags=["memory"])
 app.include_router(memory_list_router, tags=["memory"])
 app.include_router(memory_topic_router, tags=["memory"])
+app.include_router(memory_dedup_router, tags=["memory"])
+app.include_router(memory_patch_router, tags=["memory"])
 
 app.include_router(message_multiturn_router, tags=["message"])
 app.include_router(message_singleturn_router, tags=["message"])

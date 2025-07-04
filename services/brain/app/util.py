@@ -1,21 +1,18 @@
 """
-Utility functions for interacting with the contacts service and other internal services.
-This module provides asynchronous functions to:
-- Retrieve the admin user ID from the contacts service.
-- Retrieve a user's alias from the contacts service.
-- Sanitize message content by removing HTML details tags.
-- Post data to a specified service endpoint using Consul service discovery.
-Functions:
-    get_admin_user_id(): Asynchronously retrieves the admin user ID from the contacts service.
-    get_user_alias(user_id): Asynchronously retrieves the alias for a given user ID from the contacts service.
-    sanitize_messages(messages): Removes HTML details tags and strips whitespace from message content.
-    post_to_service(service_name, endpoint, payload, error_prefix, timeout=60): Asynchronously sends a POST request to a service endpoint discovered via Consul.
-    HTTPException: For HTTP and connection errors when communicating with services.
-    ValueError: If required data is not found in the contacts service responses.
-
+Utility functions for interacting with external services such as contacts, chromadb, and ledger,
+as well as message sanitization helpers.
+This module provides asynchronous helpers for:
+- Retrieving admin user IDs and user aliases from the contacts service.
+- Sanitizing message content by removing HTML details tags.
+- Posting data to other services using Consul service discovery.
+- Fetching and formatting recent user summaries from chromadb.
+- Synchronizing message snapshots with the ledger service.
+Logging is performed for error handling and debugging. HTTPException is raised for
+service communication errors to be handled by FastAPI endpoints.
 """
 
 from shared.models.contacts import Contact
+from shared.models.summary import Summary
 
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
@@ -190,3 +187,106 @@ async def post_to_service(service_name, endpoint, payload, error_prefix, timeout
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"An unexpected error occurred while posting to {service_name} service."
             )
+
+
+async def get_recent_summaries(user_id: str, limit: int = 4) -> str:
+    """
+    Retrieve and format the most recent summaries for a user from chromadb.
+    Returns a string suitable for prompt injection.
+    Raises HTTPException if no summaries are found or on error.
+    """
+
+    try:
+        chromadb_port = os.getenv("CHROMADB_PORT", 4206)
+        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+            response = await client.get(f"http://chromadb:{chromadb_port}/summary?user_id={user_id}&limit={limit}")
+            response.raise_for_status()
+            summaries_list = response.json()
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == status.HTTP_404_NOT_FOUND:
+            logger.info(f"No summaries found for {user_id}, skipping.")
+            summaries_list = []
+        else:
+            logger.error(f"HTTP error from chromadb: {e.response.status_code} - {e.response.text}")
+            raise
+    except Exception as e:
+        logger.error(f"Failed to contact chromadb to get a list of summaries: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve summaries: {e}")
+    if not summaries_list:
+        logger.warning("No summaries found for the specified period.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No summaries found for the specified period."
+        )
+    summary_lines = []
+    for s in summaries_list:
+        summary = Summary.model_validate(s) if not isinstance(s, Summary) else s
+        meta = summary.metadata
+        if meta is not None:
+            if meta.summary_type.value == "daily":
+                date_str = meta.timestamp_begin.split(" ")[0]
+                label = date_str
+            else:
+                label = meta.summary_type.value
+        else:
+            label = "summary"
+        summary_lines.append(f"[{label}] {summary.content}")
+    return "\n".join(summary_lines)
+
+
+async def sync_with_ledger(
+    user_id: str,
+    platform: str,
+    snapshot: list,
+    error_prefix: str = "Error forwarding to ledger service",
+    drop_before_first_user: bool = True,
+    endpoint: str = None,
+    post_to_service_func=None,
+    logger=None
+):
+    """
+    Helper to sync a message snapshot with the ledger service and return the processed buffer.
+    - user_id: user id for the ledger endpoint
+    - platform: platform string
+    - snapshot: list of message dicts
+    - error_prefix: error prefix for logging
+    - drop_before_first_user: if True, drop all messages before the first user message
+    - endpoint: override the ledger endpoint (default: /ledger/user/{user_id}/sync)
+    - post_to_service_func: function to use for posting (for testability)
+    - logger: logger instance
+    Returns: processed ledger buffer (list of dicts)
+    """
+    if post_to_service_func is None:
+        from app.util import post_to_service
+        post_to_service_func = post_to_service
+    if logger is None:
+        from shared.log_config import get_logger
+        logger = get_logger("brain.util")
+    if endpoint is None:
+        endpoint = f"/ledger/user/{user_id}/sync"
+    try:
+        ledger_response = await post_to_service_func(
+            'ledger',
+            endpoint,
+            {"snapshot": snapshot},
+            error_prefix=error_prefix
+        )
+        ledger_buffer = ledger_response.json()
+        if drop_before_first_user:
+            for i, m in enumerate(ledger_buffer):
+                if m.get("role") == "user":
+                    if i > 0:
+                        logger.warning(f"Ledger buffer did not start with user message, dropping {i} messages before first user message (roles: {[m2.get('role') for m2 in ledger_buffer[:i]]})")
+                    return ledger_buffer[i:]
+            logger.warning("Ledger buffer contains no user message; returning empty message list.")
+            return []
+        return ledger_buffer
+    except Exception as e:
+        logger.error(f"Error sending messages to ledger sync endpoint: {e}")
+        from fastapi import HTTPException, status
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to sync messages with ledger service."
+        )

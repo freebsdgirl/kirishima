@@ -1,3 +1,16 @@
+"""
+This module defines Pydantic models for API requests and responses related to language model completions and chat interactions.
+Classes:
+    CompletionRequest: Represents a request for a model completion, including model selection, options, content, and platform.
+    ChatCompletionRequest: Represents a request for a chat completion, including conversation history and provider options.
+    ChatCompletionChoice: Represents an individual choice in a chat completion response, including the generated message and finish reason.
+    ChatUsage: Represents token usage statistics for a chat completion.
+    ChatCompletionResponse: Represents a complete chat completion response, including choices and usage statistics.
+Configuration:
+    Loads default model configuration from a JSON config file specified by the KIRISHIMA_CONFIG environment variable or a default path.
+Intended Usage:
+    These models are intended for use in API endpoints that handle language model completions and chat-based interactions, providing OpenAI-compatible request and response formats.
+"""
 from typing import Optional, Dict, Any, List
 from pydantic import BaseModel
 from pydantic import BaseModel, Field
@@ -11,21 +24,46 @@ with open(CONFIG_PATH) as f:
 _default_mode = _config["llm"]["mode"]["default"]
 
 class CompletionRequest(BaseModel):
-    model: str     # actual model name
-    options: Optional[Dict[str, Any]] = None  # provider-specific options (includes temperature, max_tokens, etc.)
-    content: Optional[str] = None  # for single-turn (was 'prompt')
-    messages: Optional[List[Any]] = None  # for multi-turn (list of messages as dicts)
-    n: Optional[int] = 1
-    platform: Optional[str] = "api"  # Add platform field with default 'api'
-    # Add other fields as needed for compatibility
+    """
+    Represents a request for a model completion.
+
+    Attributes:
+        model (str): The model to be used, e.g. 'nemo'.
+        options (Optional[Dict[str, Any]]): Provider-specific options such as temperature, max_tokens, etc.
+        content (Optional[str]): The content to be processed by the model.
+        n (Optional[int]): Number of completions to generate. Defaults to 1.
+        messages (Optional[List[Any]]): List of messages for multi-turn conversations.
+        platform (Optional[str]): Platform for which the request is intended (e.g., 'api'). Defaults to 'api'.
+    """
+    model: str                          = Field(_default_mode["model"], description="The model to be used, e.g. 'nemo'.")
+    options: Optional[Dict[str, Any]]   = Field(None, description="Provider-specific options (temperature, max_tokens, etc.)")
+    content: Optional[str]              = Field(None, description="The content to be processed by the model.")
+    n: Optional[int]                    = Field(1, description="Number of completions to generate.")
+    messages: Optional[List[Any]]       = Field(None, description="List of messages for multi-turn conversations.")
+    platform: Optional[str]             = Field("api", description="Platform for which the request is intended (e.g., 'api').")
 
 class ChatCompletionRequest(BaseModel):
     """
-    Represents a provider-agnostic chat completion request.
+    Represents a request for a chat completion.
+
+    Attributes:
+        model (str): The model to be used, e.g. 'nemo'.
+        messages (List[Dict[str, str]]): A list of messages representing the conversation history.
+        options (Optional[Dict[str, Any]]): Provider-specific options (temperature, max_tokens, etc.).
+
+    Example:
+        {
+            "model": "default",
+            "messages": [
+                {"role": "user", "content": "What's the weather like today?"},
+                {"role": "assistant", "content": "It's sunny and warm."}
+            ],
+            "options": {"temperature": 0.7, "max_tokens": 256}
+        }
     """
     model: str                          = Field(_default_mode["model"], description="The model to be used, e.g. 'nemo'.")
-    messages: List[Dict[str, str]]         = Field(..., description="A list of messages representing the conversation history.")
-    options: Optional[Dict[str, Any]]        = Field(None, description="Provider-specific options (temperature, max_tokens, etc.)")
+    messages: List[Dict[str, str]]      = Field(..., description="A list of messages representing the conversation history.")
+    options: Optional[Dict[str, Any]]   = Field(None, description="Provider-specific options (temperature, max_tokens, etc.)")
 
     model_config = {
         "json_schema_extra": {
@@ -52,7 +90,7 @@ class ChatCompletionChoice(BaseModel):
         finish_reason (Optional[str]): The reason for finishing the completion.
     """
     index: int                          = Field(..., description="Index of the completion choice.")
-    message: Dict[str, str]                = Field(..., description="Generated message.")
+    message: Dict[str, str]             = Field(..., description="Generated message.")
     finish_reason: Optional[str]        = Field("stop", description="Reason for finishing the completion.")
 
     model_config = {

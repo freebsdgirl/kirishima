@@ -100,7 +100,7 @@ async def chat_completions(data: ChatCompletionRequest):
 
         # Use new CompletionRequest (content, not prompt; no temperature/max_tokens)
         completion_request = CompletionRequest(
-            model="default",  # Hardcoded model for single-turn completions
+            model="gpt-4.1-nano",  # Hardcoded model for single-turn completions
             options={},
             content=task_prompt,
             n=1

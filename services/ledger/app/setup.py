@@ -1,3 +1,12 @@
+"""
+This module sets up the SQLite database schema for the ledger service, including tables for user messages,
+user-level summaries, and topics. It provides a function to initialize the buffer database by creating
+the necessary tables and indexes as defined in the SCHEMA_SQL.
+Functions:
+    init_buffer_db():
+        Initializes the buffer database by executing the schema SQL script, which creates tables and indexes
+        for message buffering, user summaries, and topics. Reads the database path from a configuration file.
+"""
 from shared.log_config import get_logger
 logger = get_logger(f"ledger.{__name__}")
 
@@ -6,7 +15,7 @@ import json
 
 # SQL schema for buffer table and summary metadata
 SCHEMA_SQL = """
--- 1‑on‑1 message buffer
+-- message buffer
 CREATE TABLE IF NOT EXISTS user_messages (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id         TEXT    NOT NULL,
@@ -28,20 +37,6 @@ CREATE INDEX IF NOT EXISTS idx_user_msgs_topic
 
 --------------------------------------------------------------------
 
--- Group‑chat buffer (Discord channels / threads)
-CREATE TABLE IF NOT EXISTS conversation_messages (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    conversation_id TEXT    NOT NULL,
-    platform        TEXT    NOT NULL,
-    role            TEXT    NOT NULL CHECK (role IN ('user','assistant','system')),
-    content         TEXT    NOT NULL,
-    created_at      DATETIME NOT NULL DEFAULT (STRFTIME('%Y-%m-%d %H:%M:%f','now','localtime')),
-    updated_at      DATETIME NOT NULL DEFAULT (STRFTIME('%Y-%m-%d %H:%M:%f','now','localtime'))
-);
-CREATE INDEX IF NOT EXISTS idx_convo_msgs_order
-    ON conversation_messages(conversation_id, id);
-
---------------------------------------------------------------------
 
 -- User‑level summaries (multi‑level compression)
 CREATE TABLE IF NOT EXISTS user_summaries (
@@ -58,20 +53,6 @@ CREATE INDEX IF NOT EXISTS idx_user_summaries_level
 
 --------------------------------------------------------------------
 
--- Conversation summaries (daily → weekly → monthly)
-CREATE TABLE IF NOT EXISTS conversation_summaries (
-    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-    conversation_id     TEXT    NOT NULL,
-    content             TEXT    NOT NULL,
-    period              TEXT    NOT NULL CHECK (period IN ('daily','weekly','monthly')),
-    timestamp_begin     TEXT    NOT NULL,
-    timestamp_end       TEXT    NOT NULL,
-    timestamp_summarized TEXT   NOT NULL DEFAULT (STRFTIME('%Y-%m-%d %H:%M:%f','now','localtime'))
-);
-CREATE INDEX IF NOT EXISTS idx_conv_summaries_period
-    ON conversation_summaries(conversation_id, period, id);
-
---------------------------------------------------------------------
 
 -- Topics table
 CREATE TABLE IF NOT EXISTS topics (

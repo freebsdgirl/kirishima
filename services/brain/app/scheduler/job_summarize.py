@@ -196,6 +196,15 @@ async def summarize_user_buffer_evening():
         date=(datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
     )
 
+    try: 
+        logger.debug(f"Creating evening summary for date: {payload.date}")
+        await create_summary(payload)
+    except Exception as e:
+        logger.error(f"Failed to trigger summarize_user_buffer_evening(): {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to trigger summarize_user_buffer_evening()"
+        )
 
     # create the summary for the day
     try:

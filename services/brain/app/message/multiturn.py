@@ -100,8 +100,8 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
     agent_prompt = get_agent_managed_prompt(message.user_id)
     
     # get a list of the last 4 summaries - this returns a formatted string
-    from app.notification.util import get_recent_summaries
-    summaries = await get_recent_summaries(message.user_id, limit=4)
+    from app.util import get_recent_summaries
+    summaries = await get_recent_summaries(message.user_id, limit=1)
     if not summaries:
         logger.warning("No summaries found for the specified period.")
         raise HTTPException(
@@ -125,7 +125,7 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
     })
 
     # --- Send last 4 messages to ledger as RawUserMessage ---
-    from app.notification.util import sync_with_ledger
+    from app.util import sync_with_ledger
     try:
         platform_msg_id = None
         last_msgs = updated_request.messages[-4:]

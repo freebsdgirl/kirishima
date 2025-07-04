@@ -97,11 +97,7 @@ def memory_search(
                         break
                     current_min_keywords -= 1
                 if not rows:
-                    logger.warning(f"No memories found matching keywords: {keywords_norm} with at least {min_keywords_int} matches.")
-                    raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND,
-                        detail=f"No memories found matching keywords: {keywords_norm} with at least {min_keywords_int} matches."
-                    )
+                    return {"status": "ok", "memories": []}
                 memory_ids = [row[0] for row in rows]
             elif category:
                 cursor.execute("""

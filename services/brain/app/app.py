@@ -42,14 +42,16 @@ from app.notification.callback import router as notification_callback_router
 from app.notification.get import router as notification_get_router
 from app.notification.post import router as notification_post_router
 
-from app.memories.review_log import router as memory_review_log_router
+from app.memories.scan import router as memory_scan_router
 from app.memories.search import router as memory_search_router
 from app.memories.add import router as memory_add_router
 from app.memories.delete import router as memory_delete_router
 from app.memories.list import router as memory_list_router
 from app.memories.topic import router as memory_topic_router
-from app.memories.dedup import router as memory_dedup_router
 from app.memories.patch import router as memory_patch_router
+from app.memories.dedup.by_topic import router as memory_dedup_by_topic_router
+from app.memories.dedup.topics import router as memory_dedup_topics_router
+from app.memories.dedup.keywords import router as memory_dedup_keywords_router
 
 from shared.docs_exporter import router as docs_router
 from shared.routes import router as routes_router, register_list_routes
@@ -75,14 +77,17 @@ app.include_router(docs_router, tags=["docs"])
 app.include_router(modes_router, tags=["modes"])
 app.include_router(scheduler_router, tags=["scheduler"])
 
-app.include_router(memory_review_log_router, tags=["memory"])
+app.include_router(memory_scan_router, tags=["memory"])
 app.include_router(memory_search_router, tags=["memory"])
 app.include_router(memory_add_router, tags=["memory"])
 app.include_router(memory_delete_router, tags=["memory"])
 app.include_router(memory_list_router, tags=["memory"])
 app.include_router(memory_topic_router, tags=["memory"])
-app.include_router(memory_dedup_router, tags=["memory"])
 app.include_router(memory_patch_router, tags=["memory"])
+
+app.include_router(memory_dedup_by_topic_router, tags=["memory"])
+app.include_router(memory_dedup_topics_router, tags=["memory"])
+app.include_router(memory_dedup_keywords_router, tags=["memory"])
 
 app.include_router(message_multiturn_router, tags=["message"])
 app.include_router(message_singleturn_router, tags=["message"])

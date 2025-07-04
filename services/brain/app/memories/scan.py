@@ -1,7 +1,7 @@
 """
 This module provides an endpoint for reviewing conversation logs, identifying major conversational topics, and extracting relevant memories for each user.
 
-The main endpoint `/memories/review_log` is designed to be called periodically (e.g., every 3 hours) by a scheduler. It performs the following steps for each user:
+The main endpoint `/memories/scan` is designed to be called periodically (e.g., every 3 hours) by a scheduler. It performs the following steps for each user:
 - Retrieves the list of users from the contacts service.
 - For each user, fetches untagged messages from the ledger service.
 - If there are enough untagged messages, retrieves the most recent topic and its messages.
@@ -15,7 +15,17 @@ The main endpoint `/memories/review_log` is designed to be called periodically (
 The endpoint handles errors gracefully, logs progress and issues, and returns a summary message upon completion.
 
 Example usage:
-- This endpoint is intended to be triggered by a job scheduler using an HTTP POST request as described in the module's comments.
+
+import httpx
+
+request = {
+    "external_url": "http://brain:4207/memories/scan",
+    "trigger": "interval",
+    "interval_minutes": 30,
+    "metadata": {}
+}
+
+response = httpx.post("http://127.0.0.1:4201/jobs", json=request)
 """
 
 from shared.log_config import get_logger
@@ -39,13 +49,15 @@ TIMEOUT = _config["timeout"]
 
 
 
-@router.get("/memories/review_log", status_code=status.HTTP_200_OK)
-async def review_log():
+@router.post("/memories/scan", status_code=status.HTTP_200_OK)
+async def scan(user_id: str = None) -> dict:
     """
     Review the log of conversations and identify topics and memories.
     This endpoint is called by the scheduler every 3 hours.
     """
     logger.info("Starting review log process...")
+    successful_users = 0
+    error_users = 0
     # Get the list of users
     contacts_port = os.getenv("CONTACTS_PORT")
 
@@ -68,7 +80,7 @@ async def review_log():
         for user in users:
             user_id = user['id']
             logger.info(f"Processing user: {user_id}")
-
+            user_had_error = False
             # Retrieve untagged messages for the user
             ledger_port = os.getenv("LEDGER_PORT")
             try:
@@ -79,9 +91,11 @@ async def review_log():
                 messages = response.json()
             except httpx.HTTPStatusError as e:
                 logger.error(f"Failed to retrieve untagged messages for user {user_id}: {e.response.status_code} - {e.response.text}")
+                error_users += 1
                 continue
             except httpx.RequestError as e:
                 logger.error(f"Request error while retrieving untagged messages for user {user_id}: {e}")
+                error_users += 1
                 continue
             if not messages:
                 logger.info(f"No untagged messages found for user {user_id}.")
@@ -105,9 +119,11 @@ async def review_log():
                 recent_topic = response.json()
             except httpx.HTTPStatusError as e:
                 logger.error(f"Failed to retrieve recent topic for user {user_id}: {e.response.status_code} - {e.response.text}")
+                error_users += 1
                 continue
             except httpx.RequestError as e:
                 logger.error(f"Request error while retrieving recent topic for user {user_id}: {e}")
+                error_users += 1
                 continue
 
             logger.info(f"Recent topic for user {user_id}: {recent_topic}")
@@ -126,9 +142,11 @@ async def review_log():
                     topic_messages = response.json()
                 except httpx.HTTPStatusError as e:
                     logger.error(f"Failed to retrieve messages for topic {topic_id} for user {user_id}: {e.response.status_code} - {e.response.text}")
+                    error_users += 1
                     continue
                 except httpx.RequestError as e:
                     logger.error(f"Request error while retrieving messages for topic {topic_id} for user {user_id}: {e}")
+                    error_users += 1
                     continue
 
                 # Append current messages to the topic messages
@@ -198,9 +216,11 @@ Output should be in JSON matching the format:
                 analysis_result = response.json()
             except httpx.HTTPStatusError as e:
                 logger.error(f"Failed to get LLM response for user {user_id}: {e.response.status_code} - {e.response.text}")
+                error_users += 1
                 continue
             except httpx.RequestError as e:
                 logger.error(f"Request error while getting LLM response for user {user_id}: {e}")
+                error_users += 1
                 continue
 
             # convert the assistant's respones to json
@@ -208,6 +228,7 @@ Output should be in JSON matching the format:
                 analysis_result = json.loads(analysis_result['choices'][0]['content'])
             except (json.JSONDecodeError, KeyError) as e:
                 logger.error(f"Failed to parse LLM response for user {user_id}: {e}")
+                error_users += 1
                 continue
 
             logger.info(f"Analysis result for user {user_id}: {analysis_result}")
@@ -233,9 +254,13 @@ Output should be in JSON matching the format:
                     new_topic_id = response.json()
                 except httpx.HTTPStatusError as e:
                     logger.error(f"Failed to create topic {topic_name} for user {user_id}: {e.response.status_code} - {e.response.text}")
+                    error_users += 1
+                    user_had_error = True
                     continue
                 except httpx.RequestError as e:
                     logger.error(f"Request error while creating topic {topic_name} for user {user_id}: {e}")
+                    error_users += 1
+                    user_had_error = True
                     continue
 
                 logger.info(f"Created new topic {new_topic_id} for user {user_id}.")
@@ -247,9 +272,13 @@ Output should be in JSON matching the format:
                     )
                 except httpx.HTTPStatusError as e:
                     logger.error(f"Failed to assign messages to topic {new_topic_id} for user {user_id}: {e.response.status_code} - {e.response.text}")
+                    error_users += 1
+                    user_had_error = True
                     continue
                 except httpx.RequestError as e:
                     logger.error(f"Request error while assigning messages to topic {new_topic_id} for user {user_id}: {e}")
+                    error_users += 1
+                    user_had_error = True
                     continue
 
                 # Add memories to the memory service
@@ -268,31 +297,26 @@ Output should be in JSON matching the format:
                         result = add_memory_db(memory=memory_text, keywords=keywords, category=category, priority=0.5)
                         if result['status'] != 'memory created':
                             logger.error(f"Failed to add memory for user {user_id}: {result.get('error', 'Unknown error')}")
+                            error_users += 1
+                            user_had_error = True
                     except Exception as e:
                         logger.error(f"Error adding memory for user {user_id}: {e}")
+                        error_users += 1
+                        user_had_error = True
 
                     # assign the memory to the topic
                     try:
                         memory_topic(result['id'], new_topic_id)
                     except httpx.HTTPStatusError as e:
                         logger.error(f"Failed to assign memory {result['id']} to topic {new_topic_id} for user {user_id}: {e.response.status_code} - {e.response.text}")
+                        error_users += 1
+                        user_had_error = True
                     except httpx.RequestError as e:
                         logger.error(f"Request error while assigning memory {result['id']} to topic {new_topic_id} for user {user_id}: {e}")
+                        error_users += 1
+                        user_had_error = True
+            if not user_had_error:
+                successful_users += 1
             logger.info(f"Completed processing for user {user_id}.")
 
-    return {"message": "Review log completed successfully."}
-
-"""
-create this job with:
-
-import httpx
-
-request = {
-    "external_url": "http://brain:4207/memories/review_log",
-    "trigger": "interval",
-    "interval_minutes": 30,
-    "metadata": {}
-}
-
-response = httpx.post("http://127.0.0.1:4201/jobs", json=request)
-"""
+    return {"message": "Review log completed.", "successful_users": successful_users, "error_users": error_users}

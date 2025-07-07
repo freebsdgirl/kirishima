@@ -179,7 +179,7 @@ async def memory_get(memory_id: str):
                 ledger_port = os.getenv("LEDGER_PORT", 4203)
                 try:
                     async with httpx.AsyncClient() as client:
-                        response = await client.get(f"http://ledger:{ledger_port}/topics/{topic_id}")
+                        response = await client.get(f"http://ledger:{ledger_port}/topics/id/{topic_id}")
                         response.raise_for_status()
                         topic_data = response.json()
                         topic_name = topic_data.get("name", "Unknown Topic")

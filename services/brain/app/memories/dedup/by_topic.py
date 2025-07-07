@@ -54,7 +54,7 @@ async def deduplicate_memories_by_topic():
 
     result = []
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=180) as client:
         try:
             response = await client.get(f"http://ledger:{ledger_port}/topics")
             response.raise_for_status()

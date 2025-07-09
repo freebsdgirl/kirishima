@@ -280,7 +280,21 @@ digraph Microservices {
   "BRAIN: POST /api/multiturn"                -> "TTS: POST /tts/speak"
   "BRAIN: POST /api/multiturn"                -> "TTS: POST /v1/audio/speech"
   "BRAIN: POST /api/multiturn"                -> "DIVOOM: POST /send"
+  "BRAIN: POST /summary/create"               -> "LEDGER: GET /active" [label="direct httpx.get"]
+  "BRAIN: POST /summary/create"               -> "LEDGER: GET /user/{user_id}/messages" [label="direct httpx.get"]
+  "BRAIN: POST /summary/create"               -> "PROXY: POST /summary/user" [label="direct httpx.post"]
+  "BRAIN: POST /summary/create"               -> "PROXY: POST /summary/user/combined" [label="direct httpx.post"]
+  "BRAIN: POST /summary/create"               -> "CHROMADB: POST /summary" [label="direct httpx.post"]
+  "BRAIN: POST /memories/scan"                -> "CONTACTS: GET /contacts" [label="direct httpx.get"]
+  "BRAIN: POST /memories/scan"                -> "LEDGER: GET /user/{user_id}/messages/untagged" [label="direct httpx.get"]
+  "BRAIN: POST /memories/scan"                -> "LEDGER: GET /topics/recent" [label="direct httpx.get"]
+  "BRAIN: POST /memories/scan"                -> "LEDGER: GET /topics/{topic_id}/messages" [label="direct httpx.get"]
+  "BRAIN: POST /memories/scan"                -> "API: POST /v1/completions" [label="direct httpx.post"]
+  "BRAIN: POST /memories/scan"                -> "LEDGER: POST /topics" [label="direct httpx.post"]
+  "BRAIN: POST /memories/scan"                -> "LEDGER: PATCH /topics/{topic_id}/assign" [label="direct httpx.patch"]
+  "BRAIN: POST /scheduler/job"                -> "BRAIN: POST /scheduler/callback" [label="job external_url"]
 
+  "BRAIN: POST /api/multiturn" -> "PROXY: POST /api/multiturn" [label="via post_to_service"]
   /* discord endpoint dependencies */
   "DISCORD: Main Loop" -> "CONTACTS: GET /search"
   "DISCORD: Main Loop" -> "CONTACTS: GET /contact/{contact_id}"
@@ -310,5 +324,4 @@ digraph Microservices {
   /* SCHEDULER endpoint dependencies */
   "SCHEDULER: POST /jobs" -> "External: POST <external_url>" [label="when job runs"]
 }
-
 /* generate with twopi -Tsvg endpoint.dot -o endpoint.svg or neato -Tpng endpoint.dot -o endpoint.png */

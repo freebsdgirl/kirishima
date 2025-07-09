@@ -26,7 +26,6 @@ The application is designed to be modular and extensible, allowing for easy inte
 """
 
 from app.modes import router as modes_router
-from app.scheduler.scheduler import router as scheduler_router
 
 from app.message.multiturn import router as message_multiturn_router
 from app.message.singleturn import router as message_singleturn_router
@@ -72,7 +71,6 @@ app.add_middleware(CacheRequestBodyMiddleware)
 app.include_router(routes_router, tags=["system"])
 app.include_router(docs_router, tags=["docs"])
 app.include_router(modes_router, tags=["modes"])
-app.include_router(scheduler_router, tags=["scheduler"])
 
 app.include_router(memory_scan_router, tags=["memory"])
 app.include_router(memory_search_router, tags=["memory"])

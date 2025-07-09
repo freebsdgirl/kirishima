@@ -450,12 +450,9 @@ async def create_weekly_summary(request: SummaryCreateRequest) -> List[dict]:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid date specified. Expected 'YYYY-MM-DD' format."
         )
+    # Ensure the date is a Monday
     if request_date.weekday() != 0:
-        logger.error(f"Invalid date specified: {request.date}. Expected a Monday.")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid date specified. Expected a Monday."
-        )
+        return
     logger.debug(f"Creating weekly summary for date: {request.date}")
     with open('/app/config/config.json') as f:
         _config = json.load(f)
@@ -562,6 +559,12 @@ async def create_monthly_summary(request: SummaryCreateRequest) -> List[dict]:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid date specified. Expected 'YYYY-MM-DD' format."
         )
+    # If the day is the 1st, roll back to the last day of the previous month
+    # we do this because this is called without a date provided, and it's called at midnight - so we need to generate
+    # the summary for the previous month, not the current month.
+    if request_date.day != 1:
+        return
+    request_date = request_date - timedelta(days=1)
     from calendar import monthrange
     logger.debug(f"Creating monthly summary for date: {request.date}")
     with open('/app/config/config.json') as f:

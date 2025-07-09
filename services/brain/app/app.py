@@ -31,10 +31,7 @@ from app.scheduler.scheduler import router as scheduler_router
 from app.message.multiturn import router as message_multiturn_router
 from app.message.singleturn import router as message_singleturn_router
 
-from app.summary.periodic import router as periodic_summary_router
-from app.summary.daily import router as daily_summary_router
-from app.summary.weekly import router as weekly_summary_router
-from app.summary.monthly import router as monthly_summary_router
+from app.summary.create import router as summary_create_router
 
 from app.embedding import router as embedding_router
 
@@ -98,10 +95,7 @@ app.include_router(notification_callback_router, tags=["notification"])
 app.include_router(notification_get_router, tags=["notification"])
 app.include_router(notification_post_router, tags=["notification"])
 
-app.include_router(daily_summary_router, tags=["summary"])
-app.include_router(weekly_summary_router, tags=["summary"])
-app.include_router(monthly_summary_router, tags=["summary"])
-app.include_router(periodic_summary_router, tags=["summary"])
+app.include_router(summary_create_router, tags=["summary"])
 
 register_list_routes(app)
 

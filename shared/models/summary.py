@@ -21,6 +21,7 @@ Modules:
 from pydantic import BaseModel, Field
 from typing import Optional, List
 from enum import Enum
+from datetime import datetime
 
 from shared.models.ledger import CanonicalUserMessage
 
@@ -144,21 +145,22 @@ class SummaryCreateRequest(BaseModel):
     will be used as the default.
     
     Attributes:
-        period (str): The time period for the summary, such as 'day', 'week', or 'month'.
+        period (List[str]): The time period for the summary, such as 'daily', 'weekly', or 'monthly'.
         date (Optional[str]): The starting date in YYYY-MM-DD format.
     """
-    period: str                         = Field(..., description="Time period for the summary (e.g., 'day', 'week', 'month')")
-    date: str                           = Field(..., description="Starting date in YYYY-MM-DD format.")
+    period: List[str]               = Field(..., description="Time period for the summary (e.g., 'daily', 'weekly', 'monthly')")
+    date: str                       = Field(default_factory=lambda: datetime.now().strftime("%Y-%m-%d"), description="Starting date in YYYY-MM-DD format.")
 
     model_config = {
         "json_schema_extra": {
             "examples": [
                 {
-                    "period": "day",
+                    "period": ["daily"],
                     "date": "2023-10-01"
                 },
                 {
-                    "period": "week"
+                    "period": ["weekly"],
+                    "date": "2023-10-01"
                 }
             ]
         }

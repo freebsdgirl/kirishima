@@ -38,28 +38,27 @@ CREATE INDEX IF NOT EXISTS idx_user_msgs_topic
 --------------------------------------------------------------------
 
 
--- User‑level summaries (multi‑level compression)
-CREATE TABLE IF NOT EXISTS user_summaries (
-    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id             TEXT    NOT NULL,
-    content             TEXT    NOT NULL,
-    level               INTEGER NOT NULL,   -- 1, 2, 3, …
-    timestamp_begin     TEXT    NOT NULL,
-    timestamp_end       TEXT    NOT NULL,
-    timestamp_summarized TEXT   NOT NULL DEFAULT (STRFTIME('%Y-%m-%d %H:%M:%f','now','localtime'))
-);
-CREATE INDEX IF NOT EXISTS idx_user_summaries_level
-    ON user_summaries(user_id, level, id);
-
---------------------------------------------------------------------
-
-
 -- Topics table
 CREATE TABLE IF NOT EXISTS topics (
     id          TEXT PRIMARY KEY, -- UUID
     name        TEXT
 );
 
+
+--------------------------------------------------------------------
+
+-- Summaries table
+CREATE TABLE IF NOT EXISTS summaries (
+    id                  TEXT PRIMARY KEY, -- UUID
+    summary             TEXT,
+    timestamp_begin     DATETIME NOT NULL,
+    timestamp_end       DATETIME NOT NULL,
+    summary_type        TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_summaries_type_time
+    ON summaries(summary_type, timestamp_begin, timestamp_end);
+CREATE INDEX IF NOT EXISTS idx_summaries_time
+    ON summaries(timestamp_begin, timestamp_end);
 
 """
 

@@ -265,7 +265,7 @@ async def sync_with_ledger(
         from shared.log_config import get_logger
         logger = get_logger("brain.util")
     if endpoint is None:
-        endpoint = f"/ledger/user/{user_id}/sync"
+        endpoint = f"/user/{user_id}/sync"
     try:
         ledger_response = await post_to_service_func(
             'ledger',

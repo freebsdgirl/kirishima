@@ -64,7 +64,7 @@ def ensure_first_user(messages):
     return []
 
 
-@router.post("/ledger/user/{user_id}/sync", response_model=List[CanonicalUserMessage])
+@router.post("/user/{user_id}/sync", response_model=List[CanonicalUserMessage])
 def sync_user_buffer(
     user_id: str = Path(..., description="Unique user identifier"),
     snapshot: List[RawUserMessage] = Body(..., embed=True),
@@ -101,7 +101,10 @@ def sync_user_buffer(
     #    background_tasks.add_task(create_summaries, user_id)
     #    return []
 
-    # Do NOT filter snapshot; allow any role at the start
+    # Do NOT filter snapshot; allow any role at the start.
+    # We do this so we can sync our pseudo tool calls where we're injecting tools output that the assistant
+    # didn't actually ask for prior to sending it the conversation log. we don't always sync to buffer for
+    # that output, but the option is there.
     last_msg = snapshot[-1]
 
     def _msg_fields(msg):

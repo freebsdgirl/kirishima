@@ -31,30 +31,17 @@ Logging:
 """
 
 from shared.models.ledger import RawUserMessage, CanonicalUserMessage
-
 from shared.log_config import get_logger
 logger = get_logger(f"ledger.{__name__}")
 
-import sqlite3
-from typing import List, Optional
 import json
-
+from typing import List
 from fastapi import APIRouter, Path, Body, BackgroundTasks
-#from app.user.summary import create_summaries
+from app.util import _open_conn
 
 router = APIRouter()
 
 TABLE = "user_messages"
-
-
-def _open_conn() -> sqlite3.Connection:
-    with open('/app/config/config.json') as f:
-        _config = json.load(f)
-
-    db = _config["db"]["ledger"]
-    conn = sqlite3.connect(db, timeout=5.0)
-    conn.execute("PRAGMA journal_mode=WAL;")
-    return conn
 
 
 def ensure_first_user(messages):

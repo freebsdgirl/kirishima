@@ -34,7 +34,7 @@ Configuration:
 --------------
 - Reads settings from /app/config/config.json (timeout, summary token limits, etc.)
 """
-from shared.models.summary import SummaryCreateRequest, SummaryMetadata, Summary, SummaryRequest, CombinedSummaryRequest
+from shared.models.ledger import SummaryCreateRequest, SummaryMetadata, Summary, SummaryRequest, CombinedSummaryRequest
 
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
@@ -106,104 +106,85 @@ async def create_periodic_summary(request: SummaryCreateRequest) -> List[dict]:
         _config = json.load(f)
 
     timeout = _config["timeout"]
-    # connect to the ledger service to get a list of user_ids
-    try:
-        ledger_port = os.getenv("LEDGER_PORT", 4203)
-        response = httpx.get(f"http://ledger:{ledger_port}/active", timeout=timeout)
-        response.raise_for_status()
-    except Exception as e:
-        logger.error(f"Failed to trigger create_summary() for period {request.period} and date {request.date}: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get active users: {e}"
-        )
-    user_ids = response.json()
-    logger.debug(f"Active user IDs: {user_ids}")
+    user_id = _config.get("user_id")
+    summaries_created = []
+    params = {}
+    params["period"] = request.period
+    params["date"] = request.date
 
-    # if nothing is returned, there's no one to summarize.
-    if not user_ids:
+    if params["period"] not in VALID_PERIODS:
+        logger.error(f"Invalid period '{params['period']}' for user {user_id}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid period. Must be one of: {', '.join(VALID_PERIODS)}."
+        )
+
+    if request.period == "evening" and not request.date:
+        # evening is a special case, we need to get the previous day
+        params["date"] = (datetime.strptime(request.date, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
+
+    # get the messages for the user
+    ledger_port = os.getenv("LEDGER_PORT", 4203)
+    try:
+        response = httpx.get(f"http://ledger:{ledger_port}/user/{user_id}/messages", params=params, timeout=timeout)
+        response.raise_for_status()
+        messages = response.json()
+    except Exception as e:
+        logger.error(f"Failed to get user messages for user {user_id}, period {params['period']}, date {params['date']}: {e}")
         return []
 
-    summaries_created = []
-    
-    # for each user_id, get the buffer
-    for user_id in user_ids:
-        params = {}
-        params["period"] = request.period
-        params["date"] = request.date
+    # if no messages are listed
+    if not messages:
+        logger.warning(f"No messages found for user {user_id} for period {request.period} on date {request.date}")
+        return []
 
-        if params["period"] not in VALID_PERIODS:
-            logger.error(f"Invalid period '{params['period']}' for user {user_id}")
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid period. Must be one of: {', '.join(VALID_PERIODS)}."
-            )
+    # get the alias for the user
+    alias = await get_user_alias(user_id)
 
-        if request.period == "evening" and not request.date:
-            # evening is a special case, we need to get the previous day
-            params["date"] = (datetime.strptime(request.date, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
+    # Chunk messages into 4096-token chunks using AutoTokenizer (gpt2)
+    tokenizer = AutoTokenizer.from_pretrained("gpt2")
+    max_tokens = 4096
 
-        # get the messages for the user
-        try:
-            response = httpx.get(f"http://ledger:{ledger_port}/user/{user_id}/messages", params=params, timeout=timeout)
-            response.raise_for_status()
-            messages = response.json()
-        except Exception as e:
-            logger.error(f"Failed to get user messages for user {user_id}, period {params['period']}, date {params['date']}: {e}")
-            continue
+    # Ensure all messages are CanonicalUserMessage
+    canon_msgs = [CanonicalUserMessage.model_validate(m) if not isinstance(m, CanonicalUserMessage) else m for m in messages]
 
-        # if no messages are listed
-        if not messages:
-            logger.warning(f"No messages found for user {user_id} for period {request.period} on date {request.date}")
-            continue
-
-        # get the alias for the user
-        alias = await get_user_alias(user_id)
-
-        # Chunk messages into 4096-token chunks using AutoTokenizer (gpt2)
-        tokenizer = AutoTokenizer.from_pretrained("gpt2")
-        max_tokens = 4096
-
-        # Ensure all messages are CanonicalUserMessage
-        canon_msgs = [CanonicalUserMessage.model_validate(m) if not isinstance(m, CanonicalUserMessage) else m for m in messages]
-
-        def chunk_messages(messages, max_tokens):
-            chunks = []
-            current_chunk = []
-            current_tokens = 0
-            for msg in messages:
-                content = msg.content
-                tokens = len(tokenizer.encode(content))
-                if current_tokens + tokens > max_tokens and current_chunk:
-                    chunks.append(current_chunk)
-                    current_chunk = []
-                    current_tokens = 0
-                current_chunk.append(msg)
-                current_tokens += tokens
-            if current_chunk:
+    def chunk_messages(messages, max_tokens):
+        chunks = []
+        current_chunk = []
+        current_tokens = 0
+        for msg in messages:
+            content = msg.content
+            tokens = len(tokenizer.encode(content))
+            if current_tokens + tokens > max_tokens and current_chunk:
                 chunks.append(current_chunk)
-            return chunks
+                current_chunk = []
+                current_tokens = 0
+            current_chunk.append(msg)
+            current_tokens += tokens
+        if current_chunk:
+            chunks.append(current_chunk)
+        return chunks
 
-        message_chunks = chunk_messages(canon_msgs, max_tokens)
-        summaries = []
+    message_chunks = chunk_messages(canon_msgs, max_tokens)
+    summaries = []
 
-        periodic_max_tokens = _config["summary"]["periodic_max_tokens"] or 256
-        api_port = os.getenv("API_PORT", 4200)
-        for chunk in message_chunks:
-            # Prompt construction (moved from proxy/app/summary.py)
-            user_label = alias or "Randi"
-            assistant_label = "Kirishima"
-            lines = []
-            for msg in chunk:
-                if hasattr(msg, 'role') and msg.role == "user":
-                    lines.append(f"{user_label}: {msg.content}")
-                elif hasattr(msg, 'role') and msg.role == "assistant":
-                    lines.append(f"{assistant_label}: {msg.content}")
-            conversation_str = "\n".join(lines)
+    periodic_max_tokens = _config["summary"]["periodic_max_tokens"] or 256
+    api_port = os.getenv("API_PORT", 4200)
+    for chunk in message_chunks:
+        # Prompt construction (moved from proxy/app/summary.py)
+        user_label = alias or "Randi"
+        assistant_label = "Kirishima"
+        lines = []
+        for msg in chunk:
+            if hasattr(msg, 'role') and msg.role == "user":
+                lines.append(f"{user_label}: {msg.content}")
+            elif hasattr(msg, 'role') and msg.role == "assistant":
+                lines.append(f"{assistant_label}: {msg.content}")
+        conversation_str = "\n".join(lines)
 
-            logger.debug(f"Conversation string for summary: {conversation_str}")
+        logger.debug(f"Conversation string for summary: {conversation_str}")
 
-            prompt = f'''
+        prompt = f'''
 ### Task: Summarize the following conversation between Randi (the user) and Kirishima (the assistant) in a clear and concise manner.
 
 
@@ -216,187 +197,17 @@ async def create_periodic_summary(request: SummaryCreateRequest) -> List[dict]:
 
 ### Instructions
 
-- The summary should capture the main points and tone of the conversation.
-- The summary should be no more than {periodic_max_tokens} tokens in length.
+- The summary should capture the main points of the conversation.
+- The summary must be no more than {periodic_max_tokens} tokens in length.
 - The summary should be a single paragraph.
 - Prioritize outcomes, decisions, or action items over small talk.
 '''
 
-            from shared.models.openai import OpenAICompletionRequest
-            summary_req = OpenAICompletionRequest(
-                model="gpt-4.1",  # or use from config if needed
-                prompt=prompt,
-                max_tokens=periodic_max_tokens,
-                temperature=0.7,
-                n=1,
-                provider="openai"
-            )
-            try:
-                async with httpx.AsyncClient(timeout=timeout) as client:
-                    response = await client.post(
-                        f"http://api:{api_port}/v1/completions",
-                        json=summary_req.model_dump()
-                    )
-                    response.raise_for_status()
-                summary_data = response.json()
-                summary_text = summary_data['choices'][0]['content']
-                metadata = SummaryMetadata(
-                    user_id=user_id,
-                    summary_type=request.period,
-                    timestamp_begin=chunk[0].created_at,
-                    timestamp_end=chunk[-1].created_at
-                )
-                summaries.append(Summary(content=summary_text, metadata=metadata))
-            except Exception as e:
-                logger.error(f"Failed to summarize chunk for user {user_id}, period {params['period']}, date {params['date']}: {e}")
-                continue
-
-        # If more than 1 Summary is created, combine them
-        if len(summaries) > 1:
-            # Build combined summary prompt (from proxy/app/summary.py)
-            def format_timestamp(ts: str) -> str:
-                dt = datetime.fromisoformat(ts.replace("Z", ""))
-                return dt.strftime("%A, %B %d")
-            combined_prompt = f"""
-### Task: Using the provided summaries, generate a single summary that reflects how events unfolded over time.
-
-### Summaries"""
-            for summary in summaries:
-                date_str = format_timestamp(summary.metadata.timestamp_begin)
-                combined_prompt += f"[{summary.metadata.summary_type.upper()} – {date_str}] {summary.content}\n"
-            combined_prompt += f"""
-
-### Instructions
-- Organize the summary chronologically. 
-- Your response cannot exceed {periodic_max_tokens} tokens.
-"""
-            combined_req = OpenAICompletionRequest(
-                model="gpt-4.1",
-                prompt=combined_prompt,
-                max_tokens=periodic_max_tokens,
-                temperature=0.3,
-                n=1,
-                provider="openai"
-            )
-            try:
-                async with httpx.AsyncClient(timeout=timeout) as client:
-                    response = await client.post(
-                        f"http://api:{api_port}/v1/completions",
-                        json=combined_req.model_dump()
-                    )
-                    response.raise_for_status()
-                combined_data = response.json()
-                combined_text = combined_data['choices'][0]['content']
-                metadata = SummaryMetadata(
-                    user_id=user_id,
-                    summary_type=request.period,
-                    timestamp_begin=summaries[0].metadata.timestamp_begin,
-                    timestamp_end=summaries[-1].metadata.timestamp_end
-                )
-                final_summary = Summary(content=combined_text, metadata=metadata)
-            except Exception as e:
-                logger.error(f"Failed to combine summaries for user {user_id}, period {params['period']}, date {params['date']}: {e}")
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Failed to combine summaries: {e}"
-                )
-        else:
-            final_summary = summaries[0]
-
-        logger.debug(f"Final summary for user {user_id}: {final_summary}")
-
-        try:
-            chromadb_port = os.getenv("CHROMADB_PORT", 4206)
-            async with httpx.AsyncClient(timeout=timeout) as client:
-                response = await client.post(f"http://chromadb:{chromadb_port}/summary", json=final_summary.model_dump())
-                response.raise_for_status()
-            summaries_created.append(response.json())
-
-        except httpx.HTTPStatusError as e:
-            logger.error(f"HTTP error occurred for user {user_id}, period {params['period']}, date {params['date']}: {e.response.status_code} - {e.response.text}")
-            raise HTTPException(
-                status_code=e.response.status_code,
-                detail=f"Error creating summary: {e.response.text}"
-            )
-
-        except Exception as e:
-            logger.error(f"Failed to create summary for user {user_id}, period {params['period']}, date {params['date']}: {e}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to create summary: {e}"
-            )
-
-    return summaries_created
-
-async def create_daily_summary(request: SummaryCreateRequest) -> List[dict]:
-    logger.debug(f"Creating daily summary for date: {request.date}")
-    with open('/app/config/config.json') as f:
-        _config = json.load(f)
-    timeout = _config["timeout"]
-    daily_max_tokens = _config["summary"]["daily_max_tokens"] if "daily" in _config["summary"] else 512
-    api_port = os.getenv("API_PORT", 4200)
-    chromadb_port = os.getenv("CHROMADB_PORT", 4206)
-
-    # Fetch all period summaries for the date
-    summaries = []
-    for summary_type in ["night", "morning", "afternoon", "evening"]:
-        url = f"http://chromadb:{chromadb_port}/summary?type={summary_type}"
-        url += f"&timestamp_begin={request.date}%2000:00:00&timestamp_end={request.date}%2023:59:59"
-        try:
-            async with httpx.AsyncClient(timeout=timeout) as client:
-                response = await client.get(url)
-                response.raise_for_status()
-                summaries.extend(response.json())
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code == status.HTTP_404_NOT_FOUND:
-                logger.info(f"No {summary_type} summaries found for {request.date}, skipping.")
-                continue
-            else:
-                logger.error(f"HTTP error from chromadb: {e.response.status_code} - {e.response.text}")
-                raise
-        except Exception as e:
-            logger.error(f"Failed to contact chromadb to get a list of summaries: {e}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to retrieve summaries: {e}")
-
-    if not summaries:
-        logger.warning("No summaries found for the specified period.")
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No summaries found for the specified period."
-        )
-
-    # Group by user_id
-    user_ids = set(s["metadata"]["user_id"] for s in summaries)
-    results = []
-    for user_id in user_ids:
-        user_summaries = [s for s in summaries if s["metadata"]["user_id"] == user_id]
-        user_alias = await get_user_alias(user_id)
-        # Build prompt for daily summary
-        def format_timestamp(ts: str) -> str:
-            dt = datetime.fromisoformat(ts.replace("Z", ""))
-            return dt.strftime("%A, %B %d")
-        prompt = f"""
-### Task: Using the provided summaries, generate a single summary that reflects how events unfolded over time.
-
-### Summaries
-"""
-        for summary in user_summaries:
-            date_str = format_timestamp(summary["metadata"]["timestamp_begin"])
-            prompt += f"[{summary['metadata']['summary_type'].upper()} – {date_str}] {summary['content']}\n"
-        prompt += f"""
-
-### Instructions
-- Organize the summary chronologically. Use time indicators like "In the morning", "In the afternoon", "In the evening" when appropriate.
-- Emphasize key actions, decisions, emotional shifts, and recurring themes.
-- Your response cannot exceed {daily_max_tokens} tokens.
-"""
         from shared.models.openai import OpenAICompletionRequest
         summary_req = OpenAICompletionRequest(
-            model="gpt-4.1",
+            model="gpt-4.1",  # or use from config if needed
             prompt=prompt,
-            max_tokens=daily_max_tokens,
+            max_tokens=periodic_max_tokens,
             temperature=0.7,
             n=1,
             provider="openai"
@@ -410,38 +221,214 @@ async def create_daily_summary(request: SummaryCreateRequest) -> List[dict]:
                 response.raise_for_status()
             summary_data = response.json()
             summary_text = summary_data['choices'][0]['content']
+            metadata = SummaryMetadata(
+                summary_type=request.period,
+                timestamp_begin=chunk[0].created_at,
+                timestamp_end=chunk[-1].created_at
+            )
+            summaries.append(Summary(content=summary_text, metadata=metadata))
         except Exception as e:
-            logger.error(f"Failed to summarize daily for user {user_id}, date {request.date}: {e}")
+            logger.error(f"Failed to summarize chunk for period {params['period']}, date {params['date']}: {e}")
             continue
-        # Compose metadata
-        metadata = SummaryMetadata(
-            user_id=user_id,
-            summary_type="daily",  # Use string for rollup type
-            timestamp_begin=user_summaries[0]["metadata"]["timestamp_begin"],
-            timestamp_end=user_summaries[-1]["metadata"]["timestamp_end"]
+
+    # If more than 1 Summary is created, combine them
+    if len(summaries) > 1:
+        # Build combined summary prompt (from proxy/app/summary.py)
+        def format_timestamp(ts: str) -> str:
+            dt = datetime.fromisoformat(ts.replace("Z", ""))
+            return dt.strftime("%A, %B %d")
+        combined_prompt = f"""
+### Task: Using the provided summaries, generate a single summary that reflects how events unfolded over time.
+
+### Summaries"""
+        for summary in summaries:
+            date_str = format_timestamp(summary.metadata.timestamp_begin)
+            combined_prompt += f"[{summary.metadata.summary_type.upper()} – {date_str}] {summary.content}\n"
+        combined_prompt += f"""
+
+### Instructions
+- Organize the summary chronologically. 
+- Your response cannot exceed {periodic_max_tokens} tokens.
+"""
+        combined_req = OpenAICompletionRequest(
+            model="gpt-4.1",
+            prompt=combined_prompt,
+            max_tokens=periodic_max_tokens,
+            temperature=0.3,
+            n=1,
+            provider="openai"
         )
-        summary_obj = Summary(content=summary_text, metadata=metadata)
-        # Store in chromadb
         try:
             async with httpx.AsyncClient(timeout=timeout) as client:
-                response = await client.post(f"http://chromadb:{chromadb_port}/summary", json=summary_obj.model_dump())
+                response = await client.post(
+                    f"http://api:{api_port}/v1/completions",
+                    json=combined_req.model_dump()
+                )
                 response.raise_for_status()
-            results.append(response.json())
+            combined_data = response.json()
+            combined_text = combined_data['choices'][0]['content']
+            metadata = SummaryMetadata(
+                summary_type=request.period,
+                timestamp_begin=summaries[0].metadata.timestamp_begin,
+                timestamp_end=summaries[-1].metadata.timestamp_end
+            )
+            final_summary = Summary(content=combined_text, metadata=metadata)
         except Exception as e:
-            logger.error(f"Failed to write daily summary to chromadb for user {user_id}: {e}")
+            logger.error(f"Failed to combine summaries for period {params['period']}, date {params['date']}: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to combine summaries: {e}"
+            )
+    else:
+        final_summary = summaries[0]
+
+    logger.debug(f"Final summary: {final_summary}")
+
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.post(f"http://ledger:{ledger_port}/summary", json=final_summary.model_dump())
+            response.raise_for_status()
+        summaries_created.append(response.json())
+
+    except httpx.HTTPStatusError as e:
+        logger.error(f"HTTP error occurred for period {params['period']}, date {params['date']}: {e.response.status_code} - {e.response.text}")
+        raise HTTPException(
+            status_code=e.response.status_code,
+            detail=f"Error creating summary: {e.response.text}"
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to create summary for period {params['period']}, date {params['date']}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create summary: {e}"
+        )
+
+    return summaries_created
+
+async def create_daily_summary(request: SummaryCreateRequest) -> List[dict]:
+    logger.debug(f"Creating daily summary for date: {request.date}")
+    with open('/app/config/config.json') as f:
+        _config = json.load(f)
+    timeout = _config["timeout"]
+    daily_max_tokens = _config["summary"]["daily_max_tokens"] if "daily" in _config["summary"] else 512
+    api_port = os.getenv("API_PORT", 4200)
+    ledger_port = os.getenv("LEDGER_PORT", 4203)
+
+    # Fetch all period summaries for the date in a single request
+    url = f"http://ledger:{ledger_port}/summary?timestamp_begin={request.date}%2000:00:00&timestamp_end={request.date}%2023:59:59"
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.get(url)
+            response.raise_for_status()
+            summaries = response.json()
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == status.HTTP_404_NOT_FOUND:
+            logger.info(f"No summaries found for {request.date}, skipping.")
+            summaries = []
+        else:
+            logger.error(f"HTTP error from ledger: {e.response.status_code} - {e.response.text}")
+            raise
+    except Exception as e:
+        logger.error(f"Failed to contact ledger to get a list of summaries: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve summaries: {e}")
+
+    if not summaries:
+        logger.warning("No summaries found for the specified period.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No summaries found for the specified period."
+        )
+
+    # Build prompt for daily summary
+    def format_timestamp(ts: str) -> str:
+        dt = datetime.fromisoformat(ts.replace("Z", ""))
+        return dt.strftime("%A, %B %d")
+    prompt = f"""
+### Task: Using the provided summaries, generate a single summary that reflects how events unfolded over time.
+
+### Summaries
+"""
+    for summary in summaries:
+        date_str = format_timestamp(summary["metadata"]["timestamp_begin"])
+        prompt += f"[{summary['metadata']['summary_type'].upper()} – {date_str}] {summary['content']}\n"
+    prompt += f"""
+
+### Instructions
+- Organize the summary chronologically. Use time indicators like "In the morning", "In the afternoon", "In the evening" when appropriate.
+- Emphasize key actions and decisions..
+- Do not use formatting. Use dense paragraphs for summaries.
+- The summary cannot exceed {daily_max_tokens} tokens.
+"""
+    from shared.models.openai import OpenAICompletionRequest
+    summary_req = OpenAICompletionRequest(
+        model="gpt-4.1",
+        prompt=prompt,
+        max_tokens=daily_max_tokens*2,
+        temperature=0.7,
+        n=1,
+        provider="openai"
+    )
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.post(
+                f"http://api:{api_port}/v1/completions",
+                json=summary_req.model_dump()
+            )
+            response.raise_for_status()
+        summary_data = response.json()
+        summary_text = summary_data['choices'][0]['content']
+    except Exception as e:
+        logger.error(f"Failed to summarize daily for date {request.date}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to summarize daily: {e}"
+        )
+    # Compose metadata (no user_id)
+    metadata = SummaryMetadata(
+        summary_type="daily",
+        timestamp_begin=summaries[0]["metadata"]["timestamp_begin"],
+        timestamp_end=summaries[-1]["metadata"]["timestamp_end"]
+    )
+    summary_obj = Summary(content=summary_text, metadata=metadata)
+    # Store in ledger
+    results = []
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.post(f"http://ledger:{ledger_port}/summary", json=summary_obj.model_dump())
+            if response.status_code >= 400:
+                logger.error(f"Ledger error: {response.status_code} - {response.text}")
+                raise HTTPException(
+                    status_code=response.status_code,
+                    detail=f"Ledger error: {response.text}"
+                )
+            response.raise_for_status()
+            results.append(response.json())
+    except Exception as e:
+        logger.error(f"Failed to write daily summary to ledger: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to write daily summary: {e}"
+        )
+    # Delete original period summaries, skipping duplicates
+    deleted_ids = set()
+    for s in summaries:
+        summary_id = s['id']
+        if summary_id in deleted_ids:
             continue
-        # Delete original period summaries for this user
-        for s in user_summaries:
-            try:
-                async with httpx.AsyncClient(timeout=timeout) as client:
-                    response = await client.delete(f"http://chromadb:{chromadb_port}/summary/{s['id']}")
-                    response.raise_for_status()
-            except Exception as e:
-                logger.warning(f"Failed to delete period summary {s['id']} for user {user_id}: {e}")
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                response = await client.delete(f"http://ledger:{ledger_port}/summary?id={summary_id}")
+                response.raise_for_status()
+            deleted_ids.add(summary_id)
+        except Exception as e:
+            logger.warning(f"Failed to delete period summary {summary_id}: {e}")
     return results
 
 async def create_weekly_summary(request: SummaryCreateRequest) -> List[dict]:
-    # Weekly summary: aggregate daily summaries for each user for a week (Monday-Sunday)
+    # Weekly summary: aggregate daily summaries for a single user for a week (Monday-Sunday)
     try:
         request_date = datetime.strptime(request.date, "%Y-%m-%d")
     except ValueError:
@@ -452,18 +439,19 @@ async def create_weekly_summary(request: SummaryCreateRequest) -> List[dict]:
         )
     # Ensure the date is a Monday
     if request_date.weekday() != 0:
-        return
+        return []
     logger.debug(f"Creating weekly summary for date: {request.date}")
     with open('/app/config/config.json') as f:
         _config = json.load(f)
     timeout = _config["timeout"]
     weekly_max_tokens = _config["summary"].get("weekly_max_tokens", 1024)
-    chromadb_port = os.getenv("CHROMADB_PORT", 4206)
-    proxy_port = os.getenv("PROXY_PORT", 4205)
+    ledger_port = os.getenv("LEDGER_PORT", 4203)
+    api_port = os.getenv("API_PORT", 4200)
+    user_id = _config.get("user_id")
     timestamp_begin = request_date.strftime("%Y-%m-%d 00:00:00")
     sunday = request_date + timedelta(days=6)
     timestamp_end = sunday.strftime("%Y-%m-%d 23:59:59")
-    url = f"http://chromadb:{chromadb_port}/summary?type=daily"
+    url = f"http://ledger:{ledger_port}/summary?type=daily"
     url += f"&timestamp_begin={timestamp_begin}&timestamp_end={timestamp_end}"
     try:
         summaries = []
@@ -476,81 +464,83 @@ async def create_weekly_summary(request: SummaryCreateRequest) -> List[dict]:
             logger.info(f"No daily summaries found for {request.date}, skipping.")
             return []
         else:
-            logger.error(f"HTTP error from chromadb: {e.response.status_code} - {e.response.text}")
+            logger.error(f"HTTP error from ledger: {e.response.status_code} - {e.response.text}")
             raise
     except Exception as e:
-        logger.error(f"Failed to contact chromadb to get a list of summaries: {e}")
+        logger.error(f"Failed to contact ledger to get a list of summaries: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve summaries: {e}")
     if not summaries:
         logger.warning("No summaries found for the specified period.")
         return []
-    user_ids = set(s["metadata"]["user_id"] for s in summaries)
-    results = []
-    for user_id in user_ids:
-        user_summaries = [s for s in summaries if s["metadata"]["user_id"] == user_id]
-        user_alias = await get_user_alias(user_id)
-        # Build prompt for weekly summary (mirroring daily)
-        def format_timestamp(ts: str) -> str:
-            dt = datetime.fromisoformat(ts.replace("Z", ""))
-            return dt.strftime("%A, %B %d")
-        prompt = f"""
+    # Build prompt for weekly summary
+    def format_timestamp(ts: str) -> str:
+        dt = datetime.fromisoformat(ts.replace("Z", ""))
+        return dt.strftime("%A, %B %d")
+    prompt = f"""
 ### Task: Using the provided summaries, generate a single summary that reflects how events unfolded over the week.
 
 ### Summaries
 """
-        for summary in user_summaries:
-            date_str = format_timestamp(summary["metadata"]["timestamp_begin"])
-            prompt += f"[{summary['metadata']['summary_type'].upper()} – {date_str}] {summary['content']}\n"
-        prompt += f"""
+    for summary in summaries:
+        date_str = format_timestamp(summary["metadata"]["timestamp_begin"])
+        prompt += f"[{summary['metadata']['summary_type'].upper()} – {date_str}] {summary['content']}\n"
+    prompt += f"""
 
 ### Instructions
 - Organize the summary chronologically. Use time indicators like "On Monday…", "Later that week…", etc.
-- Emphasize key actions, decisions, emotional shifts, and recurring themes.
+- Emphasize key actions and decisions.
 - Maintain a coherent narrative flow.
+- Use dense paragraphs. Do not use formatting.
 - Your response cannot exceed {weekly_max_tokens} tokens.
 """
-        from shared.models.openai import OpenAICompletionRequest
-        summary_req = OpenAICompletionRequest(
-            model="gpt-4.1",
-            prompt=prompt,
-            max_tokens=weekly_max_tokens,
-            temperature=0.7,
-            n=1,
-            provider="openai"
+    from shared.models.openai import OpenAICompletionRequest
+    summary_req = OpenAICompletionRequest(
+        model="gpt-4.1",
+        prompt=prompt,
+        max_tokens=weekly_max_tokens,
+        temperature=0.7,
+        n=1,
+        provider="openai"
+    )
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.post(
+                f"http://api:{api_port}/v1/completions",
+                json=summary_req.model_dump()
+            )
+            response.raise_for_status()
+        summary_data = response.json()
+        summary_text = summary_data['choices'][0]['content']
+    except Exception as e:
+        logger.error(f"Failed to summarize weekly for date {request.date}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to summarize weekly: {e}"
         )
-        try:
-            async with httpx.AsyncClient(timeout=timeout) as client:
-                response = await client.post(
-                    f"http://api:{os.getenv('API_PORT', 4200)}/v1/completions",
-                    json=summary_req.model_dump()
-                )
-                response.raise_for_status()
-            summary_data = response.json()
-            summary_text = summary_data['choices'][0]['content']
-        except Exception as e:
-            logger.error(f"Failed to summarize weekly for user {user_id}, date {request.date}: {e}")
-            continue
-        metadata = SummaryMetadata(
-            user_id=user_id,
-            summary_type="weekly",
-            timestamp_begin=user_summaries[0]["metadata"]["timestamp_begin"],
-            timestamp_end=user_summaries[-1]["metadata"]["timestamp_end"]
+    metadata = SummaryMetadata(
+        summary_type="weekly",
+        timestamp_begin=summaries[0]["metadata"]["timestamp_begin"],
+        timestamp_end=summaries[-1]["metadata"]["timestamp_end"]
+    )
+    summary_obj = Summary(content=summary_text, metadata=metadata)
+    results = []
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.post(f"http://ledger:{ledger_port}/summary", json=summary_obj.model_dump())
+            response.raise_for_status()
+        results.append(response.json())
+    except Exception as e:
+        logger.error(f"Failed to write weekly summary to ledger: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to write weekly summary: {e}"
         )
-        summary_obj = Summary(content=summary_text, metadata=metadata)
-        try:
-            async with httpx.AsyncClient(timeout=timeout) as client:
-                response = await client.post(f"http://chromadb:{chromadb_port}/summary", json=summary_obj.model_dump())
-                response.raise_for_status()
-            results.append(response.json())
-        except Exception as e:
-            logger.error(f"Failed to write weekly summary to chromadb for user {user_id}: {e}")
-            continue
     return results
 
 async def create_monthly_summary(request: SummaryCreateRequest) -> List[dict]:
-    # Monthly summary: aggregate daily summaries for each user for a month
+    # Monthly summary: aggregate daily summaries for a single user for a month
     try:
         request_date = datetime.strptime(request.date, "%Y-%m-%d")
     except ValueError:
@@ -560,10 +550,8 @@ async def create_monthly_summary(request: SummaryCreateRequest) -> List[dict]:
             detail="Invalid date specified. Expected 'YYYY-MM-DD' format."
         )
     # If the day is the 1st, roll back to the last day of the previous month
-    # we do this because this is called without a date provided, and it's called at midnight - so we need to generate
-    # the summary for the previous month, not the current month.
     if request_date.day != 1:
-        return
+        return []
     request_date = request_date - timedelta(days=1)
     from calendar import monthrange
     logger.debug(f"Creating monthly summary for date: {request.date}")
@@ -571,12 +559,13 @@ async def create_monthly_summary(request: SummaryCreateRequest) -> List[dict]:
         _config = json.load(f)
     timeout = _config["timeout"]
     monthly_max_tokens = _config["summary"].get("monthly_max_tokens", 2048)
-    chromadb_port = os.getenv("CHROMADB_PORT", 4206)
-    proxy_port = os.getenv("PROXY_PORT", 4205)
+    ledger_port = os.getenv("LEDGER_PORT", 4203)
+    api_port = os.getenv("API_PORT", 4200)
+    user_id = _config.get("user_id")
     timestamp_begin = request_date.replace(day=1).strftime("%Y-%m-%d 00:00:00")
     last_day = monthrange(request_date.year, request_date.month)[1]
     timestamp_end = request_date.replace(day=last_day).strftime("%Y-%m-%d 23:59:59")
-    url = f"http://chromadb:{chromadb_port}/summary?type=daily"
+    url = f"http://ledger:{ledger_port}/summary?type=daily"
     url += f"&timestamp_begin={timestamp_begin}&timestamp_end={timestamp_end}"
     try:
         summaries = []
@@ -589,76 +578,78 @@ async def create_monthly_summary(request: SummaryCreateRequest) -> List[dict]:
             logger.info(f"No daily summaries found for {request.date}, skipping.")
             return []
         else:
-            logger.error(f"HTTP error from chromadb: {e.response.status_code} - {e.response.text}")
+            logger.error(f"HTTP error from ledger: {e.response.status_code} - {e.response.text}")
             raise
     except Exception as e:
-        logger.error(f"Failed to contact chromadb to get a list of summaries: {e}")
+        logger.error(f"Failed to contact ledger to get a list of summaries: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve summaries: {e}")
     if not summaries:
         logger.warning("No summaries found for the specified period.")
         return []
-    user_ids = set(s["metadata"]["user_id"] for s in summaries)
-    results = []
-    for user_id in user_ids:
-        user_summaries = [s for s in summaries if s["metadata"]["user_id"] == user_id]
-        user_alias = await get_user_alias(user_id)
-        # Build prompt for monthly summary (mirroring daily)
-        def format_timestamp(ts: str) -> str:
-            dt = datetime.fromisoformat(ts.replace("Z", ""))
-            return dt.strftime("%A, %B %d")
-        prompt = f"""
+    # Build prompt for monthly summary
+    def format_timestamp(ts: str) -> str:
+        dt = datetime.fromisoformat(ts.replace("Z", ""))
+        return dt.strftime("%A, %B %d")
+    prompt = f"""
 ### Task: Using the provided summaries, generate a single summary that reflects how events unfolded over the month.
 
 ### Summaries
 """
-        for summary in user_summaries:
-            date_str = format_timestamp(summary["metadata"]["timestamp_begin"])
-            prompt += f"[{summary['metadata']['summary_type'].upper()} – {date_str}] {summary['content']}\n"
-        prompt += f"""
+    for summary in summaries:
+        date_str = format_timestamp(summary["metadata"]["timestamp_begin"])
+        prompt += f"[{summary['metadata']['summary_type'].upper()} – {date_str}] {summary['content']}\n"
+    prompt += f"""
 
 ### Instructions
 - Organize the summary chronologically. Use time indicators like "Early in the month…", "Mid-month…", "By the end of the month…", etc.
-- Emphasize key actions, decisions, emotional shifts, and recurring themes.
+- Emphasize key actions and decisions.
 - Maintain a coherent narrative flow.
-- Your response cannot exceed {monthly_max_tokens} tokens.
+- Use dense paragraphs. Do not use formatting.
+- Your response must not exceed {monthly_max_tokens} tokens.
 """
-        from shared.models.openai import OpenAICompletionRequest
-        summary_req = OpenAICompletionRequest(
-            model="gpt-4.1",
-            prompt=prompt,
-            max_tokens=monthly_max_tokens,
-            temperature=0.7,
-            n=1,
-            provider="openai"
+    from shared.models.openai import OpenAICompletionRequest
+    summary_req = OpenAICompletionRequest(
+        model="gpt-4.1",
+        prompt=prompt,
+        max_tokens=monthly_max_tokens*2,
+        temperature=0.7,
+        n=1,
+        provider="openai"
+    )
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.post(
+                f"http://api:{api_port}/v1/completions",
+                json=summary_req.model_dump()
+            )
+            response.raise_for_status()
+        summary_data = response.json()
+        summary_text = summary_data['choices'][0]['content']
+    except Exception as e:
+        logger.error(f"Failed to summarize monthly for date {request.date}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to summarize monthly: {e}"
         )
-        try:
-            async with httpx.AsyncClient(timeout=timeout) as client:
-                response = await client.post(
-                    f"http://api:{os.getenv('API_PORT', 4200)}/v1/completions",
-                    json=summary_req.model_dump()
-                )
-                response.raise_for_status()
-            summary_data = response.json()
-            summary_text = summary_data['choices'][0]['content']
-        except Exception as e:
-            logger.error(f"Failed to summarize monthly for user {user_id}, date {request.date}: {e}")
-            continue
-        metadata = SummaryMetadata(
-            user_id=user_id,
-            summary_type="monthly",
-            timestamp_begin=user_summaries[0]["metadata"]["timestamp_begin"],
-            timestamp_end=user_summaries[-1]["metadata"]["timestamp_end"]
+    metadata = SummaryMetadata(
+        summary_type="monthly",
+        timestamp_begin=summaries[0]["metadata"]["timestamp_begin"],
+        timestamp_end=summaries[-1]["metadata"]["timestamp_end"]
+    )
+    summary_obj = Summary(content=summary_text, metadata=metadata)
+    results = []
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.post(f"http://ledger:{ledger_port}/summary", json=summary_obj.model_dump())
+            response.raise_for_status()
+        results.append(response.json())
+    except Exception as e:
+        logger.error(f"Failed to write monthly summary to ledger: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to write monthly summary: {e}"
         )
-        summary_obj = Summary(content=summary_text, metadata=metadata)
-        try:
-            async with httpx.AsyncClient(timeout=timeout) as client:
-                response = await client.post(f"http://chromadb:{chromadb_port}/summary", json=summary_obj.model_dump())
-                response.raise_for_status()
-            results.append(response.json())
-        except Exception as e:
-            logger.error(f"Failed to write monthly summary to chromadb for user {user_id}: {e}")
-            continue
     return results
 

@@ -12,7 +12,7 @@ service communication errors to be handled by FastAPI endpoints.
 """
 
 from shared.models.contacts import Contact
-from shared.models.summary import Summary
+from shared.models.ledger import Summary
 
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
@@ -189,28 +189,28 @@ async def post_to_service(service_name, endpoint, payload, error_prefix, timeout
             )
 
 
-async def get_recent_summaries(user_id: str, limit: int = 4) -> str:
+async def get_recent_summaries(limit: int = 4) -> str:
     """
-    Retrieve and format the most recent summaries for a user from chromadb.
+    Retrieve and format the most recent summaries from the ledger service.
     Returns a string suitable for prompt injection.
     Raises HTTPException if no summaries are found or on error.
     """
 
     try:
-        chromadb_port = os.getenv("CHROMADB_PORT", 4206)
+        ledger_port = os.getenv("LEDGER_PORT", 4203)
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-            response = await client.get(f"http://chromadb:{chromadb_port}/summary?user_id={user_id}&limit={limit}")
+            response = await client.get(f"http://ledger:{ledger_port}/summary?limit={limit}")
             response.raise_for_status()
             summaries_list = response.json()
     except httpx.HTTPStatusError as e:
         if e.response.status_code == status.HTTP_404_NOT_FOUND:
-            logger.info(f"No summaries found for {user_id}, skipping.")
+            logger.info("No summaries found, skipping.")
             summaries_list = []
         else:
-            logger.error(f"HTTP error from chromadb: {e.response.status_code} - {e.response.text}")
+            logger.error(f"HTTP error from ledger: {e.response.status_code} - {e.response.text}")
             raise
     except Exception as e:
-        logger.error(f"Failed to contact chromadb to get a list of summaries: {e}")
+        logger.error(f"Failed to contact ledger to get a list of summaries: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve summaries: {e}")
@@ -225,11 +225,11 @@ async def get_recent_summaries(user_id: str, limit: int = 4) -> str:
         summary = Summary.model_validate(s) if not isinstance(s, Summary) else s
         meta = summary.metadata
         if meta is not None:
-            if meta.summary_type.value == "daily":
+            if hasattr(meta, "summary_type") and getattr(meta.summary_type, "value", meta.summary_type) == "daily":
                 date_str = meta.timestamp_begin.split(" ")[0]
                 label = date_str
             else:
-                label = meta.summary_type.value
+                label = getattr(meta.summary_type, "value", meta.summary_type)
         else:
             label = "summary"
         summary_lines.append(f"[{label}] {summary.content}")

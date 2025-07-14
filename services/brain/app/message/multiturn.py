@@ -21,8 +21,7 @@ Logging:
  
 from shared.models.proxy import MultiTurnRequest, ProxyResponse
 from shared.models.memory import MemoryListQuery
-
-from app.util import get_admin_user_id, post_to_service, get_user_alias, sanitize_messages
+from app.util import get_admin_user_id, post_to_service, get_user_alias, sanitize_messages, get_recent_summaries
 
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
@@ -100,8 +99,7 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
     agent_prompt = get_agent_managed_prompt(message.user_id)
     
     # get a list of the last 4 summaries - this returns a formatted string
-    from app.util import get_recent_summaries
-    summaries = await get_recent_summaries(message.user_id, limit=1)
+    summaries = await get_recent_summaries(limit=1)
     if not summaries:
         logger.warning("No summaries found for the specified period.")
         raise HTTPException(

@@ -21,6 +21,9 @@ Classes:
 
 from pydantic import BaseModel, Field
 from typing import Optional, List
+from enum import Enum
+from datetime import datetime
+from uuid import uuid4
 
 
 class RawUserMessage(BaseModel):
@@ -212,5 +215,148 @@ class DeleteSummary(BaseModel):
             "example": {
                 "deleted": 5
             }
+        }
+    }
+
+# --- Summary Models (moved from shared/models/summary.py) ---
+class SummaryType(str, Enum):
+    MORNING = "morning"
+    AFTERNOON = "afternoon"
+    EVENING = "evening"
+    NIGHT = "night"
+    DAILY = "daily"
+    WEEKLY = "weekly"
+    MONTHLY = "monthly"
+    PERIODIC = "periodic"
+
+class SummaryMetadata(BaseModel):
+    timestamp_begin: str                = Field(..., description="Start timestamp of the summary")
+    timestamp_end: str                  = Field(..., description="End timestamp of the summary")
+    summary_type: SummaryType           = Field(..., description="Type of the summary (e.g., daily, weekly)")
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "timestamp_begin": "2023-10-01T00:00:00Z",
+                    "timestamp_end": "2023-10-31T23:59:59Z",
+                    "summary_type": SummaryType.MONTHLY
+                },
+                {
+                    "timestamp_begin": "2023-10-01 08:00:00Z",
+                    "timestamp_end": "2023-10-01 12:00:00Z",
+                    "summary_type": SummaryType.MORNING
+                }
+            ]
+        }
+    }
+
+class Summary(BaseModel):
+    id: str                             = Field(default_factory=lambda: str(uuid4()), description="Unique identifier for the summary")
+    content: str                        = Field(..., description="Content of the summary")
+    metadata: Optional[SummaryMetadata] = Field(None, description="Metadata associated with the summary")
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "id": "123e4567-e89b-12d3-a456-426614174000",
+                    "content": "This is a summary of the events that occurred in October 2023.",
+                    "metadata": {
+                        "timestamp_begin": "2023-10-01 00:00:00Z",
+                        "timestamp_end": "2023-10-31 23:59:59Z",
+                        "summary_type": SummaryType.MONTHLY
+                    }
+                },
+                {
+                    "id": "123e4567-e89b-12d3-a456-426614174001",
+                    "content": "This is a summary of the morning events on October 1, 2023.",
+                    "metadata": {
+                        "timestamp_begin": "2023-10-01 08:00:00Z",
+                        "timestamp_end": "2023-10-01 12:00:00Z",
+                        "summary_type": SummaryType.MORNING
+                    }
+                }
+            ]
+        }
+    }
+
+class SummaryCreateRequest(BaseModel):
+    period: List[str]               = Field(..., description="Time period for the summary (e.g., 'daily', 'weekly', 'monthly')")
+    date: str                       = Field(default_factory=lambda: datetime.now().strftime("%Y-%m-%d"), description="Starting date in YYYY-MM-DD format.")
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "period": ["daily"],
+                    "date": "2023-10-01"
+                },
+                {
+                    "period": ["weekly"],
+                    "date": "2023-10-01"
+                }
+            ]
+        }
+    }
+
+class CombinedSummaryRequest(BaseModel):
+    summaries: List[Summary] = Field(..., description="List of summaries to be combined")
+    max_tokens: int = Field(..., description="Maximum number of tokens for the combined summary")
+    user_alias: Optional[str] = Field(None, description="User alias for the summary")
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "summaries": [
+                        {
+                            "id": "123e4567-e89b-12d3-a456-426614174000",
+                            "content": "This is a summary of the events that occurred in October 2023.",
+                            "metadata": {
+                                "timestamp_begin": "2023-10-01 00:00:00Z",
+                                "timestamp_end": "2023-10-31 23:59:59Z",
+                                "summary_type": SummaryType.MONTHLY
+                            }
+                        },
+                        {
+                            "id": "123e4567-e89b-12d3-a456-426614174001",
+                            "content": "This is a summary of the morning events on October 1, 2023.",
+                            "metadata": {
+                                "timestamp_begin": "2023-10-01 08:00:00Z",
+                                "timestamp_end": "2023-10-01 12:00:00Z",
+                                "summary_type": SummaryType.MORNING
+                            }
+                        }
+                    ],
+                    "max_tokens": 100,
+                    "user_alias": "User123"
+                }
+            ]
+        }
+    }
+
+class SummaryRequest(BaseModel):
+    messages: List[CanonicalUserMessage]        = Field(..., description="List of user messages to summarize")
+    user_alias: Optional[str]                   = Field(None, description="Alias for the user in the conversation")
+    max_tokens: int                             = Field(..., description="Maximum number of tokens for the summary")
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "messages": [
+                        {
+                            "id": "123e4567-e89b-12d3-a456-426614174000",
+                            "content": "This is a user message.",
+                            "created_at": "2023-10-01 00:00:00Z",
+                            "user_id": "123e4567-e89b-12d3-a456-426614174000"
+                        },
+                        {
+                            "id": "123e4567-e89b-12d3-a456-426614174001",
+                            "content": "This is another user message.",
+                            "created_at": "2023-10-01 01:00:00Z",
+                            "user_id": "123e4567-e89b-12d3-a456-426614174001"
+                        }
+                    ],
+                    "user_alias": "User123",
+                    "max_tokens": 100
+                }
+            ]
         }
     }

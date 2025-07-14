@@ -15,55 +15,17 @@ Utility Functions:
 """
 
 from shared.models.ledger import CanonicalUserMessage
-
 from shared.log_config import get_logger
 logger = get_logger(f"ledger{__name__}")
 
 import sqlite3
 from typing import List, Optional
-from datetime import datetime, time, timedelta
+from datetime import datetime, timedelta
 from fastapi import APIRouter, Path, Query
 import json
+from app.util import get_period_range
 
 router = APIRouter()
-
-def get_period_range(period: str, date_str: Optional[str] = None):
-    """
-    Convert a period string and optional date into a start and end datetime range.
-    
-    Args:
-        period (str): The time period to generate a range for. 
-            Valid periods are: 'night', 'morning', 'afternoon', 'evening', 'day'.
-        date_str (Optional[str], optional): Date in YYYY-MM-DD format. 
-            Defaults to the current date if not provided.
-    
-    Returns:
-        Tuple[datetime, datetime]: A tuple containing the start and end datetime for the specified period.
-    
-    Raises:
-        ValueError: If an invalid period is provided.
-    """
-    if date_str is None:
-        date_str = datetime.now().strftime("%Y-%m-%d")
-    date = datetime.strptime(date_str, "%Y-%m-%d").date()
-    if period == "night":
-        start = datetime.combine(date, time(0, 0))
-        end = datetime.combine(date, time(5, 59, 59, 999999))
-    elif period == "morning":
-        start = datetime.combine(date, time(6, 0))
-        end = datetime.combine(date, time(11, 59, 59, 999999))
-    elif period == "afternoon":
-        start = datetime.combine(date, time(12, 0))
-        end = datetime.combine(date, time(17, 59, 59, 999999))
-    elif period == "evening":
-        start = datetime.combine(date, time(18, 0))
-        end = datetime.combine(date, time(23, 59, 59, 999999))
-    elif period == "day":
-        start = datetime.combine(date, time(0, 0))
-        end = datetime.combine(date, time(23, 59, 59, 999999))
-    else:
-        raise ValueError("Invalid period")
-    return start, end
 
 
 @router.get("/user/{user_id}/messages", response_model=List[CanonicalUserMessage])

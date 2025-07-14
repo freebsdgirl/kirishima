@@ -32,10 +32,6 @@ from app.memory.patch import router as memory_patch_router
 from app.memory.post import router as memory_post_router
 from app.memory.put import router as memory_put_router
 
-from app.summary.delete import router as summary_delete_router
-from app.summary.get import router as summary_get_router
-from app.summary.post import router as summary_post_router
-
 from shared.docs_exporter import router as docs_router
 from shared.routes import router as routes_router, register_list_routes
 
@@ -58,10 +54,6 @@ app.include_router(memory_get_semantic_search_router, tags=["memory"])
 app.include_router(memory_patch_router, tags=["memory"])
 app.include_router(memory_post_router, tags=["memory"])
 app.include_router(memory_put_router, tags=["memory"])
-
-app.include_router(summary_delete_router, tags=["summary"])
-app.include_router(summary_get_router, tags=["summary"])
-app.include_router(summary_post_router, tags=["summary"])
 
 register_list_routes(app)
 

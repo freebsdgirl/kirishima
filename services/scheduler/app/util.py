@@ -23,7 +23,6 @@ from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.executors.pool import ThreadPoolExecutor
 
 from typing import Dict, Any
-from datetime import datetime
 import requests
 import json
 
@@ -73,13 +72,9 @@ def execute_job(external_url: str, metadata: Dict[str, Any]):
         metadata (Dict[str, Any]): Additional context or information associated with the job.
     """
     logger.debug(f"Executing job with metadata: {metadata}")
-    payload = {
-        "metadata": metadata,
-        "executed_at": datetime.now().isoformat()
-    }
 
     try:
-        response = requests.post(external_url, json=payload)
+        response = requests.post(external_url, json=metadata)
         response.raise_for_status()
         logger.info(f"Job executed successfully, response: {response.text}")
 

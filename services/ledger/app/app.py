@@ -15,6 +15,11 @@ Modules imported:
 Environment:
     - Expects configuration at '/app/config/config.json'
 """
+
+from app.summary.delete import router as summary_delete_router
+from app.summary.get import router as summary_get_router
+from app.summary.post import router as summary_post_router
+
 from app.user.delete import router as user_delete_router
 from app.user.get import router as user_get_router
 from app.user.sync import router as user_sync_router
@@ -35,6 +40,9 @@ app.add_middleware(CacheRequestBodyMiddleware)
 
 app.include_router(routes_router, tags=["system"])
 app.include_router(docs_router, tags=["docs"])
+app.include_router(summary_delete_router, tags=["summary"])
+app.include_router(summary_get_router, tags=["summary"])
+app.include_router(summary_post_router, tags=["summary"])
 app.include_router(user_delete_router, tags=["user"])
 app.include_router(user_get_router, tags=["user"])
 app.include_router(user_sync_router, tags=["user"])

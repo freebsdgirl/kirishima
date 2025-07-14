@@ -11,7 +11,7 @@ All services are discovered via Consul and accessed using HTTP requests. Errors 
 from shared.models.contacts import Contact
 from shared.models.imessage import OutgoingiMessage
 from shared.models.discord import SendDMRequest
-from shared.models.summary import Summary
+from shared.models.ledger import Summary
 
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")

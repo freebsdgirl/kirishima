@@ -10,7 +10,6 @@ services:
       - TZ=America/Los_Angeles
       - API_PORT=${API_PORT}
       - BRAIN_PORT=${BRAIN_PORT}
-      - CHROMADB_PORT=${CHROMADB_PORT}
       - CONTACTS_PORT=${CONTACTS_PORT}
       - COURIER_PORT=${COURIER_PORT}
       - DISCORD_PORT=${DISCORD_PORT}
@@ -54,7 +53,6 @@ services:
       - TZ=America/Los_Angeles
       - API_PORT=${API_PORT}
       - BRAIN_PORT=${BRAIN_PORT}
-      - CHROMADB_PORT=${CHROMADB_PORT}
       - CONTACTS_PORT=${CONTACTS_PORT}
       - COURIER_PORT=${COURIER_PORT}
       - DISCORD_PORT=${DISCORD_PORT}
@@ -67,7 +65,6 @@ services:
       - TTS_PORT=${TTS_PORT}
     depends_on:
       - graylog
-      - chromadb
     ports:
       - "${BRAIN_PORT}:${BRAIN_PORT}"
     volumes:
@@ -89,48 +86,6 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
-  chromadb:
-    build:
-      context: ./services/chromadb
-      args:
-        SERVICE_PORT: ${CHROMADB_PORT}
-    environment:
-      - SERVICE_PORT=${CHROMADB_PORT}
-      - SERVICE_NAME=chromadb
-      - TZ=America/Los_Angeles
-      - API_PORT=${API_PORT}
-      - BRAIN_PORT=${BRAIN_PORT}
-      - CHROMADB_PORT=${CHROMADB_PORT}
-      - CONTACTS_PORT=${CONTACTS_PORT}
-      - COURIER_PORT=${COURIER_PORT}
-      - DISCORD_PORT=${DISCORD_PORT}
-      - IMESSAGE_PORT=${IMESSAGE_PORT}
-      - LEDGER_PORT=${LEDGER_PORT}
-      - PROXY_PORT=${PROXY_PORT}
-      - SCHEDULER_PORT=${SCHEDULER_PORT}
-      - SMARTHOME_PORT=${SMARTHOME_PORT}
-      - STICKYNOTES_PORT=${STICKYNOTES_PORT}
-      - TTS_PORT=${TTS_PORT}
-    depends_on:
-      - graylog
-    ports:
-      - "${CHROMADB_PORT}:${CHROMADB_PORT}"
-    volumes:
-      - ./services/chromadb/app:/app/app
-      - ./shared:/app/shared
-      - ~/.kirishima:/app/config
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:${CHROMADB_PORT}/ping"]
-      interval: 60s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-    logging:
-      driver: gelf
-      options:
-        gelf-address: "tcp://localhost:12201"
-    networks:
-      - shared-net
 
   contacts:
     build:
@@ -143,7 +98,6 @@ services:
       - TZ=America/Los_Angeles
       - API_PORT=${API_PORT}
       - BRAIN_PORT=${BRAIN_PORT}
-      - CHROMADB_PORT=${CHROMADB_PORT}
       - CONTACTS_PORT=${CONTACTS_PORT}
       - COURIER_PORT=${COURIER_PORT}
       - DISCORD_PORT=${DISCORD_PORT}
@@ -187,7 +141,6 @@ services:
       - DISCORD_TOKEN=${DISCORD_TOKEN}
       - API_PORT=${API_PORT}
       - BRAIN_PORT=${BRAIN_PORT}
-      - CHROMADB_PORT=${CHROMADB_PORT}
       - CONTACTS_PORT=${CONTACTS_PORT}
       - COURIER_PORT=${COURIER_PORT}
       - DISCORD_PORT=${DISCORD_PORT}
@@ -234,7 +187,6 @@ services:
       - TZ=America/Los_Angeles
       - API_PORT=${API_PORT}
       - BRAIN_PORT=${BRAIN_PORT}
-      - CHROMADB_PORT=${CHROMADB_PORT}
       - CONTACTS_PORT=${CONTACTS_PORT}
       - COURIER_PORT=${COURIER_PORT}
       - DISCORD_PORT=${DISCORD_PORT}
@@ -278,7 +230,6 @@ services:
       - TZ=America/Los_Angeles
       - API_PORT=${API_PORT}
       - BRAIN_PORT=${BRAIN_PORT}
-      - CHROMADB_PORT=${CHROMADB_PORT}
       - CONTACTS_PORT=${CONTACTS_PORT}
       - COURIER_PORT=${COURIER_PORT}
       - DISCORD_PORT=${DISCORD_PORT}
@@ -324,7 +275,6 @@ services:
       - TZ=America/Los_Angeles
       - API_PORT=${API_PORT}
       - BRAIN_PORT=${BRAIN_PORT}
-      - CHROMADB_PORT=${CHROMADB_PORT}
       - CONTACTS_PORT=${CONTACTS_PORT}
       - COURIER_PORT=${COURIER_PORT}
       - DISCORD_PORT=${DISCORD_PORT}
@@ -369,7 +319,6 @@ services:
       - TZ=America/Los_Angeles
       - API_PORT=${API_PORT}
       - BRAIN_PORT=${BRAIN_PORT}
-      - CHROMADB_PORT=${CHROMADB_PORT}
       - CONTACTS_PORT=${CONTACTS_PORT}
       - COURIER_PORT=${COURIER_PORT}
       - DISCORD_PORT=${DISCORD_PORT}
@@ -413,7 +362,6 @@ services:
       - TZ=America/Los_Angeles
       - API_PORT=${API_PORT}
       - BRAIN_PORT=${BRAIN_PORT}
-      - CHROMADB_PORT=${CHROMADB_PORT}
       - CONTACTS_PORT=${CONTACTS_PORT}
       - COURIER_PORT=${COURIER_PORT}
       - DISCORD_PORT=${DISCORD_PORT}
@@ -456,7 +404,6 @@ services:
       - TZ=America/Los_Angeles
       - API_PORT=${API_PORT}
       - BRAIN_PORT=${BRAIN_PORT}
-      - CHROMADB_PORT=${CHROMADB_PORT}
       - CONTACTS_PORT=${CONTACTS_PORT}
       - COURIER_PORT=${COURIER_PORT}
       - DISCORD_PORT=${DISCORD_PORT}

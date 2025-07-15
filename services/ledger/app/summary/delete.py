@@ -18,7 +18,6 @@ logger = get_logger(f"ledger{__name__}")
 
 from typing import Optional
 from fastapi import APIRouter, Query
-from datetime import datetime, time
 from app.util import _open_conn
 
 router = APIRouter()

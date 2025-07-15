@@ -21,7 +21,7 @@ Process:
 from shared.models.ledger import SummaryCreateRequest, SummaryMetadata, Summary
 
 from shared.log_config import get_logger
-logger = get_logger(f"brain.{__name__}")
+logger = get_logger(f"ledger.{__name__}")
 
 from datetime import datetime, timedelta
 from fastapi import HTTPException, status

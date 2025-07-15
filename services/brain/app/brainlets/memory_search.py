@@ -74,7 +74,8 @@ async def memory_search(brainlets_output: Dict[str, Any], message: MultiTurnRequ
     prompt = (
         "Using the conversation only as context, determine the keywords for the user's most recent messages.\n"
         "The keywords should help in retrieving relevant memories.\n"
-        "Keywords should be comma-separated.\n\n"
+        "Keywords should be comma-separated.\n"
+        "At least 2 keywords must be provided.\n\n"
         "{chatlog}\n\nKeywords:"
     ).format(chatlog=chatlog)
 

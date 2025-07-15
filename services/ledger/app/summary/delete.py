@@ -26,15 +26,15 @@ router = APIRouter()
 TABLE = "summaries"
 
 
-@router.delete("/summary", response_model=DeleteSummary)
-def delete_summary(
-    id: Optional[str] = Query(None, description="ID of the summary to delete."),
-    period: Optional[str] = Query(None, description="Time period (e.g., 'morning', 'afternoon', 'daily', etc.)"),
-    date: Optional[str] = Query(None, description="Date in YYYY-MM-DD format."),
-) -> DeleteSummary:
+def _delete_summary(
+    id: Optional[str] = None,
+    period: Optional[str] = None,
+    date: Optional[str] = None,
+) -> int:
     """
-    Delete summary filtered by ID or period and date.
+    Internal helper to delete summary records by ID or by period and date. Returns number deleted.
     """
+    from datetime import datetime, time
     conn = _open_conn()
     deleted_count = 0
     try:
@@ -62,5 +62,18 @@ def delete_summary(
         conn.commit()
     finally:
         conn.close()
+    return deleted_count
+
+
+@router.delete("/summary", response_model=DeleteSummary)
+def delete_summary(
+    id: Optional[str] = Query(None, description="ID of the summary to delete."),
+    period: Optional[str] = Query(None, description="Time period (e.g., 'morning', 'afternoon', 'daily', etc.)"),
+    date: Optional[str] = Query(None, description="Date in YYYY-MM-DD format."),
+) -> DeleteSummary:
+    """
+    Delete summary filtered by ID or period and date.
+    """
+    deleted_count = _delete_summary(id=id, period=period, date=date)
     return DeleteSummary(deleted=deleted_count)
 

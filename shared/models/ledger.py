@@ -1,22 +1,18 @@
 """
-This module defines a set of Pydantic models for representing and processing user messages and conversation messages 
-in both raw and canonical forms, as well as a summary model for delete operations.
-Classes:
-    RawUserMessage:
-        Represents a raw user message exchanged between a user and the system. Includes attributes such as user ID, 
-        platform, role, and message content.
-    CanonicalUserMessage:
-        Represents a canonical user message exchanged between a user and an assistant. Includes additional attributes 
-        such as unique message ID, creation timestamp, and update timestamp.
-    RawConversationMessage:
-        Represents a raw message within a conversation, typically used for storing or processing messages from various 
-        platforms. Includes attributes such as conversation ID, platform, role, and message content.
-    CanonicalConversationMessage:
-        Represents a canonical message within a conversation, typically used for storing and retrieving messages from 
-        various platforms. Includes additional attributes such as unique message ID, creation timestamp, and update 
-        timestamp.
-    DeleteSummary:
-        Represents a summary of a delete operation, tracking the number of rows deleted during the operation.
+This module defines Pydantic models for representing and managing user messages, conversation messages, deletion summaries, and summary-related data structures within a multi-platform messaging or assistant system.
+Models included:
+- RawUserMessage: Represents a raw user message exchanged between a user and the system, including platform and tool/function call metadata.
+- CanonicalUserMessage: Represents a canonical (normalized) user message with timestamps and optional tool/function call data.
+- RawConversationMessage: Represents a raw message within a conversation, typically for storage or processing from various platforms.
+- CanonicalConversationMessage: Represents a canonical conversation message with unique ID and timestamps.
+- DeleteSummary: Tracks the number of rows deleted in a delete operation.
+- SummaryType: Enum for different summary periods (e.g., morning, daily, monthly).
+- SummaryMetadata: Metadata for a summary, including time range and summary type.
+- Summary: Represents a summary entry with content and optional metadata.
+- SummaryCreateRequest: Request model for creating a summary for a specific period and date.
+- CombinedSummaryRequest: Request model for combining multiple summaries into one, with token and user alias options.
+- SummaryRequest: Request model for summarizing a list of user messages, with token and user alias options.
+Each model includes field descriptions and example data for schema generation and documentation.
 """
 
 from pydantic import BaseModel, Field
@@ -230,6 +226,14 @@ class SummaryType(str, Enum):
     PERIODIC = "periodic"
 
 class SummaryMetadata(BaseModel):
+    """
+    SummaryMetadata represents metadata information for a summary period.
+
+    Attributes:
+        timestamp_begin (str): Start timestamp of the summary.
+        timestamp_end (str): End timestamp of the summary.
+        summary_type (SummaryType): Type of the summary (e.g., daily, weekly).
+    """
     timestamp_begin: str                = Field(..., description="Start timestamp of the summary")
     timestamp_end: str                  = Field(..., description="End timestamp of the summary")
     summary_type: SummaryType           = Field(..., description="Type of the summary (e.g., daily, weekly)")
@@ -251,6 +255,14 @@ class SummaryMetadata(BaseModel):
     }
 
 class Summary(BaseModel):
+    """
+    Represents a summary entry with associated metadata.
+
+    Attributes:
+        id (str): Unique identifier for the summary. Automatically generated if not provided.
+        content (str): Content of the summary.
+        metadata (Optional[SummaryMetadata]): Metadata associated with the summary, such as time range and summary type.
+    """
     id: str                             = Field(default_factory=lambda: str(uuid4()), description="Unique identifier for the summary")
     content: str                        = Field(..., description="Content of the summary")
     metadata: Optional[SummaryMetadata] = Field(None, description="Metadata associated with the summary")
@@ -280,6 +292,14 @@ class Summary(BaseModel):
     }
 
 class SummaryCreateRequest(BaseModel):
+    """
+    Represents a request to create a summary for a specific time period.
+    
+    Attributes:
+        period (List[str]): Time periods for the summary, such as 'daily', 'weekly', or 'monthly'.
+        date (str): Starting date for the summary in YYYY-MM-DD format. 
+                    Defaults to the current date if not specified.
+    """
     period: List[str]               = Field(..., description="Time period for the summary (e.g., 'daily', 'weekly', 'monthly')")
     date: str                       = Field(default_factory=lambda: datetime.now().strftime("%Y-%m-%d"), description="Starting date in YYYY-MM-DD format.")
     model_config = {
@@ -298,6 +318,14 @@ class SummaryCreateRequest(BaseModel):
     }
 
 class CombinedSummaryRequest(BaseModel):
+    """
+    Request model for combining multiple summaries into a single summary.
+
+    Attributes:
+        summaries (List[Summary]): List of summary objects to be combined.
+        max_tokens (int): Maximum number of tokens allowed for the combined summary.
+        user_alias (Optional[str]): Optional alias representing the user requesting the combination.
+    """
     summaries: List[Summary] = Field(..., description="List of summaries to be combined")
     max_tokens: int = Field(..., description="Maximum number of tokens for the combined summary")
     user_alias: Optional[str] = Field(None, description="User alias for the summary")
@@ -333,6 +361,17 @@ class CombinedSummaryRequest(BaseModel):
     }
 
 class SummaryRequest(BaseModel):
+    """
+    SummaryRequest is a Pydantic model representing a request to summarize a list of user messages.
+
+    Attributes:
+        messages (List[CanonicalUserMessage]): 
+            List of user messages to be summarized.
+        user_alias (Optional[str]): 
+            Optional alias for the user in the conversation.
+        max_tokens (int): 
+            Maximum number of tokens allowed for the generated summary.
+    """
     messages: List[CanonicalUserMessage]        = Field(..., description="List of user messages to summarize")
     user_alias: Optional[str]                   = Field(None, description="Alias for the user in the conversation")
     max_tokens: int                             = Field(..., description="Maximum number of tokens for the summary")

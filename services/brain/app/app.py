@@ -30,8 +30,6 @@ from app.modes import router as modes_router
 from app.message.multiturn import router as message_multiturn_router
 from app.message.singleturn import router as message_singleturn_router
 
-from app.summary.create import router as summary_create_router
-
 from app.embedding import router as embedding_router
 
 from app.notification.callback import router as notification_callback_router
@@ -92,8 +90,6 @@ app.include_router(embedding_router, tags=["embedding"])
 app.include_router(notification_callback_router, tags=["notification"])
 app.include_router(notification_get_router, tags=["notification"])
 app.include_router(notification_post_router, tags=["notification"])
-
-app.include_router(summary_create_router, tags=["summary"])
 
 register_list_routes(app)
 

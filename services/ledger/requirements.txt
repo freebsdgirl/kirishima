@@ -9,3 +9,4 @@ opentelemetry-instrumentation-fastapi
 pygelf
 tiktoken
 httpx
+transformers

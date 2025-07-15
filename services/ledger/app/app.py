@@ -16,6 +16,7 @@ Environment:
     - Expects configuration at '/app/config/config.json'
 """
 
+from app.summary.create.summary import router as summary_create_router
 from app.summary.delete import router as summary_delete_router
 from app.summary.get import router as summary_get_router
 from app.summary.post import router as summary_post_router
@@ -40,6 +41,7 @@ app.add_middleware(CacheRequestBodyMiddleware)
 
 app.include_router(routes_router, tags=["system"])
 app.include_router(docs_router, tags=["docs"])
+app.include_router(summary_create_router, tags=["summary"])
 app.include_router(summary_delete_router, tags=["summary"])
 app.include_router(summary_get_router, tags=["summary"])
 app.include_router(summary_post_router, tags=["summary"])

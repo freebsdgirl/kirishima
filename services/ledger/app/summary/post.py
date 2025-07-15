@@ -13,12 +13,9 @@ router = APIRouter()
 TABLE = "summaries"
 
 
-@router.post("/summary", response_model=Summary)
-def create_summary(
-    summary: Summary = Body(..., description="Summary object to insert")
-) -> Summary:
+def _insert_summary(summary: Summary) -> Summary:
     """
-    Create a new summary record in the SQLite ledger database.
+    Internal helper to insert (or upsert) a summary record in the SQLite ledger database.
     """
     conn = _open_conn()
     try:
@@ -49,11 +46,22 @@ def create_summary(
         )
         conn.commit()
         return summary
+    finally:
+        conn.close()
+
+
+@router.post("/summary", response_model=Summary)
+def create_summary(
+    summary: Summary = Body(..., description="Summary object to insert")
+) -> Summary:
+    """
+    Create a new summary record in the SQLite ledger database.
+    """
+    try:
+        return _insert_summary(summary)
     except Exception as e:
         logger.error(f"Error creating summary: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create summary: {e}"
         )
-    finally:
-        conn.close()

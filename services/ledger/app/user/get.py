@@ -28,29 +28,15 @@ from app.util import get_period_range
 router = APIRouter()
 
 
-@router.get("/user/{user_id}/messages", response_model=List[CanonicalUserMessage])
-def get_user_messages(
-    user_id: str = Path(...),
-    period: Optional[str] = Query(None, description="Time period to filter messages (e.g., 'morning', 'afternoon', etc.)"),
-    date: Optional[str] = Query(None, description="Date in YYYY-MM-DD format. Defaults to today unless time is 00:00, then yesterday."),
-    start: Optional[str] = Query(None, description="Start timestamp (ISO 8601, e.g. '2025-06-29T00:00:00'). If provided, overrides period/date filtering."),
-    end: Optional[str] = Query(None, description="End timestamp (ISO 8601, e.g. '2025-06-29T23:59:59'). If provided, overrides period/date filtering.")
+def _get_user_messages(
+    user_id: str,
+    period: Optional[str] = None,
+    date: Optional[str] = None,
+    start: Optional[str] = None,
+    end: Optional[str] = None,
 ) -> List[CanonicalUserMessage]:
     """
-    Retrieve messages for a specific user, optionally filtered by time period, date, or explicit start/end timestamps.
-
-    Args:
-        user_id (str): The unique identifier of the user.
-        period (Optional[str], optional): Time period to filter messages (e.g., 'morning', 'afternoon'). Defaults to None.
-        date (Optional[str], optional): Date in YYYY-MM-DD format to filter messages. Defaults to today or yesterday.
-        start (Optional[str], optional): Start timestamp (ISO 8601). If provided, overrides period/date filtering.
-        end (Optional[str], optional): End timestamp (ISO 8601). If provided, overrides period/date filtering.
-
-    Returns:
-        List[CanonicalUserMessage]: A list of messages for the specified user, filtered as requested.
-
-    Raises:
-        ValueError: If an invalid period is specified.
+    Internal helper to retrieve messages for a specific user, optionally filtered by time period, date, or explicit start/end timestamps.
     """
     logger.debug(f"Fetching messages for user {user_id} (date={date}, period={period}, start={start}, end={end})")
 
@@ -122,6 +108,26 @@ def get_user_messages(
                 if start_dt <= parse_created_at(msg.created_at) <= end_dt
             ]
         return messages
+
+
+@router.get("/user/{user_id}/messages", response_model=List[CanonicalUserMessage])
+def get_user_messages(
+    user_id: str = Path(...),
+    period: Optional[str] = Query(None, description="Time period to filter messages (e.g., 'morning', 'afternoon', etc.)"),
+    date: Optional[str] = Query(None, description="Date in YYYY-MM-DD format. Defaults to today unless time is 00:00, then yesterday."),
+    start: Optional[str] = Query(None, description="Start timestamp (ISO 8601, e.g. '2025-06-29T00:00:00'). If provided, overrides period/date filtering."),
+    end: Optional[str] = Query(None, description="End timestamp (ISO 8601, e.g. '2025-06-29T23:59:59'). If provided, overrides period/date filtering."),
+) -> List[CanonicalUserMessage]:
+    """
+    Retrieve messages for a specific user, optionally filtered by time period, date, or explicit start/end timestamps.
+    """
+    return _get_user_messages(
+        user_id=user_id,
+        period=period,
+        date=date,
+        start=start,
+        end=end,
+    )
 
 
 @router.get("/active")

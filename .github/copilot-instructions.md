@@ -1,4 +1,3 @@
-
 # Copilot Instructions for the Kirishima Codebase
 
 ## Overview & Architecture
@@ -10,7 +9,7 @@
 ## Microservices (see `services/` directory)
 - **brain**: Orchestrates chat, memory, tool invocation, notifications, and scheduler jobs. Implements modular "brainlets" for pre/post-processing. All cross-service coordination flows through here.
 - **proxy**: LLM gateway. Handles prompt construction, model/provider resolution, and async queueing for OpenAI/Anthropic/Ollama. Prompts are built using Jinja templates and provider/mode-specific modules in `app/prompts/`. Implements provider-specific queues and workers for parallel processing.
-- **ledger**: Persistent message log and memory store. Handles deduplication, message ordering, and context management. Exposes endpoints for message sync, retrieval, and deletion.
+- **ledger**: Comprehensive persistent data store for messages, memories, topics, and summaries. Implements advanced message synchronization with deduplication, in-place editing, and conflict resolution. Features include: multi-parameter memory search with AND logic filtering, topic-based conversation threading, temporal summary management, and platform-agnostic storage across API/Discord/iMessage with tool call preservation.
 - **contacts**: Manages user/contact info and cross-platform IDs.
 - **scheduler**: Triggers jobs and reminders, often by calling endpoints on `brain`.
 - **api**: OpenAI-compatible REST API front-end, handles prompt routing and model modes.
@@ -34,6 +33,54 @@
 - **Service Boundaries**: Never bypass service APIs (e.g., don't access another service's DB directly). Always use HTTP endpoints for cross-service data.
 - **Error Handling**: All HTTP errors are logged and surfaced as FastAPI `HTTPException` with appropriate status codes and details.
 - **Extensibility**: To add a new integration, create a new service and expose its API. Register it in the main config and orchestrate via `brain`.
+
+## Ledger Service Technical Details
+
+### Database Architecture
+The ledger service uses SQLite with WAL mode and foreign key constraints for data integrity. Core tables include:
+- **`user_messages`**: Platform-agnostic message storage with tool call support and topic associations
+- **`memories`**: Long-term knowledge with access tracking (`access_count`, `last_accessed`, `reviewed` status)
+- **`memory_tags`**: Many-to-many keyword associations for semantic search
+- **`memory_category`**: One-to-one category assignments per memory
+- **`memory_topics`**: Many-to-many memory-to-topic relationships for conversation threading
+- **`topics`**: UUID-based topic storage with names and creation timestamps
+- **`summaries`**: Temporal summary storage with metadata (`timestamp_begin`, `timestamp_end`, `summary_type`)
+
+### Message Synchronization Logic
+The `/user/{user_id}/sync` endpoint implements complex synchronization rules:
+1. **Deduplication**: Identical consecutive user messages are removed
+2. **Assistant Editing**: In-place content updates when assistant responses change
+3. **Consecutive User Handling**: Resolves server error scenarios with message rollback
+4. **Platform Logic**: Different handling for API vs. external platform messages (Discord, iMessage)
+5. **Tool Call Preservation**: Maintains `tool_calls`, `function_call`, and `tool_call_id` data
+6. **Buffer Integrity**: Ensures buffers always start with user messages
+
+### Memory Search System
+Advanced search capabilities with multiple combined filters using AND logic:
+- **Keywords**: Multi-keyword matching with configurable minimum thresholds and progressive fallback
+- **Categories**: Single category filtering for organizational structure
+- **Topic Association**: Search memories linked to specific conversation topics
+- **Time Filtering**: Created before/after timestamp ranges for temporal queries
+- **Memory ID**: Direct lookup bypassing other filters
+- **Search Algorithm**: Intersection-based filtering ensuring all conditions match, with efficient indexing
+
+### Configuration Parameters
+- **`ledger.turns`**: Default message history limit (default: 15)
+- **`db.ledger`**: SQLite database file path
+- **`tracing_enabled`**: Optional distributed tracing support
+
+### Key Utilities
+- **`_open_conn()`**: Standard SQLite connection with WAL mode and foreign keys enabled
+- **`get_period_range()`**: Time period parsing for temporal filtering (night, morning, afternoon, evening, day)
+- **`_find_or_create_topic()`**: Topic deduplication preventing duplicate names
+- **`ensure_first_user()`**: Message buffer validation ensuring user-first ordering
+
+### Data Models
+- **`RawUserMessage`**: Incoming message format with platform metadata
+- **`CanonicalUserMessage`**: Server-side canonical format with IDs and timestamps
+- **`MemoryEntry`**: Unified memory model supporting creation, search, and updates
+- **`MemorySearchParams`**: Multi-parameter search request with combinatorial logic
+- **`Summary`** with **`SummaryMetadata`**: Temporal summary storage with typed periods
 
 ## LLM Mode/Model/Provider System
 The proxy service implements a sophisticated multi-provider LLM system with three key concepts:

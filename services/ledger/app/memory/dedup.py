@@ -14,23 +14,25 @@ Functions:
 from fastapi import APIRouter, HTTPException, status
 
 from shared.log_config import get_logger
-logger = get_logger(f"brain.{__name__}")
+logger = get_logger(f"ledger.{__name__}")
 
 import os
 import httpx
 import json
 
-from app.memories.topic import get_memory_by_topic
-from app.memories.list import memory_get
-from app.memories.delete import memory_delete
-from app.memories.patch import update_memory_db
+from app.topic.get_all_topics import _get_all_topics
+from app.memory.get_by_topic import _get_memory_by_topic
+from app.memory.get import _get_memory
+from app.memory.delete import _memory_delete
+from app.memory.patch import _memory_patch
 
 from shared.models.openai import OpenAICompletionRequest
+from shared.models.ledger import MemoryEntry
 
 router = APIRouter()
 
 
-@router.get("/memories/dedup/by_topic")
+@router.get("/memories/_dedup")
 async def deduplicate_memories_by_topic():
     """
     Asynchronously deduplicates memories grouped by semantically similar topics using an LLM.
@@ -54,45 +56,43 @@ async def deduplicate_memories_by_topic():
 
     result = []
 
-    async with httpx.AsyncClient(timeout=180) as client:
-        try:
-            response = await client.get(f"http://ledger:{ledger_port}/topics")
-            response.raise_for_status()
-            topics = response.json()
-
-            if not topics:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="No topics found in the ledger."
-                )
-        except httpx.HTTPStatusError as e:
-            logger.error(f"Error fetching topics from ledger: {str(e)}")
+    # Use helper function instead of HTTP endpoint
+    try:
+        topics = _get_all_topics()
+        
+        if not topics:
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to fetch topics from the ledger."
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No topics found in the ledger."
             )
+    except Exception as e:
+        logger.error(f"Error fetching topics: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch topics from the ledger."
+        )
 
-        # Create a mapping of topic_id to topic_name
-        topic_map = {topic['id']: topic['name'] for topic in topics}
+    # Create a mapping of topic_id to topic_name
+    topic_map = {topic['id']: topic['name'] for topic in topics}
 
-        # Ask the LLM to select what topics are similar
-        prompt = """
+    # Ask the LLM to select what topics are similar
+    prompt = """
 Given the following topic names, list which topics are semantically similar.
 
 Format the output as a JSON list of lists, where each inner list contains the topic ids of names that are similar to each other.
 Do not include any formatting or additional text, just the JSON array.
 """
 
-        completion_request = OpenAICompletionRequest(
-            model="gpt-4.1",
-            prompt=prompt + "\n" + str(topic_map),
-            max_tokens=4096,
-            temperature=0.7,
-            n=1
-        )
+    completion_request = OpenAICompletionRequest(
+        model="gpt-4.1",
+        messages=[
+            {"role": "user", "content": prompt + "\n" + str(topic_map)}
+        ]
+    )
 
-        api_port = os.getenv("API_PORT", 4200)
+    api_port = os.getenv("API_PORT", 4200)
 
+    async with httpx.AsyncClient(timeout=180) as client:
         try:
             response = await client.post(f"http://api:{api_port}/v1/completions", json=completion_request.model_dump())
             response.raise_for_status()
@@ -126,40 +126,59 @@ Do not include any formatting or additional text, just the JSON array.
             if not isinstance(topic_ids, list) or len(topic_ids) < 2:
                 continue
             # pull the memories for each topic id
-            memories = []
+            memory_ids = []
             for topic_id in topic_ids:
                 logger.debug(f"Processing topic_id: {topic_id}")
                 if topic_id not in topic_map:
                     continue
                 try:
-                    mems = get_memory_by_topic(topic_id)
-                    memories.extend(mems)
+                    mems = _get_memory_by_topic(topic_id)
+                    memory_ids.extend(mems)
                 except HTTPException as e:
                     logger.error(f"Error fetching memories for topic {topic_id}: {str(e)}")
                     continue
-            if not memories:
+            
+            if not memory_ids:
                 logger.warning(f"No memories found for topic ids: {topic_ids}")
                 continue
-            # For each memory, get its id and text (using memory_get)
+            
+            # For each memory, get its full details
             memory_lines = []
-            for mem in memories:
-                # mem may be a dict with 'id', or just an id string
-                mem_id = mem["id"] if isinstance(mem, dict) and "id" in mem else mem
+            for mem_id in memory_ids:
                 try:
-                    mem_row = await memory_get(mem_id)
-                    # memory_get may return a dict or a response with 'memory' key
-                    mem_text = mem_row["memory"] if isinstance(mem_row, dict) and "memory" in mem_row else str(mem_row)
-                    memory_lines.append(f"{mem_id}|{mem_text}")
+                    mem_entry = _get_memory(mem_id)
+                    # Format: id|memory_text|keywords|category
+                    keywords_str = ",".join(mem_entry.keywords) if mem_entry.keywords else ""
+                    memory_lines.append(f"{mem_id}|{mem_entry.memory}|{keywords_str}|{mem_entry.category or ''}")
                 except Exception as e:
                     logger.error(f"Error fetching memory {mem_id}: {str(e)}")
                     continue
+            
+            if not memory_lines:
+                logger.warning(f"No valid memories retrieved for topic ids: {topic_ids}")
+                continue
             # Combine all memory lines into a single string
             memory_block = "\n".join(memory_lines)
 
             prompt = """
-Given the following memories, alter them as necessary to deduplicate them. Provide the updated text for each memory, and the ids of the memories that should be deleted.
+Given the following memories in the format 'id|memory_text|keywords|category', deduplicate them by consolidating similar memories and removing exact duplicates.
 
-Format the output as a JSON dictionary as follows: { 'update': {'memory_id': 'new_text'}, 'delete': ['memory_id1', 'memory_id2'] }
+For memories that should be updated/consolidated:
+- Provide the improved/consolidated text
+- Provide updated keywords that better represent the consolidated memory (3-5 keywords)
+- Keep the same category unless consolidation suggests a better fit
+
+Format the output as a JSON dictionary: 
+{ 
+    'update': {
+        'memory_id': {
+            'memory': 'new_consolidated_text', 
+            'keywords': ['keyword1', 'keyword2', 'keyword3'],
+            'category': 'category_name'
+        }
+    }, 
+    'delete': ['memory_id1', 'memory_id2'] 
+}
 
 Do not include any formatting or additional text, just the JSON object.
 
@@ -167,11 +186,11 @@ Do not include any formatting or additional text, just the JSON object.
             
             dedup_request = OpenAICompletionRequest(
                 model="gpt-4.1",
-                prompt=prompt+memory_block,
-                max_tokens=8192,
-                temperature=0.7,
-                n=1
+                messages=[
+                    {"role": "user", "content": prompt + memory_block}
+                ]
             )
+            
             try:
                 response = await client.post(f"http://api:{api_port}/v1/completions", json=dedup_request.model_dump())
                 response.raise_for_status()
@@ -197,41 +216,64 @@ Do not include any formatting or additional text, just the JSON object.
             except json.JSONDecodeError:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid response format from LLM. Expected JSON array, got: {text}"
+                    detail=f"Invalid response format from LLM. Expected JSON object, got: {text}"
                 )
 
+            # Validate response structure
+            if not isinstance(memory_updates, dict):
+                logger.warning(f"Invalid memory updates format: {memory_updates}")
+                continue
+
             # process the updates
-            status = True
+            update_success = True
+            updated_memories = {}
+            
             # if the update fails, don't delete any of the memories marked for deletion
             if 'update' in memory_updates and isinstance(memory_updates['update'], dict):
-                for mem_id, new_text in memory_updates['update'].items():
+                for mem_id, update_data in memory_updates['update'].items():
                     try:
-                        update_memory_db(mem_id, memory=new_text)
-                    except HTTPException as e:
-                        status = False
+                        # Validate update data structure
+                        if not isinstance(update_data, dict):
+                            logger.warning(f"Invalid update data for memory {mem_id}: {update_data}")
+                            continue
+                        
+                        # Create MemoryEntry for the update
+                        memory_entry = MemoryEntry(
+                            id=mem_id,
+                            memory=update_data.get('memory'),
+                            keywords=update_data.get('keywords', []),
+                            category=update_data.get('category')
+                        )
+                        
+                        _memory_patch(memory_entry)
+                        updated_memories[mem_id] = update_data
+                        logger.info(f"Successfully updated memory {mem_id}")
+                        
+                    except Exception as e:
+                        update_success = False
                         logger.error(f"Failed to update memory {mem_id}: {str(e)}")
                         continue
 
-            if status == False:
+            if not update_success:
                 logger.error("Failed to update some memories. No deletions will be performed.")
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Failed to update some memories. No deletions will be performed."
-                )
+                continue  # Skip deletion for this topic group, but continue with other groups
 
+            deleted_memories = []
             if 'delete' in memory_updates and isinstance(memory_updates['delete'], list):
                 for mem_id in memory_updates['delete']:
                     try:
-                        memory_delete(mem_id)
-                    except HTTPException as e:
+                        _memory_delete(mem_id)
+                        deleted_memories.append(mem_id)
+                        logger.info(f"Successfully deleted memory {mem_id}")
+                    except Exception as e:
                         logger.error(f"Failed to delete memory {mem_id}: {str(e)}")
                         continue
 
             # Add the result to the final output
             result.append({
                 "topic": topic_map[topic_ids[0]],  # Use the first topic name for the group
-                "updated memories": memory_updates.get('update', {}),
-                "deleted_memories": memory_updates.get('delete', []) 
+                "updated_memories": updated_memories,
+                "deleted_memories": deleted_memories
             })
 
     if not result:

@@ -33,7 +33,7 @@
     "type": "function",
     "function": {
       "name": "memory",
-      "description": "Perform memory operations: add, delete, list, or search for memories.",
+      "description": "Perform memory operations: add, delete, list, or search for memories. Search now supports multiple criteria that can be combined.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -49,7 +49,7 @@
           },
           "category": {
             "type": "string",
-            "description": "The category of the memory, used for categorization. Must match one of the predefined categories: Health, Career, Family, Personal, Technical Projects, Social, Finance, Self-care, Environment, Hobbies, Admin, Philosophy. Required for 'add' and 'search'.",
+            "description": "The category of the memory, used for categorization and search. Must match one of the predefined categories: Health, Career, Family, Personal, Technical Projects, Social, Finance, Self-care, Environment, Hobbies, Admin, Philosophy.",
             "example": "Family"
           },
           "priority": {
@@ -61,13 +61,46 @@
           },
           "memory_id": {
             "type": "string",
-            "description": "The ID of the memory to delete. Required for 'delete', optional for 'search'."
+            "description": "The ID of the memory to delete or search for. Required for 'delete', optional for 'search'."
           },
           "keywords": {
             "type": "array",
             "items": {"type": "string"},
-            "description": "Tags/keywords associated with the memory. Required for 'add', optional for 'search'.",
+            "description": "Tags/keywords associated with the memory. Required for 'add', optional for 'search'. Can be combined with other search criteria.",
             "example": ["Slam Jackson", "dog", "pet", "golden doodle"]
+          },
+          "topic_id": {
+            "type": "string",
+            "description": "Search for memories associated with a specific topic ID. Optional for 'search', can be combined with other criteria."
+          },
+          "min_keywords": {
+            "type": "integer",
+            "description": "Minimum number of matching keywords required when searching by keywords. Defaults to 2.",
+            "minimum": 1,
+            "default": 2
+          },
+          "created_after": {
+            "type": "string",
+            "description": "Return memories created after this timestamp (ISO format). Optional for 'search', can be combined with other criteria.",
+            "example": "2025-01-01T00:00:00"
+          },
+          "created_before": {
+            "type": "string",
+            "description": "Return memories created before this timestamp (ISO format). Optional for 'search', can be combined with other criteria.",
+            "example": "2025-12-31T23:59:59"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of memories to return for 'list' action. Default is 10.",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 10
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Offset for pagination in 'list' action. Default is 0.",
+            "minimum": 0,
+            "default": 0
           }
         },
         "required": ["action"]
@@ -217,6 +250,18 @@
         },
         "required": ["action"]
       }
+    }
+  },
+  {
+    "type": "web_search_20250305",
+    "name": "web_search",
+    "max_uses": 5,
+    "user_location": {
+      "type": "approximate",
+      "city": "Bellingham",
+      "region": "Washington",
+      "country": "US",
+      "timezone": "America/Los_Angeles"
     }
   }
 ]

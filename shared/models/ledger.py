@@ -1,18 +1,20 @@
 """
-This module defines Pydantic models for representing and managing user messages, conversation messages, deletion summaries, and summary-related data structures within a multi-platform messaging or assistant system.
-Models included:
-- RawUserMessage: Represents a raw user message exchanged between a user and the system, including platform and tool/function call metadata.
-- CanonicalUserMessage: Represents a canonical (normalized) user message with timestamps and optional tool/function call data.
-- RawConversationMessage: Represents a raw message within a conversation, typically for storage or processing from various platforms.
-- CanonicalConversationMessage: Represents a canonical conversation message with unique ID and timestamps.
-- DeleteSummary: Tracks the number of rows deleted in a delete operation.
-- SummaryType: Enum for different summary periods (e.g., morning, daily, monthly).
-- SummaryMetadata: Metadata for a summary, including time range and summary type.
-- Summary: Represents a summary entry with content and optional metadata.
-- SummaryCreateRequest: Request model for creating a summary for a specific period and date.
-- CombinedSummaryRequest: Request model for combining multiple summaries into one, with token and user alias options.
-- SummaryRequest: Request model for summarizing a list of user messages, with token and user alias options.
-Each model includes field descriptions and example data for schema generation and documentation.
+This module defines Pydantic models for representing user messages, conversation messages, summaries, memories, and related request/response schemas for a multi-platform messaging and summarization system.
+Classes:
+    RawUserMessage: Represents a raw user message exchanged between a user and the system, including platform, role, content, and optional tool/function call data.
+    CanonicalUserMessage: Represents a canonical user message with unique ID, timestamps, and optional tool/function call data.
+    RawConversationMessage: Represents a raw message within a conversation, typically for storing or processing messages from various platforms.
+    CanonicalConversationMessage: Represents a canonical message within a conversation, including unique ID and timestamps.
+    DeleteSummary: Represents a summary of a delete operation, tracking the number of rows deleted.
+    SummaryType: Enum for different types of summary periods (e.g., morning, daily, weekly).
+    SummaryMetadata: Metadata information for a summary period, including timestamps and summary type.
+    Summary: Represents a summary entry with associated metadata and unique identifier.
+    SummaryCreateRequest: Request model for creating a summary for a specific time period.
+    CombinedSummaryRequest: Request model for combining multiple summaries into a single summary.
+    SummaryRequest: Request model for summarizing a list of user messages.
+    Memory: Represents a memory entry with associated keywords and optional category.
+    TopicIDsTimeframeRequest: Request model for retrieving topic IDs within a given time frame.
+    AssignTopicRequest: Request model for assigning a topic to messages within a specified time frame.
 """
 
 from pydantic import BaseModel, Field
@@ -395,6 +397,195 @@ class SummaryRequest(BaseModel):
                     ],
                     "user_alias": "User123",
                     "max_tokens": 100
+                }
+            ]
+        }
+    }
+
+
+class MemorySearchParams(BaseModel):
+    """
+    Parameters for searching memories in the ledger. Multiple parameters can be combined
+    to filter results (AND logic - all specified parameters must match).
+
+    Attributes:
+        keywords (Optional[List[str]]): List of keywords to search for.
+        category (Optional[str]): Category to search for.
+        topic_id (Optional[str]): The topic ID to search for.
+        memory_id (Optional[str]): Memory ID to search for (if provided, other filters are ignored).
+        min_keywords (int): Minimum number of matching keywords required when searching by keywords.
+        created_after (Optional[str]): Return memories created after this timestamp (ISO format).
+        created_before (Optional[str]): Return memories created before this timestamp (ISO format).
+    """
+    keywords: Optional[List[str]] = Field(None, description="List of keywords to search for.")
+    category: Optional[str] = Field(None, description="Category to search for.")
+    topic_id: Optional[str] = Field(None, description="The topic ID to search for.")
+    memory_id: Optional[str] = Field(None, description="Memory ID to search for (if provided, other filters are ignored).")
+    min_keywords: int = Field(2, description="Minimum number of matching keywords required when searching by keywords.")
+    created_after: Optional[str] = Field(None, description="Return memories created after this timestamp (ISO format).")
+    created_before: Optional[str] = Field(None, description="Return memories created before this timestamp (ISO format).")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "keywords": ["meeting", "project"],
+                    "category": "Work",
+                    "topic_id": None,
+                    "memory_id": None,
+                    "min_keywords": 2,
+                    "created_after": "2025-07-01T00:00:00",
+                    "created_before": "2025-07-31T23:59:59"
+                }
+            ]
+        }
+    }
+
+class MemoryEntry(BaseModel):
+    """
+    Unified memory model that can represent any memory state.
+    All fields are optional to support various use cases:
+    - Creation: only memory, keywords, category needed
+    - Search results: may include partial data
+    - Full retrieval: includes all available data
+    - Updates: only changed fields needed
+
+    Attributes:
+        id (Optional[str]): The unique identifier of the memory.
+        memory (Optional[str]): The memory text content.
+        created_at (Optional[str]): When the memory was created, ISO format.
+        access_count (Optional[int]): Number of times this memory has been accessed.
+        last_accessed (Optional[str]): When the memory was last accessed, ISO format.
+        keywords (Optional[List[str]]): List of keywords associated with the memory.
+        category (Optional[str]): The category of the memory.
+        topic_id (Optional[str]): Associated topic ID.
+        topic_name (Optional[str]): Associated topic name (for convenience, not stored).
+    """
+    id: Optional[str] = Field(None, description="The unique identifier of the memory")
+    memory: Optional[str] = Field(None, description="The memory text content")
+    created_at: Optional[str] = Field(None, description="When the memory was created, ISO format")
+    access_count: Optional[int] = Field(0, description="Number of times this memory has been accessed")
+    last_accessed: Optional[str] = Field(None, description="When the memory was last accessed, ISO format")
+    keywords: Optional[List[str]] = Field(None, description="List of keywords associated with the memory")
+    category: Optional[str] = Field(None, description="The category of the memory")
+    topic_id: Optional[str] = Field(None, description="Associated topic ID")
+    topic_name: Optional[str] = Field(None, description="Associated topic name (for convenience, not stored)")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "id": "mem_123",
+                    "memory": "Project kickoff meeting scheduled for Monday",
+                    "created_at": "2025-07-17T10:30:00",
+                    "access_count": 5,
+                    "last_accessed": "2025-07-17T15:45:00",
+                    "keywords": ["meeting", "project"],
+                    "category": "Work",
+                    "topic_id": "topic_456",
+                    "topic_name": "Project Planning"
+                },
+                {
+                    "memory": "Remember to buy groceries",
+                    "keywords": ["groceries", "shopping"],
+                    "category": "Personal"
+                }
+            ]
+        }
+    }
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "id": "mem_123",
+                    "memory": "Project kickoff meeting scheduled for Monday",
+                    "created_at": "2025-07-17T10:30:00",
+                    "access_count": 5,
+                    "last_accessed": "2025-07-17T15:45:00",
+                    "keywords": ["meeting", "project"],
+                    "category": "Work"
+                }
+            ]
+        }
+    }
+
+
+class TopicIDsTimeframeRequest(BaseModel):
+    """
+    Request model for retrieving topic IDs in a given time frame.
+
+    Attributes:
+        start (str): Start timestamp (YYYY-MM-DD HH:MM:SS[.sss])
+        end (str): End timestamp (YYYY-MM-DD HH:MM:SS[.sss])
+    """
+    start: str = Field(..., description="Start timestamp (YYYY-MM-DD HH:MM:SS[.sss])")
+    end: str = Field(..., description="End timestamp (YYYY-MM-DD HH:MM:SS[.sss])")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "start": "2023-10-01 00:00:00",
+                    "end": "2023-10-31 23:59:59"
+                },
+                {
+                    "start": "2023-10-01 08:00:00",
+                    "end": "2023-10-01 12:00:00"
+                }
+            ]
+        }
+    }
+
+
+class AssignTopicRequest(BaseModel):
+    """
+    Request model for assigning a topic within a specific time frame.
+
+    Attributes:
+        topic_id (Optional[str]): The ID of the topic to assign to messages.
+        start (str): Start timestamp in ISO 8601 format (YYYY-MM-DD HH:MM:SS[.sss])
+        end (str): End timestamp in ISO 8601 format (YYYY-MM-DD HH:MM:SS[.sss])
+    """
+    topic_id: Optional[str]         = Field(None, description="The ID of the topic to assign to messages")
+    start: str                      = Field(..., description="Start timestamp in ISO 8601 format (YYYY-MM-DD HH:MM:SS[.sss])")
+    end: str                        = Field(..., description="End timestamp in ISO 8601 format (YYYY-MM-DD HH:MM:SS[.sss])")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "topic_id": "memory_id_goes_here",
+                    "start": "2023-10-01 00:00:00",
+                    "end": "2023-10-31 23:59:59"
+                },
+                {
+                    "topic_id": "memory_id_goes_here",
+                    "start": "2023-10-01 08:00:00",
+                    "end": "2023-10-01 12:00:00"
+                }
+            ]
+        }
+    }
+
+
+class MemoryListRequest(BaseModel):
+    """
+    Request model for retrieving a list of memories based on search parameters.
+
+    Attributes:
+        limit (int): Maximum number of memories to return.
+        offset (int): Offset for pagination.
+    """
+    limit: int = Field(100, description="Maximum number of memories to return")
+    offset: int = Field(0, description="Offset for pagination")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "limit": 100,
+                    "offset": 0
                 }
             ]
         }

@@ -18,13 +18,13 @@ Functions:
     - from_api_multiturn(request: ProxyMultiTurnRequest) -> ProxyResponse:
         Handles multi-turn API requests by generating prompts for language models.
 """
-from shared.models.proxy import MultiTurnRequest, ProxyResponse, OllamaRequest
+from shared.models.proxy import MultiTurnRequest, ProxyResponse, OllamaRequest, OpenAIRequest, AnthropicRequest
 from shared.models.prompt import BuildSystemPrompt
 
 from app.util import build_multiturn_prompt, resolve_model_provider_options
 from app.prompts.dispatcher import get_system_prompt
 
-from app.queue.router import ollama_queue, openai_queue
+from app.queue.router import ollama_queue, openai_queue, anthropic_queue
 from shared.models.queue import ProxyTask
 import uuid
 import asyncio
@@ -75,6 +75,46 @@ async def from_api_multiturn(request: MultiTurnRequest) -> ProxyResponse:
     provider, model, options = resolve_model_provider_options(request.model)
     logger.debug(f"Resolved provider/model/options: {provider}, {model}, {options}")
 
+    # if the model is auto, we query the LLM to resolve the provider/model/options
+    if request.model == "auto":
+        prompt = f"""
+Given the following conversation history, determine the best openai model to use for generating a response. Return the model name. Do not return any other text or explanation. Return gpt-4.1 for technical or work discussions or gpt-4o for general, casual, or personal discussions. Consider the most recent message as the primary context for determining the model.
+Conversation history:
+
+{request.messages}"""
+        payload = OpenAIRequest(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            options=options
+        )
+        queue_to_use = openai_queue
+
+        # Create a blocking ProxyTask
+        task_id = str(uuid.uuid4())
+        future = asyncio.Future()
+        task = ProxyTask(
+            priority=1,
+            task_id=task_id,
+            payload=payload,
+            blocking=True,
+            future=future,
+            callback=None
+        )
+        await queue_to_use.enqueue(task)
+
+        try:
+            result = await asyncio.wait_for(future, timeout=TIMEOUT)
+        except asyncio.TimeoutError:
+            queue_to_use.remove_task(task_id)
+            raise HTTPException(
+                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                detail="Task timed out"
+            )
+
+        queue_to_use.remove_task(task_id)
+
+        provider, model, options = resolve_model_provider_options("default")
+
     # now get your dynamic system prompt
     system_prompt = get_system_prompt(
         BuildSystemPrompt(
@@ -105,7 +145,7 @@ async def from_api_multiturn(request: MultiTurnRequest) -> ProxyResponse:
         )
         queue_to_use = ollama_queue
     elif provider == "openai":
-        from shared.models.proxy import OpenAIRequest  # Local import to avoid circular
+          # Local import to avoid circular
         # Prepend system prompt as a system message for OpenAI
         openai_messages = ([{"role": "system", "content": system_prompt}] if system_prompt else []) + request.messages
         payload = OpenAIRequest(
@@ -116,6 +156,17 @@ async def from_api_multiturn(request: MultiTurnRequest) -> ProxyResponse:
             tool_choice="auto"  # Use auto tool choice for OpenAI
         )
         queue_to_use = openai_queue
+    elif provider == "anthropic":
+        # Prepend system prompt as a system message for Anthropic
+        anthropic_messages = ([{"role": "system", "content": system_prompt}] if system_prompt else []) + request.messages
+        payload = AnthropicRequest(
+            model=model,
+            messages=anthropic_messages,
+            options=options,
+            tools=request.tools,
+            tool_choice="auto"  # Use auto tool choice for Anthropic
+        )
+        queue_to_use = anthropic_queue
     else:
         raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}")
 

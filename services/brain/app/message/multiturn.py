@@ -110,7 +110,29 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
 
     # Build new MultiTurnRequest with updated fields
     with open('/app/app/tools.json') as f:
-        tools = json.load(f)
+        all_tools = json.load(f)
+    
+    # Resolve provider from mode to determine which tools to include
+    def resolve_provider_from_mode(mode: str):
+        """Resolve provider from mode using config.json"""
+        llm_modes = _config.get("llm", {}).get("mode", {})
+        mode_config = llm_modes.get(mode) or llm_modes.get("default")
+        if mode_config:
+            return mode_config.get("provider", "openai")
+        return "openai"  # fallback
+    
+    provider = resolve_provider_from_mode(message.model)
+    
+    # Filter tools: only expose web_search to anthropic
+    def is_web_search_tool(tool):
+        return (
+            tool.get("name") == "web_search" or
+            (isinstance(tool.get("type"), str) and tool["type"].startswith("web_search"))
+        )
+    if provider == "anthropic":
+        tools = all_tools
+    else:
+        tools = [tool for tool in all_tools if not is_web_search_tool(tool)]
 
     updated_request = message.copy(update={
         "memories": [m.model_dump() for m in memories],
@@ -119,7 +141,8 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
         "summaries": summaries,
         "platform": platform,
         "tools": tools,
-        "agent_prompt": agent_prompt
+        "agent_prompt": agent_prompt,
+        "provider": provider  # Set the resolved provider
     })
 
     # --- Send last 4 messages to ledger as RawUserMessage ---
@@ -210,71 +233,7 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
             if brainlet_func:
                 logger.debug(f"Found brainlet function: {brainlet_func.__name__}")
                 brainlet_result = await brainlet_func(brainlets_output, updated_request)
-                #if brainlet_result and isinstance(brainlet_result, dict):
-                    # Sync any lists of message dicts inside the dict
-                    # for val in brainlet_result.values():
-                    #     if isinstance(val, list):
-                    #         for msg_dict in val:
-                    #             logger.debug(f"Processing brainlet message from dict value: {msg_dict}")
-                    #             if isinstance(msg_dict, dict) and msg_dict.get("role") in ("assistant", "tool"):
-                    #                 sync_snapshot = [
-                    #                     {
-                    #                         "user_id": message.user_id,
-                    #                         "platform": platform,
-                    #                         "platform_msg_id": None,
-                    #                         "role": msg_dict.get("role"),
-                    #                         "content": msg_dict.get("content"),
-                    #                         "model": message.model if hasattr(message, 'model') else None,
-                    #                         "tool_calls": msg_dict.get("tool_calls"),
-                    #                         "function_call": msg_dict.get("function_call"),
-                    #                         "tool_call_id": msg_dict.get("tool_call_id"),
-                    #                     }
-                    #                 ]
-                                    # --- BEGIN: Commented out ledger sync for brainlet output ---
-                                    # try:
-                                    #     logger.debug(f"Syncing brainlet message to ledger: {sync_snapshot}")
-                                    #     await sync_with_ledger(
-                                    #         user_id=message.user_id,
-                                    #         platform=platform,
-                                    #         snapshot=sync_snapshot,
-                                    #         error_prefix=f"Error forwarding brainlet ({brainlet_name}) message to ledger",
-                                    #         logger=logger
-                                    #     )
-                                    #     logger.debug("Ledger sync successful.")
-                                    # except Exception as e:
-                                    #     logger.error(f"Ledger sync failed for brainlet {brainlet_name}: {e}")
-                                    # --- END: Commented out ledger sync for brainlet output ---
                 brainlets_output[brainlet_name] = brainlet_result
-                #elif brainlet_result and isinstance(brainlet_result, list):
-                    # for msg_dict in brainlet_result:
-                    #     logger.debug(f"Processing brainlet message: {msg_dict}")
-                    #     if isinstance(msg_dict, dict) and msg_dict.get("role") in ("assistant", "tool"):
-                    #         sync_snapshot = [
-                    #             {
-                    #                 "user_id": message.user_id,
-                    #                 "platform": platform,
-                    #                 "platform_msg_id": None,
-                    #                 "role": msg_dict.get("role"),
-                    #                 "content": msg_dict.get("content"),
-                    #                 "model": message.model if hasattr(message, 'model') else None,
-                    #                 "tool_calls": msg_dict.get("tool_calls"),
-                    #                 "function_call": msg_dict.get("function_call"),
-                    #                 "tool_call_id": msg_dict.get("tool_call_id"),
-                    #             }
-                    #         ]
-                    #         try:
-                    #             logger.debug(f"Syncing brainlet message to ledger: {sync_snapshot}")
-                    #             await sync_with_ledger(
-                    #                 user_id=message.user_id,
-                    #                 platform=platform,
-                    #                 snapshot=sync_snapshot,
-                    #                 error_prefix=f"Error forwarding brainlet ({brainlet_name}) message to ledger",
-                    #                 logger=logger
-                    #             )
-                    #             logger.debug("Ledger sync successful.")
-                    #         except Exception as e:
-                    #             logger.error(f"Ledger sync failed for brainlet {brainlet_name}: {e}")
-                    #brainlets_output[brainlet_name] = brainlet_result
 
     # Merge brainlets_output lists into updated_request.messages
     for v in brainlets_output.values():
@@ -339,11 +298,24 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
         )
 
         # 3. If tool call, execute tool and loop
+        # Note: Server-side tools (like web_search) are executed by the provider (e.g., Anthropic)
+        # and results are automatically included in the response. We only need to execute client-side tools.
         tool_calls = getattr(proxy_response, 'tool_calls', None)
+        has_client_tool_calls = False
+        
         if tool_calls:
             for tool_call in tool_calls:
                 if tool_call.get('type') == 'function':
                     fn = tool_call['function']['name']
+                    
+                    # Check if this is a server-side tool (handled by the provider)
+                    server_side_tools = ["web_search"]  # Add more as needed
+                    if fn in server_side_tools:
+                        logger.debug(f"Skipping server-side tool {fn} - already executed by provider")
+                        continue
+                    
+                    # This is a client-side tool that we need to execute
+                    has_client_tool_calls = True
                     args = tool_call['function'].get('arguments', '{}')
                     try:
                         args_dict = _json.loads(args) if isinstance(args, str) else args
@@ -402,8 +374,11 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
                         for msg in ledger_buffer
                     ]
                     updated_request = updated_request.copy(update={"messages": message_buffer})
-            tool_loop_count += 1
-            continue  # Loop again with updated buffer
+            
+            # Only continue looping if we had client-side tool calls that need follow-up
+            if has_client_tool_calls:
+                tool_loop_count += 1
+                continue  # Loop again with updated buffer
         # 7. If we get a real assistant message (content), break and return
         if proxy_response.response:
             final_response = proxy_response
@@ -438,67 +413,6 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
                 logger.debug(f"Found post brainlet function: {brainlet_func.__name__}")
                 # Pass the latest brainlets_output and updated_request (with final_response)
                 post_result = await brainlet_func(brainlets_output, updated_request)
-                # if post_result and isinstance(post_result, dict):
-                #     logger.debug(f"Post brainlet {brainlet_name} returned: {post_result}")
-                    # Sync any lists of message dicts inside the dict
-                #     for val in post_result.values():
-                #         if isinstance(val, list):
-                #             for msg_dict in val:
-                #                 logger.debug(f"Processing post brainlet message from dict value: {msg_dict}")
-                #                 if isinstance(msg_dict, dict) and msg_dict.get("role") in ("assistant", "tool"):
-                                    # sync_snapshot = [
-                                    #     {
-                                    #         "user_id": message.user_id,
-                                    #         "platform": platform,
-                                    #         "platform_msg_id": None,
-                                    #         "role": msg_dict.get("role"),
-                                    #         "content": msg_dict.get("content"),
-                                    #         "model": message.model if hasattr(message, 'model') else None,
-                                    #         "tool_calls": msg_dict.get("tool_calls"),
-                                    #         "function_call": msg_dict.get("function_call"),
-                                    #         "tool_call_id": msg_dict.get("tool_call_id"),
-                                    #     }
-                                    # ]
-                                    # try:
-                                    #     logger.debug(f"Syncing post brainlet message to ledger: {sync_snapshot}")
-                                    #     await sync_with_ledger(
-                                    #         user_id=message.user_id,
-                                    #         platform=platform,
-                                    #         snapshot=sync_snapshot,
-                                    #         error_prefix=f"Error forwarding post brainlet ({brainlet_name}) message to ledger",
-                                    #         logger=logger
-                                    #     )
-                                    #     logger.debug("Ledger sync successful.")
-                                    # except Exception as e:
-                                    #     logger.error(f"Ledger sync failed for post brainlet {brainlet_name}: {e}")
-                # elif post_result and isinstance(post_result, list):
-                #     for msg_dict in post_result:
-                #         if isinstance(msg_dict, dict) and msg_dict.get("role") in ("assistant", "tool"):
-                #             sync_snapshot = [
-                #                 {
-                #                     "user_id": message.user_id,
-                #                     "platform": platform,
-                #                     "platform_msg_id": None,
-                #                     "role": msg_dict.get("role"),
-                #                     "content": msg_dict.get("content"),
-                #                     "model": message.model if hasattr(message, 'model') else None,
-                #                     "tool_calls": msg_dict.get("tool_calls"),
-                #                     "function_call": msg_dict.get("function_call"),
-                #                     "tool_call_id": msg_dict.get("tool_call_id"),
-                #                 }
-                #             ]
-                #             try:
-                #                 logger.debug(f"Syncing post brainlet message to ledger: {sync_snapshot}")
-                #                 await sync_with_ledger(
-                #                     user_id=message.user_id,
-                #                     platform=platform,
-                #                     snapshot=sync_snapshot,
-                #                     error_prefix=f"Error forwarding post brainlet ({brainlet_name}) message to ledger",
-                #                     logger=logger
-                #                 )
-                #                 logger.debug("Ledger sync successful.")
-                #             except Exception as e:
-                #                 logger.error(f"Ledger sync failed for post brainlet {brainlet_name}: {e}")
                 post_brainlets_output[brainlet_name] = post_result
     # Optionally merge post_brainlets_output into final_response if needed
 

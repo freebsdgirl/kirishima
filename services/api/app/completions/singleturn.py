@@ -15,6 +15,7 @@ Key Features:
 
 from shared.models.proxy import ProxyResponse, ProxyOneShotRequest
 from shared.models.openai import OpenAICompletionRequest, OpenAICompletionResponse, OpenAICompletionChoice, OpenAIUsage
+from shared.models.api import CompletionRequest
 
 from shared.log_config import get_logger
 logger = get_logger(f"api.{__name__}")
@@ -25,7 +26,7 @@ import json
 import httpx
 import os
 from dateutil import parser
-from typing import Optional, List
+from typing import Optional, List, Union
 import tiktoken
 
 from fastapi import APIRouter, HTTPException, status, Request
@@ -59,7 +60,7 @@ async def openai_completions(request: OpenAICompletionRequest) -> RedirectRespon
 
 
 @router.post("/v1/completions", response_model=OpenAICompletionResponse)
-async def openai_v1_completions(request: OpenAICompletionRequest, request_data: Request) -> OpenAICompletionResponse:
+async def openai_v1_completions(request: Union[OpenAICompletionRequest, CompletionRequest], request_data: Request) -> OpenAICompletionResponse:
     """
     Handles an OpenAI-style completions request and proxies it to the internal
     proxy service (/api/singleturn). All incoming request data is logged.
@@ -84,12 +85,17 @@ async def openai_v1_completions(request: OpenAICompletionRequest, request_data: 
     created_unix: Optional[int] = None
 
     # Prepare data to send to the proxy service using ProxyOneShotRequest for validation.
+    # Handle both OpenAICompletionRequest and CompletionRequest models
+    prompt_text = getattr(request, 'prompt', None) or getattr(request, 'content', None)
+    if not prompt_text:
+        raise HTTPException(status_code=400, detail="Missing prompt or content in request")
+    
     proxy_request = ProxyOneShotRequest(
-        prompt=request.prompt,
+        prompt=prompt_text,
         model=request.model,
-        temperature=request.temperature,
-        max_tokens=request.max_tokens,
-        provider=request.provider
+        temperature=getattr(request, 'temperature', 0.7),
+        max_tokens=getattr(request, 'max_tokens', 256),
+        provider=getattr(request, 'provider', 'openai')
     )
     proxy_request_data = proxy_request.model_dump()
     proxy_request_data["stream"] = False
@@ -153,7 +159,7 @@ async def openai_v1_completions(request: OpenAICompletionRequest, request_data: 
     try:
         # Use tiktoken with gpt2 encoding to count prompt tokens
         encoding = tiktoken.get_encoding("gpt2")
-        tokens = encoding.encode(request.prompt)
+        tokens = encoding.encode(prompt_text)
 
     except Exception as err:
         logger.warning(f"Error retrieving encoding for model '{request.model}': {err}.")

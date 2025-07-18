@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS user_messages (
     model           TEXT,
     tool_calls      TEXT,
     function_call   TEXT,
-    topic_id        TEXT, -- Foreign key to topics.id (nullable)
+    topic_id        TEXT REFERENCES topics(id) ON DELETE SET NULL, -- Foreign key with cascading
     created_at      DATETIME NOT NULL DEFAULT (STRFTIME('%Y-%m-%d %H:%M:%f','now','localtime')),
     updated_at      DATETIME NOT NULL DEFAULT (STRFTIME('%Y-%m-%d %H:%M:%f','now','localtime'))
 );
@@ -41,7 +41,9 @@ CREATE INDEX IF NOT EXISTS idx_user_msgs_topic
 -- Topics table
 CREATE TABLE IF NOT EXISTS topics (
     id          TEXT PRIMARY KEY, -- UUID
-    name        TEXT
+    name        TEXT,
+    description TEXT,
+    created_at  DATETIME NOT NULL DEFAULT (STRFTIME('%Y-%m-%d %H:%M:%f','now','localtime'))
 );
 
 
@@ -60,6 +62,49 @@ CREATE INDEX IF NOT EXISTS idx_summaries_type_time
 CREATE INDEX IF NOT EXISTS idx_summaries_time
     ON summaries(timestamp_begin, timestamp_end);
 
+
+--------------------------------------------------------------------
+
+-- Memories table
+CREATE TABLE IF NOT EXISTS memories (
+    id TEXT PRIMARY KEY,
+    memory TEXT,
+    created_at TEXT,
+    access_count INTEGER DEFAULT 0,
+    last_accessed TEXT,
+    reviewed INTEGER DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_created_at ON memories (created_at);
+CREATE INDEX IF NOT EXISTS idx_last_accessed ON memories (last_accessed);
+
+
+CREATE TABLE IF NOT EXISTS memory_tags (
+    memory_id TEXT,
+    tag TEXT,
+    PRIMARY KEY (memory_id, tag),
+    FOREIGN KEY (memory_id) REFERENCES memories(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_memory_id ON memory_tags (memory_id);
+CREATE INDEX IF NOT EXISTS idx_tag ON memory_tags (tag);
+
+
+CREATE TABLE IF NOT EXISTS memory_category (
+    memory_id TEXT,
+    category TEXT,
+    PRIMARY KEY (memory_id, category),
+    FOREIGN KEY (memory_id) REFERENCES memories(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_memory_id ON memory_category (memory_id);
+CREATE INDEX IF NOT EXISTS idx_category ON memory_category (category);
+
+
+CREATE TABLE IF NOT EXISTS memory_topics (
+    memory_id TEXT REFERENCES memories(id) ON DELETE CASCADE,
+    topic_id TEXT REFERENCES topics(id) ON DELETE CASCADE,
+    PRIMARY KEY (memory_id, topic_id)
+);
+CREATE INDEX IF NOT EXISTS idx_memory_topics_memory_id ON memory_topics (memory_id);
+CREATE INDEX IF NOT EXISTS idx_memory_topics_topic_id ON memory_topics (topic_id);
 """
 
 
@@ -77,6 +122,7 @@ def init_buffer_db():
         db = _config["db"]["ledger"]
     conn = sqlite3.connect(db, timeout=5.0)
     conn.execute("PRAGMA journal_mode=WAL;")
+    conn.execute("PRAGMA foreign_keys=ON;")
     conn.executescript(SCHEMA_SQL)
     conn.commit()
     conn.close()

@@ -33,6 +33,7 @@ router = APIRouter()
 # Provider-specific queues
 ollama_queue = ProxyTaskQueue()
 openai_queue = ProxyTaskQueue()
+anthropic_queue = ProxyTaskQueue()
 
 # Default queue for legacy compatibility (Ollama)
 queue = ollama_queue

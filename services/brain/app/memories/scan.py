@@ -112,7 +112,7 @@ async def scan(user_id: str = None) -> dict:
             # Get the most recent topic for the user
             try:
                 response = await client.get(
-                    f"http://ledger:{ledger_port}/topics/recent",
+                    f"http://ledger:{ledger_port}/topics/_recent",
                     params={"n": 1, "user_id": user_id}
                 )
                 response.raise_for_status()

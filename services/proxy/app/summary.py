@@ -1,4 +1,4 @@
-from shared.models.summary import CombinedSummaryRequest, SummaryRequest
+from shared.models.ledger import CombinedSummaryRequest, SummaryRequest
 
 from shared.log_config import get_logger
 logger = get_logger(f"proxy.{__name__}")

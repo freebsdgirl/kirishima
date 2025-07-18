@@ -26,7 +26,7 @@ logger = get_logger(f"proxy.{__name__}")
 
 
 from app.util import resolve_model_provider_options
-from app.queue.router import queue, ollama_queue, openai_queue
+from app.queue.router import queue, ollama_queue, openai_queue, anthropic_queue
 from shared.models.queue import ProxyTask
 import uuid
 import asyncio
@@ -64,26 +64,33 @@ async def from_api_completions(message: ProxyOneShotRequest) -> ProxyResponse:
     """
     logger.debug(f"/api/singleturn Request:\n{message.model_dump_json(indent=4)}")
 
-    # Resolve provider/model/options from model name
-    #provider, model, options = resolve_model_provider_options(message.model)
-    #logger.debug(f"Resolved provider/model/options: {provider}, {model}, {options}")
+    
+    options = {
+        "temperature": message.temperature,
+        "max_tokens": message.max_tokens,
+        "stream": False
+    }
+
+    model = message.model
 
     if not message.provider:
         if message.model == "nemo:latest":
             message.provider = "ollama"
-        else:
+        elif message.model.startswith("claude"):
+            message.provider = "anthropic"
+        elif message.model.startswith("gpt"):
             message.provider = "openai"
+        else:
+            # Resolve provider/model/options from model name
+            provider, model, options = resolve_model_provider_options(message.model)
+            logger.debug(f"Resolved provider/model/options: {provider}, {model}, {options}")
 
     # Branch on provider and construct provider-specific request
     if message.provider == "ollama":
         payload = OllamaRequest(
-            model=message.model,
+            model=model,
             prompt=f"[INST]<<SYS>>{message.prompt}<<SYS>>[/INST]",
-            options={
-                "temperature": message.temperature,
-                "max_tokens": message.max_tokens,
-                "stream": False
-            },
+            options=options,
             stream=False,
             raw=True
         )
@@ -91,15 +98,19 @@ async def from_api_completions(message: ProxyOneShotRequest) -> ProxyResponse:
     elif message.provider == "openai":
         from shared.models.proxy import OpenAIRequest  # Local import to avoid circular
         payload = OpenAIRequest(
-            model=message.model,
+            model=model,
             messages=[{"role": "user", "content": message.prompt}],
-            options={
-                "temperature": message.temperature,
-                "max_tokens": message.max_tokens,
-                "stream": False
-            }
+            options=options
         )
         queue_to_use = openai_queue
+    elif message.provider == "anthropic":
+        from shared.models.proxy import AnthropicRequest  # Local import to avoid circular
+        payload = AnthropicRequest(
+            model=model,
+            messages=[{"role": "user", "content": message.prompt}],
+            options=options
+        )
+        queue_to_use = anthropic_queue
     else:
         raise HTTPException(status_code=400, detail=f"Unknown provider: {message.provider}")
 

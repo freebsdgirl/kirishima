@@ -27,7 +27,7 @@ import uuid
 from shared.models.proxy import ProxyOneShotRequest
 from app.message.singleturn import incoming_singleturn_message
 
-from app.memories.search import memory_search as memory_search_tool
+from app.tools.memory import memory_search_tool
 
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
@@ -123,7 +123,7 @@ async def memory_search(brainlets_output: Dict[str, Any], message: MultiTurnRequ
         }
     }
     # Tool response entry
-    tool_result = memory_search_tool(keywords)
+    tool_result = await memory_search_tool(keywords=keywords)
 
     if not tool_result.get("memories"):
         return "No memories found for the provided keywords."

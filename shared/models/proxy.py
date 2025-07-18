@@ -414,6 +414,59 @@ class OpenAIRequest(BaseModel):
     }
 
 
+class AnthropicRequest(BaseModel):
+    """
+    Represents a request to the Anthropic API for generating text responses.
+    
+    Uses Anthropic's OpenAI-compatible endpoint for seamless integration.
+    
+    Attributes:
+        model (str): The name of the model to be used for generating the response.
+        messages (List[Dict[str, str]]): List of messages for multi-turn conversation.
+        options (Optional[Dict[str, Any]]): Provider-specific options (temperature, max_tokens, etc.).
+        stream (Optional[bool]): Indicates whether to stream the response.
+    """
+    model: str                                      = Field(..., description="The name of the model to be used for generating the response.")
+    messages: List[Dict[str, Any]]                  = Field(..., description="List of messages for multi-turn conversation.")
+    options: Optional[Dict[str, Any]]               = Field(None, description="Provider-specific options (temperature, max_tokens, etc.)")
+    stream: Optional[bool]                          = Field(False, description="Indicates whether to stream the response.")
+    tools: Optional[List[Dict[str, Any]]]           = Field(None, description="List of tools available for the model to call.")
+    tool_choice: Optional[Literal["auto", "none"]]  = Field("auto", description="How to handle tool calls: 'auto' to allow, 'none' to disable.")
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "model": "claude-sonnet-4-20250514",
+                "messages": [
+                    {"role": "user", "content": "Don't forget your meds"},
+                    {"role": "assistant", "content": "Sure, I will remind you!"}
+                ],
+                "options": {"temperature": 0.7, "max_tokens": 256},
+                "stream": False,
+                "tools": [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "remind_user",
+                            "description": "Reminds the user to take their medication.",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "medication_name": {
+                                        "type": "string",
+                                        "description": "The name of the medication to remind about."
+                                    }
+                                },
+                                "required": ["medication_name"]
+                            }
+                        }
+                    }
+                ],
+                "tool_choice": "auto"
+            }
+        }
+    }
+
+
 class RespondJsonRequest(BaseModel):
     """
     A Pydantic model representing a JSON request for generating a model response.
@@ -526,4 +579,98 @@ class OpenAIResponse(BaseModel):
             prompt_eval_count=usage.get("prompt_tokens"),
             tool_calls=tool_calls,
             function_call=function_call
+        )
+
+
+class AnthropicResponse(BaseModel):
+    """
+    Represents a response from the Anthropic API, parsing and extracting key details from the API response.
+    
+    Attributes:
+        response (str): The generated text response from the model.
+        eval_count (Optional[int]): The number of tokens used in generating the response.
+        prompt_eval_count (Optional[int]): The number of tokens used in the input prompt.
+        tool_calls (Optional[list]): List of tool calls returned by the model, if any.
+        function_call (Optional[dict]): Function call object returned by the model, if any.
+    
+    The `from_api` class method provides a convenient way to transform a raw Anthropic API 
+    response into a structured AnthropicResponse object, handling extraction of response 
+    content, token usage, and optional tool/function call information.
+    """
+    response: str                       = Field(..., description="The generated text response from the model.")
+    eval_count: Optional[int]           = Field(None, description="The number of tokens used in the response.")
+    prompt_eval_count: Optional[int]    = Field(None, description="The number of tokens used in the prompt.")
+    tool_calls: Optional[list]          = Field(None, description="List of tool calls returned by the model, if any.")
+    function_call: Optional[dict]       = Field(None, description="Function call object returned by the model, if any.")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "response": None,
+                "eval_count": 10,
+                "prompt_eval_count": 5,
+                "tool_calls": [
+                    {
+                        "id": "call_abc123",
+                        "type": "function",
+                        "function": {
+                            "name": "update_divoom",
+                            "arguments": "{\"emoji\": \"😀\"}"
+                        }
+                    }
+                ],
+                "function_call": None
+            }
+        }
+    }
+
+    @classmethod
+    def from_api(cls, api_response: dict) -> "AnthropicResponse":
+        # Parse Anthropic API response (using OpenAI-compatible format)
+        choices = api_response.get("choices", [])
+        message = choices[0]["message"] if choices else {}
+        content = message.get("content", "")
+        tool_calls = message.get("tool_calls")
+        function_call = message.get("function_call")
+        usage = api_response.get("usage", {})
+        return cls(
+            response=content.strip() if content else "",
+            eval_count=usage.get("completion_tokens"),
+            prompt_eval_count=usage.get("prompt_tokens"),
+            tool_calls=tool_calls,
+            function_call=function_call
+        )
+
+    @classmethod
+    def from_anthropic_native(cls, api_response: dict) -> "AnthropicResponse":
+        """
+        Parse Anthropic's native Messages API response format.
+        Handles both regular responses and server-side tool results like web search.
+        """
+        content_blocks = api_response.get("content", [])
+        text_content = ""
+        tool_calls = []
+        
+        # Extract text content and identify tool calls
+        for block in content_blocks:
+            if block.get("type") == "text":
+                text_content += block.get("text", "")
+            elif block.get("type") == "tool_use":
+                # Convert Anthropic tool_use to OpenAI-style tool_call
+                tool_calls.append({
+                    "id": block.get("id"),
+                    "type": "function",
+                    "function": {
+                        "name": block.get("name"),
+                        "arguments": json.dumps(block.get("input", {}))
+                    }
+                })
+        
+        usage = api_response.get("usage", {})
+        return cls(
+            response=text_content.strip(),
+            eval_count=usage.get("output_tokens"),
+            prompt_eval_count=usage.get("input_tokens"),
+            tool_calls=tool_calls if tool_calls else None,
+            function_call=None
         )

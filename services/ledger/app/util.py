@@ -4,6 +4,9 @@ import uuid
 from datetime import datetime, time, timedelta
 from typing import Optional
 
+from shared.log_config import get_logger
+logger = get_logger(f"ledger.{__name__}")
+
 def _open_conn() -> sqlite3.Connection:
     """
     Opens a SQLite database connection using the path specified in the configuration file.
@@ -74,6 +77,9 @@ def _find_or_create_topic(name: str) -> str:
     Returns:
         str: The UUID of the existing or newly created topic.
     """
+    logger.debug(f"Finding or creating topic with name: {name}")
+    if not name:
+        raise ValueError("Topic name cannot be empty")
     with _open_conn() as conn:
         # First, try to find existing topic with this name
         cursor = conn.execute(
@@ -83,6 +89,7 @@ def _find_or_create_topic(name: str) -> str:
         result = cursor.fetchone()
         
         if result:
+            logger.debug(f"Topic '{name}' already exists with ID: {result[0]}")
             # Topic already exists, return its ID
             return result[0]
         
@@ -93,6 +100,7 @@ def _find_or_create_topic(name: str) -> str:
         cursor = conn.execute("PRAGMA table_info(topics)")
         columns = [row[1] for row in cursor.fetchall()]
         
+        logger.debug(f"Creating new topic '{name}' with ID: {topic_id}")
         if 'created_at' in columns:
             # Insert with created_at if column exists
             now = datetime.now().isoformat()
@@ -108,4 +116,5 @@ def _find_or_create_topic(name: str) -> str:
             )
         
         conn.commit()
+        logger.debug(f"New topic '{name}' created with ID: {topic_id}")
         return topic_id

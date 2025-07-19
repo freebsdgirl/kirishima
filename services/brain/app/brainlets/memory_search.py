@@ -128,17 +128,23 @@ async def memory_search(brainlets_output: Dict[str, Any], message: MultiTurnRequ
     if not tool_result.get("memories"):
         return "No memories found for the provided keywords."
 
-    # trim back how much json we're returning - we don't need the full memory details.
-    for memory in tool_result["memories"]:
-        memory.pop("user_id", None)
-        memory.pop("created_at", None)
-        memory.pop("access_count", None)
-        memory.pop("last_accessed", None)
-        memory.pop("priority", None)
+    # Only keep 'id' and 'memory' fields in each memory
+    minimal_memories = [
+        {"id": m.get("id"), "memory": m.get("memory"), "created_at": m.get("created_at")} for m in tool_result["memories"]
+    ]
+    tool_result = {"memories": minimal_memories}
+
+    memory_text = [
+        f"{m['id']}|{m['memory']}|{m['created_at']}\n" for m in minimal_memories
+    ]
+
+    if not memory_text:
+        logger.debug("No memories found for the provided keywords.")
+        return "No memories found for the provided keywords."
 
     tool_entry = {
         "role": "tool",
-        "content": json.dumps(tool_result),
+        "content": ''.join(memory_text),
         "tool_call_id": tool_call_id
     }
 

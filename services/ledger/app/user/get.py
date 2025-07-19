@@ -18,6 +18,7 @@ from shared.models.ledger import CanonicalUserMessage
 from shared.log_config import get_logger
 logger = get_logger(f"ledger{__name__}")
 
+from app.util import _open_conn
 import sqlite3
 from typing import List, Optional
 from datetime import datetime, timedelta
@@ -157,29 +158,22 @@ async def trigger_summaries_for_inactive_users():
         return user_ids
 
 
-@router.get("/user/{user_id}/messages/untagged", response_model=List[CanonicalUserMessage])
-def get_user_untagged_messages(user_id: str = Path(...)) -> List[CanonicalUserMessage]:
+def _get_user_untagged_messages(user_id: str) -> List[CanonicalUserMessage]:
     """
-    Retrieve all untagged messages for a given user from the database.
-
-    This function fetches messages from the `user_messages` table where the `user_id` matches
-    the provided value and `topic_id` is NULL (untagged). The messages are ordered by their `id`.
-    It filters out messages where the role is 'tool' or where the role is 'assistant' and the content is empty.
+    Retrieve all untagged messages for a specific user.
 
     Args:
-        user_id (str): The ID of the user whose untagged messages are to be retrieved.
+        user_id (str): The unique identifier of the user.
 
     Returns:
-        List[CanonicalUserMessage]: A list of CanonicalUserMessage objects representing the user's untagged messages,
-        excluding tool messages and assistant messages with empty content.
+        List[CanonicalUserMessage]: A list of untagged messages for the user.
     """
-    with open('/app/config/config.json') as f:
-        _config = json.load(f)
-    db = _config["db"]["ledger"]
-    with sqlite3.connect(db, timeout=5.0) as conn:
-        conn.execute("PRAGMA journal_mode=WAL;")
+    with _open_conn() as conn:
         cur = conn.cursor()
-        cur.execute("SELECT * FROM user_messages WHERE user_id = ? AND topic_id IS NULL ORDER BY id", (user_id,))
+        cur.execute(
+            "SELECT * FROM user_messages WHERE user_id = ? AND topic_id IS NULL ORDER BY id",
+            (user_id,)
+        )
         columns = [col[0] for col in cur.description]
         raw_messages = [dict(zip(columns, row)) for row in cur.fetchall()]
         for msg in raw_messages:
@@ -203,6 +197,24 @@ def get_user_untagged_messages(user_id: str = Path(...)) -> List[CanonicalUserMe
             )
         ]
         return messages
+
+@router.get("/user/{user_id}/messages/untagged", response_model=List[CanonicalUserMessage])
+def get_user_untagged_messages(user_id: str = Path(...)) -> List[CanonicalUserMessage]:
+    """
+    Retrieve all untagged messages for a given user from the database.
+
+    This function fetches messages from the `user_messages` table where the `user_id` matches
+    the provided value and `topic_id` is NULL (untagged). The messages are ordered by their `id`.
+    It filters out messages where the role is 'tool' or where the role is 'assistant' and the content is empty.
+
+    Args:
+        user_id (str): The ID of the user whose untagged messages are to be retrieved.
+
+    Returns:
+        List[CanonicalUserMessage]: A list of CanonicalUserMessage objects representing the user's untagged messages,
+        excluding tool messages and assistant messages with empty content.
+    """
+    return _get_user_untagged_messages(user_id=user_id)
 
 
 @router.get("/user/{user_id}/messages/last", response_model=str)

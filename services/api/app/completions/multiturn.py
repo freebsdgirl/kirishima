@@ -116,7 +116,7 @@ async def chat_completions(data: ChatCompletionRequest):
                 choices=[
                     ChatCompletionChoice(
                         index=choice["index"],
-                        message={"role": "assistant", "content": choice["text"]},
+                        message={"role": "assistant", "content": choice["content"]},
                         finish_reason=choice.get("finish_reason", "stop")
                     )
                     for choice in completion.get("choices", [])

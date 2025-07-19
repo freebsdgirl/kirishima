@@ -31,7 +31,7 @@ logger = get_logger(f"ledger.{__name__}")
 from shared.models.openai import OpenAICompletionRequest
 from shared.models.ledger import MemoryEntry, AssignTopicRequest
 
-from app.user.get import _get_user_messages
+from app.user.get import _get_user_untagged_messages
 from app.memory.create import _memory_add
 from app.memory.assign_topic_to_memory import _memory_assign_topic
 from app.topic.get_recent_topics import _get_recent_topics
@@ -72,7 +72,7 @@ async def _scan_user_messages(user_id: str):
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         try:
             # we don't actually use user_id for anything other than pulling messages - this is because we haven't deprecated user_ids from the user_messages table yet.
-            messages = _get_user_messages(user_id=user_id)
+            messages = _get_user_untagged_messages(user_id=user_id)
             # Filter for only untagged messages
             messages = [msg for msg in messages if getattr(msg, 'topic_id', None) is None]
         except Exception as e:
@@ -151,9 +151,9 @@ Output should be in JSON matching the format:
         # construct our openai request
         request = OpenAICompletionRequest(
             model="gpt-4.1",
-            messages=[
-                {"role": "user", "content": full_prompt}
-            ]
+            prompt=full_prompt,
+            temperature=0.7,
+            provider="openai"
         )
         # call the API's /v1/completions endpoint with the full prompt
         api_port = os.getenv("API_PORT")
@@ -270,10 +270,10 @@ Output should be in JSON matching the format:
 
             new_topic = _create_topic(name=topic_name)
 
-            logger.info(f"Created new topic {new_topic['id']}.")
+            logger.info(f"Created new topic {new_topic}.")
             # Update messages with the new topic ID and timestamps
             _assign_messages_to_topic(body=AssignTopicRequest(
-                topic_id=new_topic['id'],
+                topic_id=new_topic,
                 start=start_time,
                 end=end_time
             ))
@@ -316,7 +316,7 @@ Output should be in JSON matching the format:
                     memory_count += 1
 
                     # assign the memory to the topic
-                    _memory_assign_topic(result['id'], new_topic['id'])
+                    _memory_assign_topic(result['id'], new_topic)
                     
                 except Exception as e:
                     logger.error(f"Error adding memory: {e}")

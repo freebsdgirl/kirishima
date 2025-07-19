@@ -123,16 +123,8 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
     
     provider = resolve_provider_from_mode(message.model)
     
-    # Filter tools: only expose web_search to anthropic
-    def is_web_search_tool(tool):
-        return (
-            tool.get("name") == "web_search" or
-            (isinstance(tool.get("type"), str) and tool["type"].startswith("web_search"))
-        )
-    if provider == "anthropic":
-        tools = all_tools
-    else:
-        tools = [tool for tool in all_tools if not is_web_search_tool(tool)]
+    # Use all tools for all providers
+    tools = all_tools
 
     updated_request = message.copy(update={
         "memories": [m.model_dump() for m in memories],
@@ -298,24 +290,12 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
         )
 
         # 3. If tool call, execute tool and loop
-        # Note: Server-side tools (like web_search) are executed by the provider (e.g., Anthropic)
-        # and results are automatically included in the response. We only need to execute client-side tools.
         tool_calls = getattr(proxy_response, 'tool_calls', None)
-        has_client_tool_calls = False
         
         if tool_calls:
             for tool_call in tool_calls:
                 if tool_call.get('type') == 'function':
                     fn = tool_call['function']['name']
-                    
-                    # Check if this is a server-side tool (handled by the provider)
-                    server_side_tools = ["web_search"]  # Add more as needed
-                    if fn in server_side_tools:
-                        logger.debug(f"Skipping server-side tool {fn} - already executed by provider")
-                        continue
-                    
-                    # This is a client-side tool that we need to execute
-                    has_client_tool_calls = True
                     args = tool_call['function'].get('arguments', '{}')
                     try:
                         args_dict = _json.loads(args) if isinstance(args, str) else args
@@ -375,8 +355,8 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
                     ]
                     updated_request = updated_request.copy(update={"messages": message_buffer})
             
-            # Only continue looping if we had client-side tool calls that need follow-up
-            if has_client_tool_calls:
+            # Continue looping if we had tool calls that need follow-up
+            if tool_calls:
                 tool_loop_count += 1
                 continue  # Loop again with updated buffer
         # 7. If we get a real assistant message (content), break and return

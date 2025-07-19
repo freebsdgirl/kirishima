@@ -24,7 +24,7 @@ ISO8601_REPEAT_PATTERN = re.compile(r"^R(\d*)/(P.*)")
 
 class StickyNoteCreate(BaseModel):
     text: str = Field(..., description="The content of the sticky note.")
-    due: Optional[datetime] = Field(None, description="The due date for the sticky note in ISO 8601 format (localtime, not UTC).")
+    due: datetime = Field(..., description="The due date for the sticky note in ISO 8601 format (localtime, not UTC).")
     periodicity: Optional[str] = Field(
         None,
         description="The periodicity of the sticky note as an ISO 8601 repeating interval (e.g., 'R/P1D' for daily)."

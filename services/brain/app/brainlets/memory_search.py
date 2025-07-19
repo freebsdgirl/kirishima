@@ -133,6 +133,10 @@ async def memory_search(brainlets_output: Dict[str, Any], message: MultiTurnRequ
         {"id": m.get("id"), "memory": m.get("memory"), "created_at": m.get("created_at")} for m in tool_result["memories"]
     ]
     tool_result = {"memories": minimal_memories}
+    
+    # limit to the first 5 memories
+    if len(minimal_memories) > 5:
+        minimal_memories = minimal_memories[:5]
 
     memory_text = [
         f"{m['id']}|{m['memory']}|{m['created_at']}\n" for m in minimal_memories

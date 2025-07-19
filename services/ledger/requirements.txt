@@ -10,3 +10,4 @@ pygelf
 tiktoken
 httpx
 transformers
+jinja2

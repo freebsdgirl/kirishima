@@ -12,6 +12,7 @@ Constants:
     The module uses structured logging to trace the summary creation process, including debug, warning, and error messages.
 """
 from shared.models.ledger import SummaryCreateRequest, SummaryMetadata, Summary
+from shared.prompt_loader import load_prompt
 
 from shared.log_config import get_logger
 logger = get_logger(f"ledger.{__name__}")
@@ -130,24 +131,9 @@ async def create_periodic_summary(request: SummaryCreateRequest) -> List[dict]:
 
         logger.debug(f"Conversation string for summary: {conversation_str}")
 
-        prompt = f'''
-### Task: Summarize the following conversation between Randi (the user) and Kirishima (the assistant) in a clear and concise manner.
-
-
-
-### Conversation
-
-{conversation_str}
-
-
-
-### Instructions
-
-- The summary should capture the main points of the conversation.
-- The summary must be no more than {periodic_max_tokens} tokens in length.
-- The summary should be a single paragraph.
-- Prioritize outcomes, decisions, or action items over small talk.
-'''
+        prompt = load_prompt("ledger", "summary", "periodic",
+                           conversation_str=conversation_str,
+                           max_tokens=periodic_max_tokens)
 
         summary_req = OpenAICompletionRequest(
             model="gpt-4.1",  # or use from config if needed
@@ -182,19 +168,17 @@ async def create_periodic_summary(request: SummaryCreateRequest) -> List[dict]:
         def format_timestamp(ts: str) -> str:
             dt = datetime.fromisoformat(ts.replace("Z", ""))
             return dt.strftime("%A, %B %d")
-        combined_prompt = f"""
-### Task: Using the provided summaries, generate a single summary that reflects how events unfolded over time.
-
-### Summaries"""
+        
+        # Add formatted_date to each summary for template
+        formatted_summaries = []
         for summary in summaries:
-            date_str = format_timestamp(summary.metadata.timestamp_begin)
-            combined_prompt += f"[{summary.metadata.summary_type.upper()} – {date_str}] {summary.content}\n"
-        combined_prompt += f"""
-
-### Instructions
-- Organize the summary chronologically. 
-- Your response cannot exceed {periodic_max_tokens} tokens.
-"""
+            summary_dict = summary.model_dump()
+            summary_dict['formatted_date'] = format_timestamp(summary.metadata.timestamp_begin)
+            formatted_summaries.append(summary_dict)
+        
+        combined_prompt = load_prompt("ledger", "summary", "combine",
+                                    summaries=formatted_summaries,
+                                    max_tokens=periodic_max_tokens)
         combined_req = OpenAICompletionRequest(
             model="gpt-4.1",
             prompt=combined_prompt,

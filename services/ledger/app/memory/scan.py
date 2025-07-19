@@ -30,6 +30,7 @@ logger = get_logger(f"ledger.{__name__}")
 
 from shared.models.openai import OpenAICompletionRequest
 from shared.models.ledger import MemoryEntry, AssignTopicRequest
+from shared.prompt_loader import load_prompt
 
 from app.user.get import _get_user_untagged_messages
 from app.memory.create import _memory_add
@@ -113,40 +114,7 @@ async def _scan_user_messages(user_id: str):
         # Prepare the prompt with the conversation log
         conversation_log = "\n".join([msg.created_at + "|" + msg.role + "|" + msg.content for msg in messages])
 
-        prompt = """Given the following log, identify and list the major conversational shifts. 
-- Do not give commentary. 
-- Only list significant shifts in conversation. 
-- Consolidate all subtopics into a single topic. 
-- Do not list any subtopics, even if they are technical in nature.
-- After each conversational shift, specify a short phrase that defines this topic.
-- Treat all parts of the conversation that center around the same general theme (such as ‘AI’) as one topic, regardless of which aspects or points are discussed. Only consider it a new topic if the general theme of conversation changes to something else (such as ‘personal job search’ or ‘home routines’).
-- Refer to the user as Randi and the assistant as Kirishima.
-Once you have identified the conversational shifts, examine each conversation and determine if there is any data that should be saved as a memory.
-- Memories should include anything that might be referenced in later conversations.
-- Do not include things the model likely already knows.
-- Identify up to 4 relevant keywords for each memory. Do not use 'Randi' or 'Kirishima' as keywords. Only include keywords that will be useful for search.
-- Include a category for the memory. You must choose from one of the following: Health, Career, Family, Personal, Technical Projects, Social, Finance, Self-care, Environment, Hobbies, Philosophy
-Output should be in JSON matching the format:
-{
-    "topics": [
-        {
-            "topic": "topic name goes here",
-            "start": "beginning timestamp goes here",
-            "end": "end timestamp goes here",
-            "memories": [
-                {
-                    "memory": "memory 1",
-                    "keywords": [ "keyword1", "keyword2", ... ],
-                    "category": "Health"
-                },
-                ...
-            ]
-        },
-        ...
-    ]
-}
-- Do not include formatting.
-"""
+        prompt = load_prompt("ledger", "memory", "scan")
         full_prompt = f"{prompt}\n\n{conversation_log}"
         # construct our openai request
         request = OpenAICompletionRequest(

@@ -7,7 +7,7 @@ prompt system (from the private config repo) or the legacy local prompt modules.
 
 import importlib
 import logging
-from shared.prompt_loader import load_proxy_prompt
+from app.prompts.centralized_loader import load_proxy_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -29,12 +29,16 @@ def get_system_prompt(request, provider=None, mode=None):
 
     # Try centralized prompt system first
     try:
-        logger.debug(f"Attempting centralized prompt for {provider}-{mode}")
-        return load_proxy_prompt(provider, mode, request)
+        logger.info(f"Attempting centralized prompt for {provider}-{mode}")
+        result = load_proxy_prompt(provider, mode, request)
+        logger.info(f"Successfully loaded centralized prompt for {provider}-{mode}")
+        return result
     except FileNotFoundError as e:
-        logger.debug(f"Centralized prompt not found: {e}")
+        logger.info(f"Centralized prompt not found: {e}")
     except Exception as e:
-        logger.warning(f"Failed to load centralized prompt: {e}")
+        logger.error(f"Failed to load centralized prompt: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
 
     # Fall back to legacy module system
     logger.debug(f"Falling back to legacy modules for {provider}-{mode}")

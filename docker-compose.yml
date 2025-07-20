@@ -13,6 +13,7 @@ services:
       - CONTACTS_PORT=${CONTACTS_PORT}
       - COURIER_PORT=${COURIER_PORT}
       - DISCORD_PORT=${DISCORD_PORT}
+      - GOOGLEAPI_PORT=${GOOGLEAPI_PORT}
       - IMESSAGE_PORT=${IMESSAGE_PORT}
       - LEDGER_PORT=${LEDGER_PORT}
       - PROXY_PORT=${PROXY_PORT}
@@ -56,6 +57,7 @@ services:
       - CONTACTS_PORT=${CONTACTS_PORT}
       - COURIER_PORT=${COURIER_PORT}
       - DISCORD_PORT=${DISCORD_PORT}
+      - GOOGLEAPI_PORT=${GOOGLEAPI_PORT}
       - IMESSAGE_PORT=${IMESSAGE_PORT}
       - LEDGER_PORT=${LEDGER_PORT}
       - PROXY_PORT=${PROXY_PORT}
@@ -101,6 +103,7 @@ services:
       - CONTACTS_PORT=${CONTACTS_PORT}
       - COURIER_PORT=${COURIER_PORT}
       - DISCORD_PORT=${DISCORD_PORT}
+      - GOOGLEAPI_PORT=${GOOGLEAPI_PORT}
       - IMESSAGE_PORT=${IMESSAGE_PORT}
       - LEDGER_PORT=${LEDGER_PORT}
       - PROXY_PORT=${PROXY_PORT}
@@ -144,6 +147,7 @@ services:
       - CONTACTS_PORT=${CONTACTS_PORT}
       - COURIER_PORT=${COURIER_PORT}
       - DISCORD_PORT=${DISCORD_PORT}
+      - GOOGLEAPI_PORT=${GOOGLEAPI_PORT}
       - IMESSAGE_PORT=${IMESSAGE_PORT}
       - LEDGER_PORT=${LEDGER_PORT}
       - PROXY_PORT=${PROXY_PORT}
@@ -172,6 +176,51 @@ services:
     networks:
       - shared-net
 
+  googleapi:
+    build:
+      context: ./services/googleapi
+      args:
+        SERVICE_PORT: ${GOOGLEAPI_PORT}
+    environment:
+      - SERVICE_PORT=${GOOGLEAPI_PORT}
+      - SERVICE_NAME=googleapi
+      - TZ=America/Los_Angeles
+      - API_PORT=${API_PORT}
+      - BRAIN_PORT=${BRAIN_PORT}
+      - CONTACTS_PORT=${CONTACTS_PORT}
+      - COURIER_PORT=${COURIER_PORT}
+      - DISCORD_PORT=${DISCORD_PORT}
+      - GOOGLEAPI_PORT=${GOOGLEAPI_PORT}
+      - IMESSAGE_PORT=${IMESSAGE_PORT}
+      - LEDGER_PORT=${LEDGER_PORT}
+      - PROXY_PORT=${PROXY_PORT}
+      - SCHEDULER_PORT=${SCHEDULER_PORT}
+      - SMARTHOME_PORT=${SMARTHOME_PORT}
+      - STICKYNOTES_PORT=${STICKYNOTES_PORT}
+      - TTS_PORT=${TTS_PORT}
+    depends_on:
+      - graylog
+    ports:
+      - "${GOOGLEAPI_PORT}:${GOOGLEAPI_PORT}"
+      - "${GOOGLEAPI_OAUTH_PORT}:${GOOGLEAPI_OAUTH_PORT}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./services/googleapi/app:/app/app
+      - ./shared:/app/shared
+      - ~/.kirishima:/app/config
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${GOOGLEAPI_PORT}/ping"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: gelf
+      options:
+        gelf-address: "tcp://localhost:12201"
+    networks:
+      - shared-net
   imessage:
     build:
       context: ./services/imessage
@@ -190,6 +239,7 @@ services:
       - CONTACTS_PORT=${CONTACTS_PORT}
       - COURIER_PORT=${COURIER_PORT}
       - DISCORD_PORT=${DISCORD_PORT}
+      - GOOGLEAPI_PORT=${GOOGLEAPI_PORT}
       - IMESSAGE_PORT=${IMESSAGE_PORT}
       - LEDGER_PORT=${LEDGER_PORT}
       - PROXY_PORT=${PROXY_PORT}
@@ -233,6 +283,7 @@ services:
       - CONTACTS_PORT=${CONTACTS_PORT}
       - COURIER_PORT=${COURIER_PORT}
       - DISCORD_PORT=${DISCORD_PORT}
+      - GOOGLEAPI_PORT=${GOOGLEAPI_PORT}
       - IMESSAGE_PORT=${IMESSAGE_PORT}
       - LEDGER_PORT=${LEDGER_PORT}
       - PROXY_PORT=${PROXY_PORT}
@@ -278,6 +329,7 @@ services:
       - CONTACTS_PORT=${CONTACTS_PORT}
       - COURIER_PORT=${COURIER_PORT}
       - DISCORD_PORT=${DISCORD_PORT}
+      - GOOGLEAPI_PORT=${GOOGLEAPI_PORT}
       - IMESSAGE_PORT=${IMESSAGE_PORT}
       - LEDGER_PORT=${LEDGER_PORT}
       - PROXY_PORT=${PROXY_PORT}
@@ -322,6 +374,7 @@ services:
       - CONTACTS_PORT=${CONTACTS_PORT}
       - COURIER_PORT=${COURIER_PORT}
       - DISCORD_PORT=${DISCORD_PORT}
+      - GOOGLEAPI_PORT=${GOOGLEAPI_PORT}
       - IMESSAGE_PORT=${IMESSAGE_PORT}
       - LEDGER_PORT=${LEDGER_PORT}
       - PROXY_PORT=${PROXY_PORT}
@@ -365,6 +418,7 @@ services:
       - CONTACTS_PORT=${CONTACTS_PORT}
       - COURIER_PORT=${COURIER_PORT}
       - DISCORD_PORT=${DISCORD_PORT}
+      - GOOGLEAPI_PORT=${GOOGLEAPI_PORT}
       - IMESSAGE_PORT=${IMESSAGE_PORT}
       - LEDGER_PORT=${LEDGER_PORT}
       - PROXY_PORT=${PROXY_PORT}
@@ -407,6 +461,7 @@ services:
       - CONTACTS_PORT=${CONTACTS_PORT}
       - COURIER_PORT=${COURIER_PORT}
       - DISCORD_PORT=${DISCORD_PORT}
+      - GOOGLEAPI_PORT=${GOOGLEAPI_PORT}
       - IMESSAGE_PORT=${IMESSAGE_PORT}
       - LEDGER_PORT=${LEDGER_PORT}
       - PROXY_PORT=${PROXY_PORT}

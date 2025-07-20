@@ -1,0 +1,14 @@
+uvicorn
+fastapi
+requests
+opentelemetry-sdk
+opentelemetry-exporter-otlp
+opentelemetry-instrumentation-fastapi
+opentelemetry-exporter-otlp-proto-http
+opentelemetry-instrumentation-fastapi
+pygelf
+httpx
+jinja2
+google-api-python-client
+google-auth
+google-auth-oauthlib

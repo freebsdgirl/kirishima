@@ -24,6 +24,7 @@ from shared.models.proxy import ProxyOneShotRequest
 from app.message.singleturn import incoming_singleturn_message
 import uuid
 from shared.models.proxy import MultiTurnRequest
+from shared.prompt_loader import load_prompt
 
 async def topic_tracker(brainlets_output: Dict[str, Any], message: MultiTurnRequest):
     """
@@ -93,23 +94,12 @@ async def topic_tracker(brainlets_output: Dict[str, Any], message: MultiTurnRequ
 
     # --- Build prompt for the model ---
     if most_recent_topic:
-        prompt = (
-            "Given the following conversation, and the most recent topic discussed ('{topic}'), "
-            "determine the current subject matter or topic the user and assistant are discussing.\n"
-            "Topics should be very broad and not too specific.\n"
-            "Identify the main subject or ongoing theme of the conversation and avoid changing it unless there’s a significant shift.\n"
-            "If the topic has significantly changed, reply with the new topic. If it has not significantly changed, reply with the same topic.\n"
-            "The topic should be representative of the user's last comment as though it were the title of a chapter in a book unless it is a continuation of the previous conversation and not a complete change in topic.\n"
-            "Respond with a single word or phrase representing the topic. Output only the topic—no formatting, no explanations, no commentary, no extra words.\n"
-            "Most recent topic: {topic}\n\n"
-            "{chatlog}\n\nCurrent topic:"
-        ).format(topic=most_recent_topic, chatlog=chatlog)
+        prompt = load_prompt("brain", "brainlets", "topic_tracker_with_previous", 
+                           most_recent_topic=most_recent_topic, 
+                           chatlog=chatlog)
     else:
-        prompt = (
-            "Given the following conversation, determine the current subject matter or topic "
-            "the user and assistant are discussing. Respond with a concise word or phrase.\n\n"
-            f"{chatlog}\n\nCurrent topic:"
-        )
+        prompt = load_prompt("brain", "brainlets", "topic_tracker_without_previous", 
+                           chatlog=chatlog)
 
     # --- Get model/options from brainlets config ---
     brainlet_config = None

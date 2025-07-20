@@ -28,6 +28,7 @@ from shared.models.proxy import ProxyOneShotRequest
 from app.message.singleturn import incoming_singleturn_message
 
 from app.tools.memory import memory_search_tool
+from shared.prompt_loader import load_prompt
 
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
@@ -71,13 +72,7 @@ async def memory_search(brainlets_output: Dict[str, Any], message: MultiTurnRequ
     chatlog = '\n'.join(chatlog_lines)
 
     # --- Build prompt for the model ---
-    prompt = (
-        "Using the conversation only as context, determine the keywords for the user's most recent messages.\n"
-        "The keywords should help in retrieving relevant memories.\n"
-        "Keywords should be comma-separated.\n"
-        "At least 2 keywords must be provided.\n\n"
-        "{chatlog}\n\nKeywords:"
-    ).format(chatlog=chatlog)
+    prompt = load_prompt("brain", "brainlets", "memory_search", chatlog=chatlog)
 
     # --- Get model/options from brainlets config ---
     brainlet_config = None

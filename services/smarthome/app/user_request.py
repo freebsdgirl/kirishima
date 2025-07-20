@@ -18,6 +18,7 @@ from app.util import get_devices, get_entities_for_device, get_states_for_entity
 
 from shared.models.openai import OpenAICompletionRequest
 from shared.models.smarthome import UserRequest
+from shared.prompt_loader import load_prompt
 
 from shared.log_config import get_logger
 logger = get_logger(f"scheduler.{__name__}")
@@ -94,27 +95,10 @@ async def user_request(request: UserRequest) -> dict:
                 "type": "unknown"
             })
 
-    prompt = f"""The user has made the following request: "{full_request}"
-Match the device in this request (name: "{name}") to the devices in the system.
-Only include the device_ids in the response.
-Multiple devices may match, so return all that match.
-Do not return any devices that do not match the request.
-Include your reasoning in the response.
-Do not include any formatting in the response, just a JSON object with the following structure:
-"""+"""
-{
-    "devices": [
-        "device_id_1",
-        "device_id_2",
-        ...
-    ],
-    "reasoning": "Your reasoning here"
-}
-"""+f"""
-The devices are as follows:
-
-{devices}
-"""
+    prompt = load_prompt("smarthome", "user_request", "device_matching", 
+                        full_request=full_request, 
+                        name=name, 
+                        devices=json.dumps(devices, indent=2))
 
     request = OpenAICompletionRequest(
         model="gpt-4.1-mini",
@@ -234,46 +218,11 @@ The devices are as follows:
 
     # now, we take those devices and related devices, and we turn them into another prompt.
     current_time = datetime.now()
-    prompt = f"""Date: {current_time}
-
-The user has made the following request: "{full_request}"   
-
-- Lights should have similar effects/scenes.
-- Music-related effects should be used when playing music.
-- Devices are in a studio apartment, so consider the layout and proximity of devices.
-- Coloured lights should be used for ambiance, not just white light.
-- Consider the time of day and current activity (if available) when selecting effects.
-- Instead of using turn_on/turn_off, select the scene from the controller, if available.
-- If multiple scenes match the request, context, and preferences, choose one randomly.
-
-The following devices match the request:
-{json.dumps(device_entities, indent=2)}
-
-The following related devices are available for context:
-{json.dumps(related_device_entities, indent=2)}
-
-Decide if any action should be taken based on the request, the user preferences, and the devices available.
-
-Output should be the json that will be sent to the home assistant websocket.
-Only output the JSON, suitable for being loaded into a python variable via a script. 
-JSON should be a list of actions to take, or an empty list if no action is needed.
-Do not include any other text.
-Do not include any formatting.
-
-Example output:"""+"""
-[
-    {
-        'id': 1, 
-        'type': 'call_service', 
-        'domain': 'input_select', 
-        'service': 'select_option', 
-        'service_data': {
-            'entity_id': 'input_select.bedroom_scenes', 
-            'option': 'Off'
-        }
-    }
-]
-"""
+    prompt = load_prompt("smarthome", "user_request", "action_generation",
+                        current_time=current_time,
+                        full_request=full_request,
+                        device_entities=json.dumps(device_entities, indent=2),
+                        related_device_entities=json.dumps(related_device_entities, indent=2))
 
     request = OpenAICompletionRequest(
         model="gpt-4.1-mini",

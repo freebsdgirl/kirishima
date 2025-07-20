@@ -34,6 +34,7 @@ import httpx
 import json
 import os
 from shared.models.openai import OpenAICompletionRequest
+from shared.prompt_loader import load_prompt
 
 async def create_monthly_summary(request: SummaryCreateRequest) -> List[dict]:
     """
@@ -96,23 +97,17 @@ async def create_monthly_summary(request: SummaryCreateRequest) -> List[dict]:
     def format_timestamp(ts: str) -> str:
         dt = datetime.fromisoformat(ts.replace("Z", ""))
         return dt.strftime("%A, %B %d")
-    prompt = f"""
-### Task: Using the provided summaries, generate a single summary that reflects how events unfolded over the month.
-
-### Summaries
-"""
+    
+    # Add formatted_date to each summary for template
+    formatted_summaries = []
     for summary in summaries:
-        date_str = format_timestamp(summary["metadata"]["timestamp_begin"])
-        prompt += f"[{summary['metadata']['summary_type'].upper()} – {date_str}] {summary['content']}\n"
-    prompt += f"""
-
-### Instructions
-- Organize the summary chronologically. Use time indicators like "Early in the month…", "Mid-month…", "By the end of the month…", etc.
-- Emphasize key actions and decisions.
-- Maintain a coherent narrative flow.
-- Use dense paragraphs. Do not use formatting.
-- Your response must not exceed {monthly_max_tokens} tokens.
-"""
+        summary_dict = summary.copy()
+        summary_dict['formatted_date'] = format_timestamp(summary["metadata"]["timestamp_begin"])
+        formatted_summaries.append(summary_dict)
+    
+    prompt = load_prompt("ledger", "summary", "monthly", 
+                        summaries=formatted_summaries, 
+                        max_tokens=monthly_max_tokens)
     summary_req = OpenAICompletionRequest(
         model="gpt-4.1",
         prompt=prompt,

@@ -28,6 +28,7 @@ from app.memory.patch import _memory_patch
 
 from shared.models.openai import OpenAICompletionRequest
 from shared.models.ledger import MemoryEntry
+from shared.prompt_loader import load_prompt
 
 router = APIRouter()
 
@@ -76,17 +77,12 @@ async def deduplicate_memories_by_topic():
     topic_map = {topic['id']: topic['name'] for topic in topics}
 
     # Ask the LLM to select what topics are similar
-    prompt = """
-Given the following topic names, list which topics are semantically similar.
-
-Format the output as a JSON list of lists, where each inner list contains the topic ids of names that are similar to each other.
-Do not include any formatting or additional text, just the JSON array.
-"""
+    prompt = load_prompt("ledger", "memory", "dedup_topic_similarity", topic_map=str(topic_map))
 
     completion_request = OpenAICompletionRequest(
         model="gpt-4.1",
         messages=[
-            {"role": "user", "content": prompt + "\n" + str(topic_map)}
+            {"role": "user", "content": prompt}
         ]
     )
 
@@ -160,34 +156,12 @@ Do not include any formatting or additional text, just the JSON array.
             # Combine all memory lines into a single string
             memory_block = "\n".join(memory_lines)
 
-            prompt = """
-Given the following memories in the format 'id|memory_text|keywords|category', deduplicate them by consolidating similar memories and removing exact duplicates.
-
-For memories that should be updated/consolidated:
-- Provide the improved/consolidated text
-- Provide updated keywords that better represent the consolidated memory (3-5 keywords)
-- Keep the same category unless consolidation suggests a better fit
-
-Format the output as a JSON dictionary: 
-{ 
-    'update': {
-        'memory_id': {
-            'memory': 'new_consolidated_text', 
-            'keywords': ['keyword1', 'keyword2', 'keyword3'],
-            'category': 'category_name'
-        }
-    }, 
-    'delete': ['memory_id1', 'memory_id2'] 
-}
-
-Do not include any formatting or additional text, just the JSON object.
-
-"""
+            prompt = load_prompt("ledger", "memory", "dedup_memories", memory_block=memory_block)
             
             dedup_request = OpenAICompletionRequest(
                 model="gpt-4.1",
                 messages=[
-                    {"role": "user", "content": prompt + memory_block}
+                    {"role": "user", "content": prompt}
                 ]
             )
             

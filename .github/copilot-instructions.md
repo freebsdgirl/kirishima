@@ -15,6 +15,7 @@
 - **api**: OpenAI-compatible REST API front-end, handles prompt routing and model modes.
 - **discord**: Bridges Discord DMs to the system, syncing users and forwarding messages via `brain`.
 - **imessage**: Integrates with BlueBubbles to send/receive iMessages, forwarding to `brain`.
+- **googleapi**: Gmail integration providing email sending, receiving, searching, and monitoring with OAuth2 authentication.
 - **stickynotes**: Persistent, context-aware reminders surfaced only during agent interaction.
 - **smarthome**: Handles device/entity discovery and natural language smart home requests.
 - **divoom** (not containerized): Bluetooth emoji/status display, run on host for hardware access.

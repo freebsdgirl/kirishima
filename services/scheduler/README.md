@@ -23,11 +23,11 @@ Handles timed and recurring jobs for notification callbacks and summary generati
 
 ## Endpoints
 
-- POST /jobs — Create a new scheduled job
-- GET /jobs — List all jobs
-- DELETE /jobs/{job_id} — Delete a job
-- POST /pause — Pause all jobs
-- POST /resume — Resume all jobs
+- `POST /jobs` — Create a new scheduled job
+- `GET /jobs` — List all jobs
+- `DELETE /jobs/{job_id}` — Delete a job
+- `POST /jobs/{job_id}/pause` — Pause a specific job
+- `POST /jobs/{job_id}/resume` — Resume a specific job
 
 ## Notes
 

@@ -20,6 +20,7 @@ from shared.models.ledger import AssignTopicRequest
 from app.util import _open_conn
 from app.topic.util import topic_exists, _validate_timestamp
 from fastapi import APIRouter, HTTPException, status
+from typing import List, Dict
 
 router = APIRouter()
 
@@ -76,8 +77,6 @@ def assign_topic_to_messages(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Start time must be before end time.")
     start = _validate_timestamp(body.start)
     end = _validate_timestamp(body.end)
-    if not topic_exists(body.topic_id):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Topic not found.")
     with _open_conn() as conn:
         cur = conn.cursor()
         # check to see if there are any messages in the given timeframe
@@ -88,7 +87,7 @@ def assign_topic_to_messages(
         count = cur.fetchone()[0]
         if count == 0:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No messages found in the given timeframe.")
-        updated_count = _assign_messages_to_topic(body.topic_id, start, end)
+        updated_count = _assign_messages_to_topic(body)
         if updated_count == 0:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No messages found to update.")
     logger.debug(f"Updated {updated_count} messages with topic {body.topic_id}")
@@ -96,3 +95,80 @@ def assign_topic_to_messages(
     if updated_count == 0:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No messages found to update.")
     return {"updated": updated_count}
+
+
+def _merge_topics(primary_id: str, primary_name: str, merge_ids: List[str]) -> Dict:
+    """
+    Merge multiple topics into a primary topic.
+    
+    This function:
+    1. Updates the primary topic name if provided
+    2. Moves all memory-topic associations from merge topics to primary topic
+    3. Deletes the old topics
+    
+    Args:
+        primary_id: ID of the topic to keep
+        primary_name: New name for the primary topic (optional)
+        merge_ids: List of topic IDs to merge into primary
+        
+    Returns:
+        Dict with merge results including moved memories and deleted topics
+    """
+    from app.util import _open_conn
+    
+    if not merge_ids:
+        return {
+            "primary_topic_id": primary_id,
+            "primary_topic_name": primary_name,
+            "deleted_topics": [],
+            "moved_memories": 0
+        }
+    
+    conn = _open_conn()
+    cursor = conn.cursor()
+    
+    moved_memories = 0
+    deleted_topics = []
+    
+    try:
+        # Update primary topic name if provided and different
+        if primary_name:
+            cursor.execute("UPDATE topics SET name = ? WHERE id = ?", (primary_name, primary_id))
+            logger.info(f"Updated primary topic {primary_id} name to '{primary_name}'")
+        
+        # Move memories from merge topics to primary topic
+        for topic_id in merge_ids:
+            # Move memory-topic associations
+            cursor.execute("""
+                UPDATE memory_topics 
+                SET topic_id = ? 
+                WHERE topic_id = ?
+            """, (primary_id, topic_id))
+            moved_count = cursor.rowcount
+            moved_memories += moved_count
+            
+            if moved_count > 0:
+                logger.info(f"Moved {moved_count} memory associations from topic {topic_id} to {primary_id}")
+            
+            # Delete the old topic
+            cursor.execute("DELETE FROM topics WHERE id = ?", (topic_id,))
+            if cursor.rowcount > 0:
+                deleted_topics.append(topic_id)
+                logger.info(f"Deleted topic {topic_id}")
+        
+        conn.commit()
+        logger.info(f"Successfully merged {len(merge_ids)} topics into {primary_id}, moved {moved_memories} memory associations")
+        
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"Error merging topics: {e}")
+        raise
+    finally:
+        conn.close()
+    
+    return {
+        "primary_topic_id": primary_id,
+        "primary_topic_name": primary_name,
+        "deleted_topics": deleted_topics,
+        "moved_memories": moved_memories
+    }

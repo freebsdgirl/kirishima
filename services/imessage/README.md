@@ -12,8 +12,8 @@ Integrates with BlueBubbles (running on an iMac) to send and receive iMessages v
 
 ## Endpoints
 
-- `POST /imessage/send` — Send an iMessage to a specified recipient
-- `POST /imessage/recv` — Receive/process incoming iMessage webhooks from BlueBubbles
+- `POST /send` — Send an iMessage to a specified recipient
+- `POST /recv` — Receive/process incoming iMessage webhooks from BlueBubbles
 
 ## Configuration
 

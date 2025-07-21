@@ -296,6 +296,198 @@ Comprehensive deduplication system for memory management:
 - **Dry Run**: Analysis only, no actual deletions performed
 - **Threshold Configuration**: Adjustable similarity thresholds for duplicate detection
 
+## Deduplication System
+
+The ledger service provides comprehensive deduplication capabilities for both memories and topics, supporting multiple strategies and approaches.
+
+### Memory Deduplication
+
+#### Global Memory Deduplication (`/memories/_dedup_semantic`)
+
+**Method**: `GET` (with `dry_run` parameter)  
+**Purpose**: Global memory deduplication using timeframe or keyword grouping strategies.
+
+**Key Features**:
+- **Grouping Strategies**: 
+  - `timeframe`: Groups memories created within specified days (default: 7)
+  - `keyword`: Groups memories sharing minimum keyword matches (default: 2)
+- **LLM Integration**: Uses existing `dedup_memories.j2` prompt template for intelligent deduplication
+- **Dry Run Support**: `dry_run=true` shows groups without making changes
+- **Live Mode**: `dry_run=false` applies LLM recommendations with updates and deletions
+
+**Parameters**:
+- `dry_run` (bool): Preview mode vs. actual execution (default: true)
+- `grouping_strategy` (str): "timeframe" or "keyword" (default: "timeframe")
+- `min_keyword_matches` (int): Minimum shared keywords for grouping (default: 2)
+- `timeframe_days` (int): Days for timeframe grouping (default: 7)
+
+**Example**:
+```bash
+# Preview grouping
+curl "http://localhost:4203/memories/_dedup_semantic?dry_run=true&grouping_strategy=keyword&min_keyword_matches=3"
+
+# Execute deduplication
+curl "http://localhost:4203/memories/_dedup_semantic?dry_run=false&grouping_strategy=timeframe&timeframe_days=5"
+```
+
+**Response Structure**:
+```json
+{
+  "strategy": "timeframe",
+  "groups_processed": 15,
+  "memory_count": 245,
+  "operations": {
+    "update": {"mem_id": {"memory": "consolidated text", "keywords": [...]}},
+    "delete": ["mem_id_1", "mem_id_2"]
+  },
+  "results": {
+    "updated": 8,
+    "deleted": 12,
+    "errors": []
+  },
+  "group_details": [...]
+}
+```
+
+#### Topic-Based Memory Deduplication (`/memories/_dedup_topic_based`)
+
+**Method**: `POST`  
+**Purpose**: Comprehensive two-phase deduplication: topic consolidation followed by memory deduplication within consolidated topics.
+
+**Process Flow**:
+1. **Topic Similarity Analysis**: Uses sentence-transformers to find semantically similar topics
+2. **Topic Consolidation**: LLM determines which topics should be merged and optimal naming
+3. **Memory Chunking**: Groups memories by timeframe within consolidated topics  
+4. **Memory Deduplication**: LLM processes each memory chunk for deduplication
+
+**Key Features**:
+- **Semantic Topic Clustering**: Uses DBSCAN clustering with cosine similarity on topic names
+- **LLM Topic Merging**: Intelligent topic consolidation with naming optimization
+- **Timeframe Chunking**: Prevents token overflow by processing memories in temporal chunks
+- **Comprehensive Dry Run**: Complete cost analysis and planning without execution
+- **Token Management**: Configurable limits to control LLM usage and costs
+
+**Parameters**:
+- `topic_similarity_threshold` (float): Cosine similarity threshold for topic clustering (0.7-0.9, default: 0.8)
+- `max_topic_groups` (int): Maximum topic groups to consolidate (10-50, default: 20)
+- `max_memory_chunks` (int): Maximum memory chunks to process (20-100, default: 50)
+- `max_memories_per_chunk` (int): Maximum memories per LLM request (10-20, default: 15)
+- `chunk_days` (int): Days per timeframe chunk (3-14, default: 7)
+- `max_total_tokens` (int): Total token budget (50k-200k, default: 100k)
+- `dry_run` (bool): Analysis-only mode (default: false)
+
+**Example**:
+```bash
+# Dry run analysis
+curl -X POST "http://localhost:4203/memories/_dedup_topic_based?dry_run=true&max_topic_groups=10"
+
+# Execute full deduplication
+curl -X POST "http://localhost:4203/memories/_dedup_topic_based?topic_similarity_threshold=0.75&max_memory_chunks=30"
+```
+
+**Dry Run Response**:
+```json
+{
+  "status": "dry_run_complete",
+  "plan": {
+    "total_topics": 192,
+    "topic_groups_to_consolidate": 5,
+    "memory_chunks_to_deduplicate": 9,
+    "estimated_llm_requests": 14,
+    "estimated_total_tokens": 3735,
+    "cost_breakdown": {...}
+  },
+  "topic_consolidations": [...],
+  "memory_chunks": [...]
+}
+```
+
+### Topic Deduplication
+
+#### Semantic Topic Deduplication (`/topics/_dedup_semantic`)
+
+**Method**: `POST` (execution), `GET /topics/_dedup_semantic/preview` (preview)  
+**Purpose**: Standalone topic deduplication using semantic similarity and LLM decision-making.
+
+**Key Features**:
+- **Sentence-Transformers**: Uses all-MiniLM-L6-v2 model for topic name embeddings
+- **DBSCAN Clustering**: Groups semantically similar topics with configurable similarity thresholds
+- **LLM Merge Decisions**: GPT-4.1 analyzes topic clusters and determines optimal consolidation
+- **Memory Preservation**: Moves all memories from deleted topics to primary topics
+- **Topic Ranking**: Prioritizes topics with more memories for primary selection
+
+**Parameters**:
+- `semantic_similarity_threshold` (float): Cosine similarity threshold (0.6-0.85, default: 0.7)
+- `min_cluster_size` (int): Minimum topics per cluster (2-4, default: 2)
+- `max_clusters_to_process` (int): Processing limit (5-15, default: 10)
+- `min_memory_count` (int): Minimum memories per topic to consider (1-5, default: 1)
+- `max_topics` (int): Maximum topics to analyze (50-200, default: 100)
+
+**Example**:
+```bash
+# Preview what would be processed
+curl "http://localhost:4203/topics/_dedup_semantic/preview?max_topics=200&semantic_similarity_threshold=0.75"
+
+# Execute topic deduplication
+curl -X POST "http://localhost:4203/topics/_dedup_semantic?max_topics=200&max_clusters_to_process=15"
+```
+
+**Execution Response**:
+```json
+{
+  "status": "completed",
+  "topic_dedup_results": {
+    "processed_clusters": 10,
+    "results": [
+      {
+        "cluster_index": 0,
+        "cluster_size": 3,
+        "semantic_density": 0.908,
+        "avg_similarity": 0.908,
+        "merge_decision": {
+          "primary_topic_id": "uuid-1",
+          "primary_topic_name": "Consolidated Topic Name",
+          "merge_topic_ids": ["uuid-2", "uuid-3"],
+          "reasoning": "LLM explanation"
+        },
+        "merge_result": {
+          "primary_topic_id": "uuid-1",
+          "primary_topic_name": "Consolidated Topic Name", 
+          "deleted_topics": ["uuid-2", "uuid-3"],
+          "moved_memories": 6
+        }
+      }
+    ]
+  },
+  "stats": {
+    "topics_analyzed": 204,
+    "semantic_clusters_found": 24,
+    "clusters_processed": 10,
+    "topics_merged": 12,
+    "memories_moved": 17
+  }
+}
+```
+
+### Deduplication Dependencies
+
+**Required Packages**:
+- `sentence-transformers`: Semantic similarity analysis
+- `scikit-learn`: Clustering algorithms (DBSCAN)
+- `numpy`: Numerical operations for embeddings
+
+**LLM Integration**:
+- Uses existing prompt templates in `/home/randi/.kirishima/prompts/ledger/`
+- Integrates with proxy service for OpenAI API calls
+- Supports configurable model selection (default: gpt-4.1)
+
+**Safety Features**:
+- Transaction-based operations with rollback on errors
+- Comprehensive error logging and reporting
+- Dry run modes for cost estimation and planning
+- Configurable limits to prevent runaway operations
+- Graceful degradation when dependencies unavailable
+
 ## Configuration
 
 ```json

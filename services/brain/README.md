@@ -12,7 +12,29 @@ Brain acts as the primary coordinator between:
 - **Brainlet System**: Modular pre/post-processing pipeline
 - **Platform Services**: Discord, iMessage, API endpoints
 
-### Core Request Flow
+### API Endpoints
+
+### Core Processing
+
+- **POST /api/multiturn** — Primary conversation orchestration endpoint with full context management
+- **POST /api/singleturn** — Single-turn processing for simple interactions without conversation history
+
+### Mode Management
+
+- **POST /mode/{mode}** — Set the active model mode for subsequent conversations
+- **GET /mode** — Get the current active mode configuration
+
+### Notification System
+
+- **POST /notification** — Create new notifications for scheduling or reminder systems
+- **GET /notification/{user_id}** — Retrieve pending notifications for a specific user
+- **POST /notification/execute** — Execute callback notifications from scheduled jobs
+
+### Embedding Generation
+
+- **POST /embedding** — Generate text embeddings for semantic search and analysis
+
+## Core Request Flow
 
 ```text
 External Request → Brain Multiturn → Pre-Brainlets → Proxy LLM → Tool Execution Loop → 
@@ -213,7 +235,8 @@ TOOL_FUNCTIONS = {
 
 - CRUD operations for agent-managed prompts
 - SQLite storage in brainlets database
-- User-specific prompt management
+- **Self-modification capability**: Agent can rewrite its own system prompt
+- User-specific prompt management via scripts/manage_prompt.py
 
 **memory**:
 
@@ -225,7 +248,8 @@ TOOL_FUNCTIONS = {
 
 - GitHub repository integration
 - Create issues, add comments in agent voice
-- Automated project management workflows
+- **Autonomous development**: All project issues are agent-created
+- Automated project management workflows with @kirishima-ai account
 
 **smarthome**:
 

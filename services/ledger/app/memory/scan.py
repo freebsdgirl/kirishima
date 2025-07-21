@@ -39,6 +39,7 @@ from app.topic.get_recent_topics import _get_recent_topics
 from app.topic.get_messages_by_topic import _get_topic_messages
 from app.topic.create import _create_topic
 from app.topic.update import _assign_messages_to_topic
+# Removed broken import - topic_dedup_utils was assistant-generated and deleted
 
 import httpx
 import json
@@ -94,7 +95,11 @@ async def _scan_user_messages(user_id: str):
 
         logger.info(f"Found {len(messages)} untagged messages.")
 
-        # Get the most recent topic
+        if (len(messages) > 30):
+            logger.info(f"Limiting to the first {turns} messages for analysis.")
+            messages = messages[:turns]
+
+        # Get the most recent topic for context
         recent_topic = _get_recent_topics(limit=1)
 
         logger.info(f"Recent topic: {recent_topic}")
@@ -163,20 +168,23 @@ async def _scan_user_messages(user_id: str):
             logger.info(f"No topics found.")
             return {"status": "ok", "message": "No topics found, no action needed."}
 
-        # Topic extension logic: if we have a recent topic and the first analyzed topic
-        # seems to be a continuation, extend the existing topic instead of creating new one
+        # Enhanced topic extension logic with better deduplication
+        recent_topics = _get_recent_topics(limit=10)  # Get more recent topics for better matching
         recent_topic_id = None
-        if recent_topic and len(topics) > 0:
+        
+        if recent_topics and len(topics) > 0:
             first_topic = topics[0]
-            recent_topic_name = recent_topic[0]['name']
             first_topic_name = first_topic.get('topic', '')
             
-            # Simple heuristic: if topic names are similar or first topic starts near recent messages,
-            # consider it a continuation. This can be made more sophisticated.
-            if (recent_topic_name.lower() in first_topic_name.lower() or 
-                first_topic_name.lower() in recent_topic_name.lower()):
-                recent_topic_id = recent_topic[0]['id']
-                logger.info(f"Extending existing topic '{recent_topic_name}' ({recent_topic_id}) instead of creating new topic '{first_topic_name}'")
+            # Simple check for exact name match with recent topics
+            recent_topic_id = None
+            for rt in recent_topics:
+                if rt['name'].lower() == first_topic_name.lower():
+                    recent_topic_id = rt['id']
+                    break
+            
+            if recent_topic_id:
+                logger.info(f"Extending existing topic '{recent_topic_id}' instead of creating new topic '{first_topic_name}'")
                 # Remove the first topic from processing since we're extending existing
                 topics = topics[1:]
                 
@@ -236,10 +244,23 @@ async def _scan_user_messages(user_id: str):
 
             logger.info(f"Processing new topic '{topic_name}' from {start_time} to {end_time} with {len(memories)} memories.")
 
-            new_topic = _create_topic(name=topic_name)
+            # Check if we should merge with any existing topic before creating new one
+            # Simple exact name match for now - sophisticated dedup happens in dedup_topic_based
+            existing_topic_id = None
+            all_topics = _get_recent_topics(user_id, days=30)  # Check broader range
+            for existing_topic in all_topics:
+                if existing_topic['name'].lower() == topic_name.lower():
+                    existing_topic_id = existing_topic['id']
+                    break
+            
+            if existing_topic_id:
+                logger.info(f"Merging with existing similar topic: {existing_topic_id}")
+                new_topic = existing_topic_id
+            else:
+                new_topic = _create_topic(name=topic_name)
+                logger.info(f"Created new topic {new_topic}.")
 
-            logger.info(f"Created new topic {new_topic}.")
-            # Update messages with the new topic ID and timestamps
+            # Update messages with the topic ID and timestamps
             _assign_messages_to_topic(body=AssignTopicRequest(
                 topic_id=new_topic,
                 start=start_time,

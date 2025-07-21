@@ -13,6 +13,15 @@ The contacts microservice manages contact information in a SQLite database. It�
     - `notes`
 - Allows storage and retrieval of any other fields as needed.
 
+## API Endpoints
+
+- `POST /contact` — Create a new contact
+- `GET /contacts` — Retrieve all contacts
+- `GET /contact/{contact_id}` — Get a specific contact by ID
+- `PUT /contact/{contact_id}` — Update an existing contact
+- `DELETE /contact/{contact_id}` — Delete a contact
+- `GET /search` — Search for contacts by various criteria
+
 ## Usage
 
 - **Single-User Context:**  

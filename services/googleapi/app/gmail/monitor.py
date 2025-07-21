@@ -4,6 +4,7 @@ from typing import Dict, Any, Set
 import httpx
 import os
 
+from shared.prompt_loader import load_prompt
 from shared.models.proxy import MultiTurnRequest, ProxyResponse
 from shared.models.googleapi import EmailResponse, ReplyEmailRequest, ForwardEmailRequest, SaveDraftRequest
 from app.gmail.auth import get_gmail_service
@@ -211,66 +212,14 @@ class EmailMonitor:
         subject = email_data.get('subject', 'No Subject')
         body_text = email_data.get('body', {}).get('text', '')
         
-        prompt = """[Automated Message]
+        prompt = load_prompt("googleapi", "gmail", "monitor")
 
-You have received an email.
-
-Available actions are "reply", "ignore", "forward", or "draft".
-Add a "reasoning" field to your response to explain your choice.
-
-To respond, reply in the format:
-
-{ 
-    "action": "reply",
-    "bcc": ["your_email@example.com"],
-    "cc": ["your_email@example.com"],
-    "content": "Your reply here",
-    "reasoning": "I chose to reply because the email requires a response."
-}
-
-to ignore the email, use:
-
-{ 
-    "action": "ignore",
-    "reasoning": "I chose to ignore this email because it does not require a response."
-}
-
-to forward the email, use:
-
-{ 
-    "action": "forward",
-    "to": ["your_email@example.com"],
-    "content": "Your forwarding message here",
-    "reasoning": "I chose to forward this email because it contains important information that needs to be shared."
-}
-
-to save a draft response for review before sending, use:
-
-{ 
-    "action": "draft",
-    "to": "recipient@example.com",
-    "subject": "Re: Original Subject",
-    "cc": "cc@example.com", 
-    "bcc": "bcc@example.com",
-    "content": "Your draft content here",
-    "reasoning": "I chose to save a draft because I want to review my response before sending."
-}
-
-Randi's email is sektie@gmail.com. She will only contact you via this email address. Any other email address is not valid.
-
-Below is the content of the email.
-
-"""
         # Format the email content for the AI
         email_content = ""  # Initialize before appending
         email_content += f"From: {from_header}\n"
         email_content += f"Subject: {subject}\n"
         if 'cc' in email_data:
             email_content += f"Cc: {email_data['cc']}\n"
-        if 'id' in email_data:
-            email_content += f"ID: {email_data['id']}\n"
-        if 'threadId' in email_data:
-            email_content += f"Thread ID: {email_data['threadId']}\n"
         email_content += f"Date: {email_data.get('date', '')}\n\n"
         email_content += f"Content:\n{body_text}"
 

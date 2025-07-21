@@ -3,10 +3,12 @@
 
 The API microservice is the user-facing OpenAI-compatible interface for the Kirishima system. It typically runs on port 4200 and handles the following endpoints:
 
-- `/completions`
-- `/chat/completions`
-- `/models`
-- `/models/(model id)`
+## Endpoints
+
+- `POST /completions` and `POST /v1/completions` — OpenAI-compatible completion endpoint
+- `POST /chat/completions` and `POST /v1/chat/completions` — OpenAI-compatible chat completion endpoint  
+- `GET /models` and `GET /v1/models` — List available models/modes
+- `GET /models/{model_id}` and `GET /v1/models/{model_id}` — Get details for a specific model/mode
 
 ## Models and Modes
 

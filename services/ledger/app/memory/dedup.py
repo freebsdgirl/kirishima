@@ -2,7 +2,7 @@
 This module provides an API endpoint for deduplicating memories grouped by semantically similar topics using a Large Language Model (LLM).
 Functions:
     deduplicate_memories_by_topic():
-        Asynchronously deduplicates memories by:
+        Asynchronously deduplicate memories by:
             1. Fetching all topics from the ledger service.
             2. Using an LLM to group semantically similar topics.
             3. For each group:
@@ -18,7 +18,11 @@ logger = get_logger(f"ledger.{__name__}")
 
 import os
 import httpx
+from app.util import _open_conn
 import json
+from collections import defaultdict
+from datetime import datetime, timedelta
+from typing import List, Dict, Set, Tuple
 
 from app.topic.get_all_topics import _get_all_topics
 from app.memory.get_by_topic import _get_memory_by_topic
@@ -33,109 +37,297 @@ from shared.prompt_loader import load_prompt
 router = APIRouter()
 
 
+def _get_all_memories_with_details():
+    """Get all memories with their keywords, topics, and creation dates"""
+    try:
+        # Query database directly for all memories
+        conn = _open_conn()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT m.id, m.memory, m.created_at,
+                   GROUP_CONCAT(DISTINCT mt.tag) as keywords,
+                   mc.category
+            FROM memories m
+            LEFT JOIN memory_tags mt ON m.id = mt.memory_id
+            LEFT JOIN memory_category mc ON m.id = mc.memory_id
+            GROUP BY m.id, m.memory, m.created_at, mc.category
+            ORDER BY m.created_at DESC
+        """)
+        
+        memory_details = []
+        for row in cursor.fetchall():
+            mem_id, memory_text, created_at, keywords_str, category = row
+            keywords = set(keywords_str.split(',')) if keywords_str else set()
+            
+            memory_details.append({
+                'id': mem_id,
+                'memory': memory_text,
+                'keywords': keywords,
+                'category': category,
+                'created_at': created_at
+            })
+        
+        conn.close()
+        return memory_details
+    except Exception as e:
+        logger.error(f"Error fetching all memories: {e}")
+        return []
+
+def _group_by_keyword_overlap(memories: List[Dict], min_matches: int) -> List[List[str]]:
+    """Group memories by keyword overlap"""
+    memory_groups = []
+    processed = set()
+    
+    for i, mem1 in enumerate(memories):
+        if mem1['id'] in processed:
+            continue
+            
+        current_group = [mem1['id']]
+        processed.add(mem1['id'])
+        
+        for j, mem2 in enumerate(memories[i+1:], i+1):
+            if mem2['id'] in processed:
+                continue
+                
+            # Count keyword overlap
+            shared_keywords = mem1['keywords'].intersection(mem2['keywords'])
+            if len(shared_keywords) >= min_matches:
+                current_group.append(mem2['id'])
+                processed.add(mem2['id'])
+        
+        if len(current_group) >= 2:  # Only include groups with multiple memories
+            memory_groups.append(current_group)
+    
+    return memory_groups
+
+def _group_by_timeframe(memories: List[Dict], timeframe_days: int) -> List[List[str]]:
+    """Group memories by creation timeframe"""
+    # Sort memories by creation date
+    dated_memories = [m for m in memories if m.get('created_at')]
+    dated_memories.sort(key=lambda x: x['created_at'])
+    
+    memory_groups = []
+    current_group = []
+    current_start = None
+    
+    for memory in dated_memories:
+        try:
+            created_date = datetime.fromisoformat(memory['created_at'].replace('Z', '+00:00'))
+            
+            if current_start is None:
+                current_start = created_date
+                current_group = [memory['id']]
+            else:
+                time_diff = created_date - current_start
+                if time_diff.days <= timeframe_days:
+                    current_group.append(memory['id'])
+                else:
+                    # Close current group and start new one
+                    if len(current_group) >= 2:
+                        memory_groups.append(current_group)
+                    current_start = created_date
+                    current_group = [memory['id']]
+        except Exception as e:
+            logger.error(f"Error parsing date for memory {memory['id']}: {e}")
+            continue
+    
+    # Add final group
+    if len(current_group) >= 2:
+        memory_groups.append(current_group)
+    
+    return memory_groups
+
+
 @router.get("/memories/_dedup")
-async def deduplicate_memories_by_topic():
+async def deduplicate_memories_by_topic(
+    dry_run: bool = False,
+    grouping_strategy: str = "topic_similarity",
+    min_keyword_matches: int = 2,
+    timeframe_days: int = 7
+):
     """
-    Asynchronously deduplicates memories grouped by semantically similar topics using an LLM.
-    This function performs the following steps:
-    1. Fetches all topics from the ledger service.
-    2. Uses an LLM to determine which topics are semantically similar, grouping them by topic IDs.
-    3. For each group of similar topics:
-        a. Retrieves all associated memories.
-        b. Uses an LLM to deduplicate the memories, suggesting updates and deletions.
-        c. Applies the updates and deletions to the memory database.
-    4. Returns a summary of the deduplication process for each group.
+    Asynchronously deduplicates memories using different grouping strategies.
+    
+    Grouping strategies:
+    - "topic_similarity": Groups memories by semantically similar topics using LLM
+    - "keyword_overlap": Groups memories by shared keywords (requires min_keyword_matches)
+    - "timeframe": Groups memories created within the same timeframe window
+    
+    Args:
+        dry_run: If True, only analyze and return what would be done without making changes
+        grouping_strategy: Strategy for grouping memories ("topic_similarity", "keyword_overlap", "timeframe")
+        min_keyword_matches: Minimum number of matching keywords for keyword_overlap strategy
+        timeframe_days: Number of days for timeframe grouping window
+    
     Raises:
         HTTPException: If topics cannot be fetched, if the LLM response is invalid, or if memory updates/deletions fail.
     Returns:
-        list: A list of dictionaries, each containing:
-            - "topic": The name of the topic group.
-            - "updated memories": A dictionary mapping memory IDs to their updated text.
-            - "deleted_memories": A list of memory IDs that were deleted.
+        dict/list: Results depend on grouping strategy and dry_run mode
     """
-    ledger_port = os.getenv("LEDGER_PORT", 4203)
+    # Validate grouping strategy
+    valid_strategies = ["topic_similarity", "keyword_overlap", "timeframe"]
+    if grouping_strategy not in valid_strategies:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid grouping strategy. Must be one of: {valid_strategies}"
+        )
 
     result = []
 
-    # Use helper function instead of HTTP endpoint
-    try:
-        topics = _get_all_topics()
-        
-        if not topics:
+    if grouping_strategy == "topic_similarity":
+        # Original topic-based logic
+        try:
+            topics = _get_all_topics()
+            
+            if not topics:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="No topics found in the ledger."
+                )
+        except Exception as e:
+            logger.error(f"Error fetching topics: {str(e)}")
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="No topics found in the ledger."
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to fetch topics from the ledger."
             )
-    except Exception as e:
-        logger.error(f"Error fetching topics: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to fetch topics from the ledger."
+
+        # Create a mapping of topic_id to topic_name
+        topic_map = {topic['id']: topic['name'] for topic in topics}
+
+        if dry_run:
+            # In dry-run mode, return estimation without making API calls
+            return {
+                "status": "dry_run",
+                "grouping_strategy": grouping_strategy,
+                "message": f"Would analyze {len(topics)} topics for similarity grouping",
+                "topics": [{"id": t["id"], "name": t["name"]} for t in topics],
+                "estimated_api_calls": 1 + len(topics)  # 1 for topic grouping + 1 per topic group
+            }
+
+        # Ask the LLM to select what topics are similar
+        prompt = load_prompt("ledger", "memory", "dedup_topic_similarity", topic_map=str(topic_map))
+
+        completion_request = OpenAICompletionRequest(
+            model="gpt-4.1",
+            prompt=prompt
         )
 
-    # Create a mapping of topic_id to topic_name
-    topic_map = {topic['id']: topic['name'] for topic in topics}
+        api_port = os.getenv("API_PORT", 4200)
 
-    # Ask the LLM to select what topics are similar
-    prompt = load_prompt("ledger", "memory", "dedup_topic_similarity", topic_map=str(topic_map))
+        async with httpx.AsyncClient(timeout=180) as client:
+            try:
+                response = await client.post(f"http://api:{api_port}/v1/completions", json=completion_request.model_dump())
+                response.raise_for_status()
+                completion_response = response.json()
+            except httpx.HTTPStatusError as e:
+                logger.error(f"Error fetching completion from API: {str(e)}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Failed to fetch completion from the API: {str(e)}"
+                )
 
-    completion_request = OpenAICompletionRequest(
-        model="gpt-4.1",
-        messages=[
-            {"role": "user", "content": prompt}
-        ]
-    )
+            try:
+                completion_text = completion_response['choices'][0]['content'].strip()
+            except (KeyError, IndexError):
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Invalid response format from LLM. Expected 'choices' with 'content', got: {completion_response}"
+                )
+
+            # Parse the completion text as JSON
+            try:
+                similar_topics = json.loads(completion_text)
+            except json.JSONDecodeError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid response format from LLM. Expected JSON array., got: {completion_text}"
+                )
+
+            # Process topic groups and get memory groups
+            memory_groups = []
+            for topic_ids in similar_topics:
+                if not isinstance(topic_ids, list) or len(topic_ids) < 2:
+                    continue
+                
+                # Get memories for these topics
+                memory_ids = []
+                for topic_id in topic_ids:
+                    if topic_id not in topic_map:
+                        continue
+                    try:
+                        mems = _get_memory_by_topic(topic_id)
+                        memory_ids.extend(mems)
+                    except HTTPException as e:
+                        logger.error(f"Error fetching memories for topic {topic_id}: {str(e)}")
+                        continue
+                
+                if len(memory_ids) >= 2:
+                    memory_groups.append({
+                        'memory_ids': memory_ids,
+                        'group_name': f"Topics: {', '.join([topic_map.get(tid, tid) for tid in topic_ids])}"
+                    })
+
+    else:
+        # Non-topic strategies: get all memories
+        all_memories = _get_all_memories_with_details()
+        
+        if not all_memories:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No memories found."
+            )
+
+        if grouping_strategy == "keyword_overlap":
+            memory_id_groups = _group_by_keyword_overlap(all_memories, min_keyword_matches)
+            memory_groups = [
+                {
+                    'memory_ids': group,
+                    'group_name': f"Keyword overlap group {i+1}"
+                }
+                for i, group in enumerate(memory_id_groups)
+            ]
+
+        elif grouping_strategy == "timeframe":
+            memory_id_groups = _group_by_timeframe(all_memories, timeframe_days)
+            memory_groups = [
+                {
+                    'memory_ids': group,
+                    'group_name': f"Timeframe group {i+1} ({timeframe_days} days)"
+                }
+                for i, group in enumerate(memory_id_groups)
+            ]
+
+        if dry_run:
+            return {
+                "status": "dry_run",
+                "grouping_strategy": grouping_strategy,
+                "message": f"Would analyze {len(all_memories)} memories using {grouping_strategy} strategy",
+                "total_memories": len(all_memories),
+                "groups_found": len(memory_groups),
+                "estimated_api_calls": len(memory_groups),  # 1 API call per group
+                "parameters": {
+                    "min_keyword_matches": min_keyword_matches if grouping_strategy == "keyword_overlap" else None,
+                    "timeframe_days": timeframe_days if grouping_strategy == "timeframe" else None
+                }
+            }
+
+    # Process memory groups (shared logic for all strategies)
+    if not memory_groups:
+        return {
+            "status": "no_groups_found",
+            "grouping_strategy": grouping_strategy,
+            "message": "No memory groups found for deduplication."
+        }
 
     api_port = os.getenv("API_PORT", 4200)
-
     async with httpx.AsyncClient(timeout=180) as client:
-        try:
-            response = await client.post(f"http://api:{api_port}/v1/completions", json=completion_request.model_dump())
-            response.raise_for_status()
-            completion_response = response.json()
-        except httpx.HTTPStatusError as e:
-            logger.error(f"Error fetching completion from API: {str(e)}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to fetch completion from the API: {str(e)}"
-            )
-
-        try:
-            completion_text = completion_response['choices'][0]['content'].strip()
-        except (KeyError, IndexError):
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Invalid response format from LLM. Expected 'choices' with 'content', got: {completion_response}"
-            )
-
-        # Parse the completion text as JSON
-        try:
-            similar_topics = json.loads(completion_text)
-        except json.JSONDecodeError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid response format from LLM. Expected JSON array., got: {completion_text}"
-            )
-
-        # pull the memories for each topic id and ask the LLM to deduplicate them
-        for topic_ids in similar_topics:
-            if not isinstance(topic_ids, list) or len(topic_ids) < 2:
-                continue
-            # pull the memories for each topic id
-            memory_ids = []
-            for topic_id in topic_ids:
-                logger.debug(f"Processing topic_id: {topic_id}")
-                if topic_id not in topic_map:
-                    continue
-                try:
-                    mems = _get_memory_by_topic(topic_id)
-                    memory_ids.extend(mems)
-                except HTTPException as e:
-                    logger.error(f"Error fetching memories for topic {topic_id}: {str(e)}")
-                    continue
+        for group_info in memory_groups:
+            memory_ids = group_info['memory_ids']
+            group_name = group_info['group_name']
             
             if not memory_ids:
-                logger.warning(f"No memories found for topic ids: {topic_ids}")
+                logger.warning(f"No memories found for group: {group_name}")
                 continue
             
             # For each memory, get its full details
@@ -151,8 +343,9 @@ async def deduplicate_memories_by_topic():
                     continue
             
             if not memory_lines:
-                logger.warning(f"No valid memories retrieved for topic ids: {topic_ids}")
+                logger.warning(f"No valid memories retrieved for group: {group_name}")
                 continue
+                
             # Combine all memory lines into a single string
             memory_block = "\n".join(memory_lines)
 
@@ -160,9 +353,7 @@ async def deduplicate_memories_by_topic():
             
             dedup_request = OpenAICompletionRequest(
                 model="gpt-4.1",
-                messages=[
-                    {"role": "user", "content": prompt}
-                ]
+                prompt=prompt
             )
             
             try:
@@ -230,7 +421,7 @@ async def deduplicate_memories_by_topic():
 
             if not update_success:
                 logger.error("Failed to update some memories. No deletions will be performed.")
-                continue  # Skip deletion for this topic group, but continue with other groups
+                continue  # Skip deletion for this group, but continue with other groups
 
             deleted_memories = []
             if 'delete' in memory_updates and isinstance(memory_updates['delete'], list):
@@ -245,18 +436,20 @@ async def deduplicate_memories_by_topic():
 
             # Add the result to the final output
             result.append({
-                "topic": topic_map[topic_ids[0]],  # Use the first topic name for the group
+                "status": "completed",
+                "grouping_strategy": grouping_strategy,
+                "group": group_name,
                 "updated_memories": updated_memories,
                 "deleted_memories": deleted_memories
             })
 
     if not result:
-        logger.warning("No similar topics found or no memories to deduplicate.")
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No similar topics found or no memories to deduplicate."
-        )
+        return {
+            "status": "no_results",
+            "grouping_strategy": grouping_strategy,
+            "message": "No memory groups found or processed for deduplication."
+        }
     
-    logger.info(f"Deduplication completed for {len(result)} topic groups.")
+    logger.info(f"Deduplication completed for {len(result)} groups using {grouping_strategy} strategy.")
     logger.debug(f"Deduplication result: {result}")
     return result

@@ -13,13 +13,15 @@ Persistent, context-aware reminders for personal AI agents. Stickynotes are “n
 
 ## API Actions
 
-- `create`: Add a stickynote.
+- `POST /create`: Add a stickynote.
   - Required: `note` (text)
   - Optional: `periodic` (hourly|daily|weekly|monthly), `date` (ISO timestamp)
-- `resolve`: Remove a stickynote (or set recurring note to sleep until next trigger).
-  - Required: `id`
-- `snooze`: Temporarily suppress a stickynote.
-  - Required: `id`, `date` (ISO timestamp until which to snooze)
+- `GET /resolve/{note_id}`: Remove a stickynote (or set recurring note to sleep until next trigger).
+  - Required: `note_id` (path parameter)
+- `POST /snooze/{note_id}`: Temporarily suppress a stickynote.
+  - Required: `note_id` (path parameter), `date` (ISO timestamp until which to snooze)
+- `GET /list`: Retrieve all stickynotes regardless of status.
+- `GET /check`: Get all active stickynotes that should be displayed to the user.
 
 ## Workflow
 

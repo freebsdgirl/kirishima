@@ -24,7 +24,6 @@ from app.util import _open_conn
 from app.memory.util import memory_exists
 
 import sqlite3
-import json
 
 from fastapi import APIRouter, HTTPException, status, Query
 router = APIRouter()
@@ -37,31 +36,59 @@ def _memory_patch(memory: MemoryEntry):
     try:
         with _open_conn() as conn:
             cursor = conn.cursor()
-            update_fields = []
-            update_values = []
+            
+            # Update memory content if provided
+            memory_updated = False
             if memory.memory is not None:
-                update_fields.append("memory = ?")
-                update_values.append(memory.memory)
+                cursor.execute("UPDATE memories SET memory = ? WHERE id = ?", (memory.memory, memory.id))
+                if cursor.rowcount > 0:
+                    memory_updated = True
+            
+            # Update keywords if provided (handle memory_tags table)
             if memory.keywords is not None:
-                update_fields.append("keywords = ?")
-                update_values.append(json.dumps(memory.keywords))
+                # Delete existing tags for this memory
+                cursor.execute("DELETE FROM memory_tags WHERE memory_id = ?", (memory.id,))
+                
+                # Insert new tags
+                for tag in memory.keywords:
+                    tag_lower = tag.lower()
+                    cursor.execute(
+                        "INSERT OR IGNORE INTO memory_tags (memory_id, tag) VALUES (?, ?)",
+                        (memory.id, tag_lower)
+                    )
+                memory_updated = True
+            
+            # Update category if provided (handle memory_category table)
             if memory.category is not None:
-                update_fields.append("category = ?")
-                update_values.append(memory.category)
-            if not update_fields:
+                # Delete existing category for this memory
+                cursor.execute("DELETE FROM memory_category WHERE memory_id = ?", (memory.id,))
+                
+                # Insert new category
+                allowed_categories = [
+                    "Health", "Career", "Family", "Personal", "Technical Projects",
+                    "Social", "Finance", "Self-care", "Environment", "Hobbies",
+                    "Admin", "Philosophy"
+                ]
+                if memory.category in allowed_categories:
+                    cursor.execute(
+                        "INSERT INTO memory_category (memory_id, category) VALUES (?, ?)",
+                        (memory.id, memory.category)
+                    )
+                else:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Invalid category: {memory.category}. Allowed categories are: {', '.join(allowed_categories)}"
+                    )
+                memory_updated = True
+            
+            if not memory_updated:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="No fields to update."
                 )
-            update_values.append(memory.id)
-            update_query = f"UPDATE memories SET {', '.join(update_fields)} WHERE id = ?"
-            cursor.execute(update_query, tuple(update_values))
+            
             conn.commit()
-            if cursor.rowcount == 0:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="No memory found with that ID."
-                )
+            
         logger.debug(f"Memory ID {memory.id} updated successfully.")
         return True
     except sqlite3.Error as e:
@@ -78,11 +105,12 @@ def _memory_patch(memory: MemoryEntry):
         )
 
 
-@router.patch("/memories/by-id/{memory_id}")
+@router.patch("/memories/{memory_id}")
 def memory_patch(memory_id: str, memory: MemoryEntry):
     """
     Updates an existing memory record in the database with new information.
     Args:
+        memory_id (str): The ID of the memory to update.
         memory (Memory): An object containing updated memory data, including optional fields
             such as keywords, category, and memory content.
     Raises:
@@ -91,18 +119,20 @@ def memory_patch(memory_id: str, memory: MemoryEntry):
     Returns:
         dict: A dictionary containing the status of the operation and the memory ID.
     """
-    logger.debug(f"PATCH /memories Request: memory_id={memory.id}, memory={memory.memory}, keywords={memory.keywords}, category={memory.category}")
+    # Use the URL parameter as the memory ID
+    memory.id = memory_id
+    logger.debug(f"PATCH /memories/{memory_id} Request: memory={memory.memory}, keywords={memory.keywords}, category={memory.category}")
 
-    if not memory.id:
+    if not memory_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Memory ID must be provided."
         )
     
-    if not memory_exists(memory.id):
+    if not memory_exists(memory_id):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Memory ID {memory.id} not found."
+            detail=f"Memory ID {memory_id} not found."
         )
 
     if not memory.keywords and not memory.category and not memory.memory:
@@ -118,15 +148,15 @@ def memory_patch(memory_id: str, memory: MemoryEntry):
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to update memory."
             )
-        logger.info(f"Memory ID {memory.id} updated successfully.")
+        logger.info(f"Memory ID {memory_id} updated successfully.")
     except HTTPException as e:
-        logger.error(f"Error updating memory ID {memory.id}: {e.detail}")
+        logger.error(f"Error updating memory ID {memory_id}: {e.detail}")
         raise e
     except Exception as e:
-        logger.error(f"Internal server error while updating memory ID {memory.id}: {str(e)}")
+        logger.error(f"Internal server error while updating memory ID {memory_id}: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An internal error occurred while updating the memory."
         )
 
-    return {"status": "success", "id": memory.id}
+    return {"status": "success", "id": memory_id}

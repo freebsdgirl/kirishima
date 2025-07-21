@@ -1,4 +1,25 @@
-# Proxy Microservice
+# Proxy Micr## Endpoints
+
+- `POST /completions`  
+  Direct, "dumb" LLM calls. Specify the model; provider defaults to Ollama for `nemo:latest` unless overridden. Prompts are sent in instruct format for Ollama with `raw=true`.
+- `POST /chat/completions`  
+  Mode-driven, context-rich LLM calls. "Mode" is mapped to a concrete model, provider, and options. Loads app.prompts.{provider}-{mode} and builds the system prompt using context (memories, summaries, time, etc). Final prompt is rendered using a mode-specific Jinja template.
+- `POST /api/multiturn`  
+  Multi-turn conversation processing with context management and tool execution.
+- `POST /api/singleturn`  
+  Single-turn LLM requests for simple operations without conversation history.
+- `POST /summary/user`  
+  Generate user-specific summaries from conversation data.
+- `POST /summary/user/combined`  
+  Generate combined summaries across multiple time periods.
+- `POST /json`  
+  JSON-specific processing and formatting endpoint.
+- `POST /queue/enqueue`  
+  Manually enqueue tasks in the provider-specific processing queues.
+- `GET /queue/status`  
+  Get current status of all provider queues.
+- `GET /queue/task/{task_id}`  
+  Get status and results of a specific queued task.ce
 
 Acts as the LLM gateway for the system. Handles all communication with Ollama and OpenAI models, encapsulating prompt construction, provider/model resolution, and queue-based request dispatch.
 

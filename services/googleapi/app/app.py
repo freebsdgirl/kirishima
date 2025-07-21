@@ -10,17 +10,58 @@ from shared.routes import router as routes_router, register_list_routes
 
 from shared.models.middleware import CacheRequestBodyMiddleware
 from fastapi import FastAPI
+from contextlib import asynccontextmanager
+import asyncio
+import json
+import logging
 
-app = FastAPI()
+from .routes.gmail import router as gmail_router
+
+logger = logging.getLogger(__name__)
+
+# Load config
+with open('/app/config/config.json') as f:
+    _config = json.load(f)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage application lifespan - startup and shutdown."""
+    # Startup
+    monitor_task = None
+    try:
+        config = _config
+        if config.get('gmail', {}).get('monitor', {}).get('enabled', False):
+            logger.info("Starting email monitoring on startup")
+            from .gmail.monitor import start_email_monitoring
+            # Start monitoring in the background
+            monitor_task = asyncio.create_task(start_email_monitoring())
+    except Exception as e:
+        logger.error(f"Error starting email monitoring: {e}")
+    
+    yield
+    
+    # Shutdown
+    try:
+        logger.info("Stopping email monitoring on shutdown")
+        from .gmail.monitor import stop_email_monitoring
+        stop_email_monitoring()
+        if monitor_task and not monitor_task.done():
+            monitor_task.cancel()
+            try:
+                await monitor_task
+            except asyncio.CancelledError:
+                pass
+    except Exception as e:
+        logger.error(f"Error stopping email monitoring: {e}")
+
+app = FastAPI(lifespan=lifespan)
 app.add_middleware(CacheRequestBodyMiddleware)
 
 app.include_router(routes_router, tags=["system"])
 app.include_router(docs_router, tags=["docs"])
+app.include_router(gmail_router)
 register_list_routes(app)
 
-import json
-with open('/app/config/config.json') as f:
-    _config = json.load(f)
 if _config['tracing_enabled']:
     from shared.tracing import setup_tracing
-    setup_tracing(app, service_name="ledger")
+    setup_tracing(app, service_name="googleapi")

@@ -12,10 +12,11 @@ Requirements:
 This script will prompt you to authenticate in your browser and save the token file for use by backend services.
 """
 import os
+import json
 from pathlib import Path
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
-import pickle
+from google.oauth2.credentials import Credentials
 
 # Path to credentials.json (downloaded from Google Cloud Console)
 CREDENTIALS_PATH = os.path.expanduser("~/.kirishima/credentials.json")
@@ -41,8 +42,10 @@ def main():
     creds = None
     # If token already exists, try to load it
     if os.path.exists(TOKEN_PATH):
-        with open(TOKEN_PATH, 'rb') as token:
-            creds = pickle.load(token)
+        with open(TOKEN_PATH, 'r') as token:
+            token_data = json.load(token)
+            creds = Credentials.from_authorized_user_info(token_data)
+    
     # If no valid creds, start OAuth flow
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
@@ -50,9 +53,11 @@ def main():
         else:
             flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_PATH, SCOPES)
             creds = flow.run_local_server(port=0)
-        # Save the credentials for future use
-        with open(TOKEN_PATH, 'wb') as token:
-            pickle.dump(creds, token)
+        
+        # Save the credentials for future use (JSON format)
+        with open(TOKEN_PATH, 'w') as token:
+            token.write(creds.to_json())
+    
     print(f"Token saved to {TOKEN_PATH}")
 
 if __name__ == "__main__":

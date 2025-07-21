@@ -251,5 +251,43 @@
         "required": ["action"]
       }
     }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "gmail",
+      "description": "Send an email via Gmail. Note: Emails are saved as drafts for review before sending.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "The action to perform. Currently only 'send' is supported.",
+            "enum": ["send"]
+          },
+          "to": {
+            "type": "string",
+            "description": "The recipient email address."
+          },
+          "from": {
+            "type": "string",
+            "description": "The sender email address. Optional, defaults to authenticated user."
+          },
+          "cc": {
+            "type": "string",
+            "description": "The CC recipient email address. Optional."
+          },
+          "subject": {
+            "type": "string",
+            "description": "The email subject line."
+          },
+          "content": {
+            "type": "string",
+            "description": "The email body content."
+          }
+        },
+        "required": ["action", "to", "subject", "content"]
+      }
+    }
   }
 ]

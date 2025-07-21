@@ -11,3 +11,4 @@ opentelemetry-exporter-otlp-proto-http
 opentelemetry-instrumentation-fastapi
 pygelf
 sqlalchemy
+jinja2

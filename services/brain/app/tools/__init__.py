@@ -5,6 +5,7 @@ from .update_divoom import update_divoom
 from .github_issue import github_issue
 from .smarthome import smarthome
 from .stickynotes import stickynotes
+from .gmail import gmail
 
 TOOL_FUNCTIONS = {
     "manage_prompt": manage_prompt,
@@ -13,5 +14,6 @@ TOOL_FUNCTIONS = {
     "update_divoom": update_divoom,
     "github_issue": github_issue,
     "smarthome": smarthome,
-    "stickynotes": stickynotes
+    "stickynotes": stickynotes,
+    "gmail": gmail
 }

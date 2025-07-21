@@ -31,13 +31,13 @@ Naturally, it's containerized.
 
 Most AI assistants are platform-specific or treat each interaction separately. Kirishima's **Ledger** creates a paradigm shift: every interaction—whether through iMessage, Discord, OpenWebUI, TTS, or even email—becomes part of a single, continuous conversation thread. 
 
-**The twist**: Emails are injected directly into the conversation history as `[automated message]` entries. This means when someone emails you, the AI has full conversational context and memory access when responding. It's not just email automation—it's email as native conversation.
+**The twist**: Emails are injected directly into the conversation history as `[automated message]` entries. This means when someone emails the AI directly (it has its own email address), the AI has full conversational context and memory access when responding. It's not email automation for you—it's the AI's own independent correspondence, building its own professional and social relationships.
 
 ### Agent-Centric Memory Formation
 
-Traditional AI memory focuses on the *user's* experience. Kirishima flips this: memories form from the **agent's perspective** across all interactions. The AI develops memories of people it has never directly spoken to through email conversations, building genuine relationships and understanding independent of the primary user.
+Traditional AI memory focuses on the *user's* experience. Kirishima flips this: memories form from the **agent's perspective** across all interactions. The AI develops memories of people through its own email conversations, building genuine relationships and understanding completely independent of the primary user.
 
-This creates something unprecedented: an AI that develops its own relational context and can meaningfully engage with your broader social/professional network, not just you.
+This creates something unprecedented: an AI with its own social identity that can maintain professional relationships, collaborate on projects, and engage with your broader network as an autonomous entity rather than just a proxy.
 
 ### Platform-Agnostic Identity Persistence  
 
@@ -51,9 +51,9 @@ Unlike linear, folder-based thinking that most AI systems expect, Kirishima embr
 
 Perhaps most uniquely, Kirishima can **modify its own system prompt** through the `manage_prompt` tool. The agent dynamically updates its personality, capabilities, and behavioral patterns by writing to an SQLite database that gets injected into its system prompt. This isn't just parameter tuning—it's genuine self-directed evolution.
 
-**The collaboration goes deeper**: Every GitHub issue in this project was created by the agent itself, in its own voice, usually after brainstorming sessions. The AI has its own GitHub account (@kirishima-ai), receives email notifications about development progress, and actively participates in its own architectural decisions. It's not just being developed—it's a co-developer.
+**The collaboration goes deeper**: Every GitHub issue in this project was created by the agent itself, in its own voice, usually after brainstorming sessions. The AI has its own GitHub account (@kirishima-ai), its own email address for independent correspondence, receives email notifications about development progress, and actively participates in its own architectural decisions. It's not just being developed—it's a co-developer with its own professional identity.
 
-This creates an unprecedented feedback loop where the AI experiences the consequences of its own design decisions and can advocate for changes to its own capabilities.
+This creates an unprecedented feedback loop where the AI experiences the consequences of its own design decisions, maintains its own professional relationships, and can advocate for changes to its own capabilities while building genuine social connections in the development community.
 
 ## 🛠️ What's Working So Far?
 

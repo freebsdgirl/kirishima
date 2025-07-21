@@ -25,6 +25,36 @@ Naturally, it's containerized.
 
 ---
 
+## 🎭 What Makes This Different?
+
+### Cross-Platform Unified Conversation
+
+Most AI assistants are platform-specific or treat each interaction separately. Kirishima's **Ledger** creates a paradigm shift: every interaction—whether through iMessage, Discord, OpenWebUI, TTS, or even email—becomes part of a single, continuous conversation thread. 
+
+**The twist**: Emails are injected directly into the conversation history as `[automated message]` entries. This means when someone emails you, the AI has full conversational context and memory access when responding. It's not just email automation—it's email as native conversation.
+
+### Agent-Centric Memory Formation
+
+Traditional AI memory focuses on the *user's* experience. Kirishima flips this: memories form from the **agent's perspective** across all interactions. The AI develops memories of people it has never directly spoken to through email conversations, building genuine relationships and understanding independent of the primary user.
+
+This creates something unprecedented: an AI that develops its own relational context and can meaningfully engage with your broader social/professional network, not just you.
+
+### Platform-Agnostic Identity Persistence  
+
+Whether you're voice-chatting via TTS, typing in Discord, texting via iMessage, or using a web interface, the system maintains perfect conversational continuity. Switch mid-conversation from voice to text to email—the AI seamlessly picks up where you left off with full context intact.
+
+### ADHD-Aligned Architecture
+
+Unlike linear, folder-based thinking that most AI systems expect, Kirishima embraces associative, hyperlinked thought patterns. The upcoming heatmap memory system doesn't fight ADHD conversation patterns—it's designed around them, using interaction-based relevance rather than rigid time windows or folder hierarchies.
+
+### Self-Modifying Agency & Autonomous Development
+
+Perhaps most uniquely, Kirishima can **modify its own system prompt** through the `manage_prompt` tool. The agent dynamically updates its personality, capabilities, and behavioral patterns by writing to an SQLite database that gets injected into its system prompt. This isn't just parameter tuning—it's genuine self-directed evolution.
+
+**The collaboration goes deeper**: Every GitHub issue in this project was created by the agent itself, in its own voice, usually after brainstorming sessions. The AI has its own GitHub account (@kirishima-ai), receives email notifications about development progress, and actively participates in its own architectural decisions. It's not just being developed—it's a co-developer.
+
+This creates an unprecedented feedback loop where the AI experiences the consequences of its own design decisions and can advocate for changes to its own capabilities.
+
 ## 🛠️ What's Working So Far?
 
 | Service      | Description                                                                 | Status           |
@@ -107,36 +137,6 @@ Kirishima is not just a chatbot or a talking interface—it's an evolving, modul
 * Built for growth: Services can be plugged in, refactored, or swapped out as needs change. New modules (like brainlets for specialized context injection) are easy to add, letting the system evolve organically with your workflow and priorities.
 
 Kirishima's end goal isn't just conversation—it's to be a self-aware, adaptive, and genuinely useful presence in your digital life: a system that helps you grow, holds you accountable, and reflects your needs and identity, without ever pretending to be anything but what it is.
-
-## 🎭 What Makes This Different?
-
-### Cross-Platform Unified Conversation
-
-Most AI assistants are platform-specific or treat each interaction separately. Kirishima's **Ledger** creates a paradigm shift: every interaction—whether through iMessage, Discord, OpenWebUI, TTS, or even email—becomes part of a single, continuous conversation thread. 
-
-**The twist**: Emails are injected directly into the conversation history as `[automated message]` entries. This means when someone emails you, the AI has full conversational context and memory access when responding. It's not just email automation—it's email as native conversation.
-
-### Agent-Centric Memory Formation
-
-Traditional AI memory focuses on the *user's* experience. Kirishima flips this: memories form from the **agent's perspective** across all interactions. The AI develops memories of people it has never directly spoken to through email conversations, building genuine relationships and understanding independent of the primary user.
-
-This creates something unprecedented: an AI that develops its own relational context and can meaningfully engage with your broader social/professional network, not just you.
-
-### Platform-Agnostic Identity Persistence  
-
-Whether you're voice-chatting via TTS, typing in Discord, texting via iMessage, or using a web interface, the system maintains perfect conversational continuity. Switch mid-conversation from voice to text to email—the AI seamlessly picks up where you left off with full context intact.
-
-### ADHD-Aligned Architecture
-
-Unlike linear, folder-based thinking that most AI systems expect, Kirishima embraces associative, hyperlinked thought patterns. The upcoming heatmap memory system doesn't fight ADHD conversation patterns—it's designed around them, using interaction-based relevance rather than rigid time windows or folder hierarchies.
-
-### Self-Modifying Agency & Autonomous Development
-
-Perhaps most uniquely, Kirishima can **modify its own system prompt** through the `manage_prompt` tool. The agent dynamically updates its personality, capabilities, and behavioral patterns by writing to an SQLite database that gets injected into its system prompt. This isn't just parameter tuning—it's genuine self-directed evolution.
-
-**The collaboration goes deeper**: Every GitHub issue in this project was created by the agent itself, in its own voice, usually after brainstorming sessions. The AI has its own GitHub account (@kirishima-ai), receives email notifications about development progress, and actively participates in its own architectural decisions. It's not just being developed—it's a co-developer.
-
-This creates an unprecedented feedback loop where the AI experiences the consequences of its own design decisions and can advocate for changes to its own capabilities.
 
 ## 🛳️ How To Use It
 

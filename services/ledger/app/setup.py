@@ -105,6 +105,27 @@ CREATE TABLE IF NOT EXISTS memory_topics (
 );
 CREATE INDEX IF NOT EXISTS idx_memory_topics_memory_id ON memory_topics (memory_id);
 CREATE INDEX IF NOT EXISTS idx_memory_topics_topic_id ON memory_topics (topic_id);
+
+
+--------------------------------------------------------------------
+
+-- Heatmap tables for dynamic keyword relevance tracking
+CREATE TABLE IF NOT EXISTS heatmap_score (
+    keyword TEXT PRIMARY KEY,
+    score REAL NOT NULL,
+    last_updated DATETIME NOT NULL DEFAULT (STRFTIME('%Y-%m-%d %H:%M:%f','now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_heatmap_score_value ON heatmap_score (score);
+CREATE INDEX IF NOT EXISTS idx_heatmap_last_updated ON heatmap_score (last_updated);
+
+
+CREATE TABLE IF NOT EXISTS heatmap_memories (
+    memory_id TEXT PRIMARY KEY REFERENCES memories(id) ON DELETE CASCADE,
+    score REAL NOT NULL,
+    last_updated DATETIME NOT NULL DEFAULT (STRFTIME('%Y-%m-%d %H:%M:%f','now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_heatmap_memories_score ON heatmap_memories (score);
+CREATE INDEX IF NOT EXISTS idx_heatmap_memories_updated ON heatmap_memories (last_updated);
 """
 
 

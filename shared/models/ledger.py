@@ -18,7 +18,7 @@ Classes:
 """
 
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, Dict
 from enum import Enum
 from datetime import datetime
 from uuid import uuid4
@@ -328,9 +328,9 @@ class CombinedSummaryRequest(BaseModel):
         max_tokens (int): Maximum number of tokens allowed for the combined summary.
         user_alias (Optional[str]): Optional alias representing the user requesting the combination.
     """
-    summaries: List[Summary] = Field(..., description="List of summaries to be combined")
-    max_tokens: int = Field(..., description="Maximum number of tokens for the combined summary")
-    user_alias: Optional[str] = Field(None, description="User alias for the summary")
+    summaries: List[Summary]        = Field(..., description="List of summaries to be combined")
+    max_tokens: int                 = Field(..., description="Maximum number of tokens for the combined summary")
+    user_alias: Optional[str]       = Field(None, description="User alias for the summary")
     model_config = {
         "json_schema_extra": {
             "examples": [
@@ -417,13 +417,13 @@ class MemorySearchParams(BaseModel):
         created_after (Optional[str]): Return memories created after this timestamp (ISO format).
         created_before (Optional[str]): Return memories created before this timestamp (ISO format).
     """
-    keywords: Optional[List[str]] = Field(None, description="List of keywords to search for.")
-    category: Optional[str] = Field(None, description="Category to search for.")
-    topic_id: Optional[str] = Field(None, description="The topic ID to search for.")
-    memory_id: Optional[str] = Field(None, description="Memory ID to search for (if provided, other filters are ignored).")
-    min_keywords: int = Field(2, description="Minimum number of matching keywords required when searching by keywords.")
-    created_after: Optional[str] = Field(None, description="Return memories created after this timestamp (ISO format).")
-    created_before: Optional[str] = Field(None, description="Return memories created before this timestamp (ISO format).")
+    keywords: Optional[List[str]]   = Field(None, description="List of keywords to search for.")
+    category: Optional[str]         = Field(None, description="Category to search for.")
+    topic_id: Optional[str]         = Field(None, description="The topic ID to search for.")
+    memory_id: Optional[str]        = Field(None, description="Memory ID to search for (if provided, other filters are ignored).")
+    min_keywords: int               = Field(2, description="Minimum number of matching keywords required when searching by keywords.")
+    created_after: Optional[str]    = Field(None, description="Return memories created after this timestamp (ISO format).")
+    created_before: Optional[str]   = Field(None, description="Return memories created before this timestamp (ISO format).")
 
     model_config = {
         "json_schema_extra": {
@@ -461,15 +461,15 @@ class MemoryEntry(BaseModel):
         topic_id (Optional[str]): Associated topic ID.
         topic_name (Optional[str]): Associated topic name (for convenience, not stored).
     """
-    id: Optional[str] = Field(None, description="The unique identifier of the memory")
-    memory: Optional[str] = Field(None, description="The memory text content")
-    created_at: Optional[str] = Field(None, description="When the memory was created, ISO format")
-    access_count: Optional[int] = Field(0, description="Number of times this memory has been accessed")
-    last_accessed: Optional[str] = Field(None, description="When the memory was last accessed, ISO format")
-    keywords: Optional[List[str]] = Field(None, description="List of keywords associated with the memory")
-    category: Optional[str] = Field(None, description="The category of the memory")
-    topic_id: Optional[str] = Field(None, description="Associated topic ID")
-    topic_name: Optional[str] = Field(None, description="Associated topic name (for convenience, not stored)")
+    id: Optional[str]               = Field(None, description="The unique identifier of the memory")
+    memory: Optional[str]           = Field(None, description="The memory text content")
+    created_at: Optional[str]       = Field(None, description="When the memory was created, ISO format")
+    access_count: Optional[int]     = Field(0, description="Number of times this memory has been accessed")
+    last_accessed: Optional[str]    = Field(None, description="When the memory was last accessed, ISO format")
+    keywords: Optional[List[str]]   = Field(None, description="List of keywords associated with the memory")
+    category: Optional[str]         = Field(None, description="The category of the memory")
+    topic_id: Optional[str]         = Field(None, description="Associated topic ID")
+    topic_name: Optional[str]       = Field(None, description="Associated topic name (for convenience, not stored)")
 
     model_config = {
         "json_schema_extra": {
@@ -519,8 +519,8 @@ class TopicIDsTimeframeRequest(BaseModel):
         start (str): Start timestamp (YYYY-MM-DD HH:MM:SS[.sss])
         end (str): End timestamp (YYYY-MM-DD HH:MM:SS[.sss])
     """
-    start: str = Field(..., description="Start timestamp (YYYY-MM-DD HH:MM:SS[.sss])")
-    end: str = Field(..., description="End timestamp (YYYY-MM-DD HH:MM:SS[.sss])")
+    start: str                      = Field(..., description="Start timestamp (YYYY-MM-DD HH:MM:SS[.sss])")
+    end: str                        = Field(..., description="End timestamp (YYYY-MM-DD HH:MM:SS[.sss])")
 
     model_config = {
         "json_schema_extra": {
@@ -577,8 +577,8 @@ class MemoryListRequest(BaseModel):
         limit (int): Maximum number of memories to return.
         offset (int): Offset for pagination.
     """
-    limit: int = Field(100, description="Maximum number of memories to return")
-    offset: int = Field(0, description="Offset for pagination")
+    limit: int          = Field(100, description="Maximum number of memories to return")
+    offset: int         = Field(0, description="Offset for pagination")
 
     model_config = {
         "json_schema_extra": {
@@ -602,10 +602,10 @@ class MemoryDedupRequest(BaseModel):
         min_keyword_matches (int): Minimum number of matching keywords for keyword_overlap strategy.
         timeframe_days (int): Number of days for timeframe grouping window.
     """
-    dry_run: bool = Field(False, description="If True, only analyze and return what would be done without making changes")
-    grouping_strategy: str = Field("topic_similarity", description="Strategy for grouping memories")
-    min_keyword_matches: int = Field(2, description="Minimum number of matching keywords for keyword_overlap strategy")
-    timeframe_days: int = Field(7, description="Number of days for timeframe grouping window")
+    dry_run: bool               = Field(False, description="If True, only analyze and return what would be done without making changes")
+    grouping_strategy: str      = Field("topic_similarity", description="Strategy for grouping memories")
+    min_keyword_matches: int    = Field(2, description="Minimum number of matching keywords for keyword_overlap strategy")
+    timeframe_days: int         = Field(7, description="Number of days for timeframe grouping window")
 
     model_config = {
         "json_schema_extra": {
@@ -629,8 +629,23 @@ class MemoryDedupGroup(BaseModel):
         memory_ids (List[str]): List of memory IDs in this group.
         group_name (str): Descriptive name for this group.
     """
-    memory_ids: List[str] = Field(..., description="List of memory IDs in this group")
-    group_name: str = Field(..., description="Descriptive name for this group")
+    memory_ids: List[str]        = Field(..., description="List of memory IDs in this group")
+    group_name: str              = Field(..., description="Descriptive name for this group")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "memory_ids": ["mem_123", "mem_456", "mem_789"],
+                    "group_name": "Project Planning Group"
+                },
+                {
+                    "memory_ids": ["mem_101", "mem_102"],
+                    "group_name": "Meeting Notes Group"
+                }
+            ]
+        }
+    }
 
 
 class MemoryDedupResult(BaseModel):
@@ -644,11 +659,38 @@ class MemoryDedupResult(BaseModel):
         updated_memories (dict): Dictionary of memory IDs to their update data.
         deleted_memories (List[str]): List of memory IDs that were deleted.
     """
-    status: str = Field(..., description="Status of the operation")
-    grouping_strategy: str = Field(..., description="Strategy used for grouping")
-    group: str = Field(..., description="Name/description of the group processed")
-    updated_memories: dict = Field(default_factory=dict, description="Dictionary of memory IDs to their update data")
+    status: str                 = Field(..., description="Status of the operation")
+    grouping_strategy: str      = Field(..., description="Strategy used for grouping")
+    group: str                  = Field(..., description="Name/description of the group processed")
+    updated_memories: dict      = Field(default_factory=dict, description="Dictionary of memory IDs to their update data")
     deleted_memories: List[str] = Field(default_factory=list, description="List of memory IDs that were deleted")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "status": "success",
+                    "grouping_strategy": "topic_similarity",
+                    "group": "Project Planning Group",
+                    "updated_memories": {
+                        "mem_123": {"memory": "Updated memory content", "keywords": ["project", "planning"]},
+                        "mem_456": {"memory": "Another updated memory content", "keywords": ["meeting", "notes"]}
+                    },
+                    "deleted_memories": ["mem_789"]
+                },
+                {
+                    "status": "partial_success",
+                    "grouping_strategy": "keyword_overlap",
+                    "group": "Meeting Notes Group",
+                    "updated_memories": {
+                        "mem_101": {"memory": "Updated meeting notes", "keywords": ["meeting", "notes"]},
+                        "mem_102": {"memory": "Another updated note", "keywords": ["discussion"]}
+                    },
+                    "deleted_memories": []
+                }
+            ]
+        }
+    }
 
 
 class MemoryDedupResponse(BaseModel):
@@ -662,8 +704,250 @@ class MemoryDedupResponse(BaseModel):
         results (Optional[List[MemoryDedupResult]]): List of deduplication results per group.
         dry_run_info (Optional[dict]): Information about what would be done in dry run mode.
     """
-    status: str = Field(..., description="Overall status of the operation")
-    grouping_strategy: str = Field(..., description="Strategy used for grouping")
-    message: str = Field(..., description="Descriptive message about the operation")
-    results: Optional[List[MemoryDedupResult]] = Field(None, description="List of deduplication results per group")
-    dry_run_info: Optional[dict] = Field(None, description="Information about what would be done in dry run mode")
+    status: str                                 = Field(..., description="Overall status of the operation")
+    grouping_strategy: str                      = Field(..., description="Strategy used for grouping")
+    message: str                                = Field(..., description="Descriptive message about the operation")
+    results: Optional[List[MemoryDedupResult]]  = Field(None, description="List of deduplication results per group")
+    dry_run_info: Optional[dict]                = Field(None, description="Information about what would be done in dry run mode")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "status": "success",
+                    "grouping_strategy": "topic_similarity",
+                    "message": "Memory deduplication completed successfully.",
+                    "results": [
+                        {
+                            "status": "success",
+                            "grouping_strategy": "topic_similarity",
+                            "group": "Project Planning Group",
+                            "updated_memories": {
+                                "mem_123": {"memory": "Updated memory content", "keywords": ["project", "planning"]},
+                                "mem_456": {"memory": "Another updated memory content", "keywords": ["meeting", "notes"]}
+                            },
+                            "deleted_memories": ["mem_789"]
+                        }
+                    ],
+                    "dry_run_info": None
+                }
+            ]
+        }
+    }
+
+
+class HeatmapKeyword(BaseModel):
+    """
+    Represents a keyword in the heatmap with its relevance score.
+    
+    Attributes:
+        keyword (str): The keyword text.
+        score (float): Current relevance score (0.0 to 1.0).
+        last_updated (datetime): When this keyword was last updated.
+    """
+    keyword: str                = Field(..., description="The keyword text")
+    score: float                = Field(..., ge=0.0, le=1.0, description="Current relevance score")
+    last_updated: datetime      = Field(..., description="When this keyword was last updated")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "keyword": "project",
+                    "score": 0.85,
+                    "last_updated": "2023-10-01T12:00:00Z"
+                }
+            ]
+        }
+    }
+
+
+
+class HeatmapMemory(BaseModel):
+    """
+    Represents a memory with its heatmap-calculated relevance score.
+    
+    Attributes:
+        memory_id (str): Unique memory identifier.
+        score (float): Calculated relevance score based on keyword matches.
+        last_updated (datetime): When this score was last calculated.
+    """
+    memory_id: str                 = Field(..., description="Unique memory identifier")
+    score: float                   = Field(..., ge=0.0, description="Calculated relevance score")
+    last_updated: datetime         = Field(..., description="When this score was last calculated")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "memory_id": "mem_123",
+                    "score": 0.75,
+                    "last_updated": "2023-10-01T12:00:00Z"
+                }
+            ]
+        }
+    }
+
+
+class HeatmapUpdateRequest(BaseModel):
+    """
+    Request model for updating the keyword heatmap.
+        
+    Attributes:
+        keywords (Dict[str, str]): Dictionary mapping keywords to their weights ("high", "medium", "low").
+    """
+    keywords: Dict[str, str] = Field(..., description="Keyword -> weight mapping (high, medium, low)")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "keywords": {
+                        "project": "high",
+                        "meeting": "medium",
+                        "deadline": "low"
+                    }
+                }
+            ]
+        }
+    }
+
+
+class HeatmapUpdateResponse(BaseModel):
+    """
+    Response model for heatmap update operations.
+    
+    Represents the result of a heatmap update, tracking changes to keywords and their associated memories.
+    
+    Attributes:
+        success (bool): Indicates whether the heatmap update operation was successful.
+        new_keywords (List[str]): Keywords that were newly added to the heatmap.
+        updated_keywords (List[str]): Keywords that had their scores adjusted.
+        decayed_keywords (List[str]): Keywords that were decayed due to non-mention.
+        removed_keywords (List[str]): Keywords that were removed due to low scores.
+        affected_memories (int): Number of memories that had their scores recalculated during the update.
+    """
+    success: bool                   = Field(..., description="Whether the operation was successful")
+    new_keywords: List[str]         = Field(default_factory=list, description="Keywords that were newly added")
+    updated_keywords: List[str]     = Field(default_factory=list, description="Keywords that had their scores adjusted")
+    decayed_keywords: List[str]     = Field(default_factory=list, description="Keywords that were decayed due to non-mention")
+    removed_keywords: List[str]     = Field(default_factory=list, description="Keywords that were removed due to low scores")
+    affected_memories: int          = Field(..., description="Number of memories that had their scores recalculated")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "success": True,
+                    "new_keywords": ["project", "meeting"],
+                    "updated_keywords": ["deadline"],
+                    "decayed_keywords": ["old_keyword"],
+                    "removed_keywords": ["low_score_keyword"],
+                    "affected_memories": 42
+                }
+            ]
+        }
+    }
+
+
+class TopMemoriesResponse(BaseModel):
+    """
+    Response model representing a list of top memories with their detailed information.
+    
+    Attributes:
+        memories (List[Dict]): A list of top memories, where each memory is a dictionary containing
+        details such as memory ID, content, creation timestamp, access statistics, associated keywords,
+        and category.
+    
+    Example:
+        A response might include memories like a project kickoff meeting or a personal shopping reminder,
+        each with unique metadata and contextual information.
+    """
+    memories: List[Dict] = Field(..., description="List of top memories with their details")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "memories": [
+                        {
+                            "id": "mem_123",
+                            "memory": "Project kickoff meeting scheduled for Monday",
+                            "created_at": "2025-07-17T10:30:00",
+                            "access_count": 5,
+                            "last_accessed": "2025-07-17T15:45:00",
+                            "keywords": ["meeting", "project"],
+                            "category": "Work"
+                        },
+                        {
+                            "id": "mem_456",
+                            "memory": "Remember to buy groceries",
+                            "created_at": "2025-07-18T11:00:00",
+                            "access_count": 2,
+                            "last_accessed": "2025-07-18T12:00:00",
+                            "keywords": ["groceries", "shopping"],
+                            "category": "Personal"
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+
+
+class KeywordScoresResponse(BaseModel):
+    """
+    Response model representing keyword scores for contextual relevance.
+        
+    This model provides a mapping of keywords to their calculated relevance or importance scores.
+    Scores are typically floating-point values between 0 and 1, indicating the significance 
+    of each keyword in a given context.
+    
+    Attributes:
+        scores (Dict[str, float]): A dictionary mapping keywords to their numerical relevance scores.
+    
+    Example:
+        Scores might represent how relevant keywords are to a specific memory or context,
+        with higher scores indicating greater importance or centrality.
+    """
+    scores: Dict[str, float] = Field(..., description="Mapping of keywords to their scores")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "scores": {
+                        "project": 0.85,
+                        "meeting": 0.75,
+                        "deadline": 0.65
+                    }
+                }
+            ]
+        }
+    }
+
+
+class ContextMemoriesResponse(BaseModel):
+    """
+    Response model representing a list of contextual memory content strings.
+    
+    This model is used to return a collection of memory contents that are relevant 
+    to a specific context or query. Each memory is represented as a plain text string.
+    
+    Attributes:
+        memories (List[str]): A list of memory content strings extracted from the context.
+    """
+    memories: List[str] = Field(..., description="List of contextual memory content strings")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "memories": [
+                        "Project kickoff meeting scheduled for Monday",
+                        "Remember to buy groceries"
+                    ]
+                }
+            ]
+        }
+    }

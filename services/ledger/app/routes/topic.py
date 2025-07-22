@@ -1,8 +1,16 @@
 """
-FastAPI routes for semantic topic deduplication operations.
-
-This module provides HTTP endpoints for semantic topic deduplication.
-All business logic is handled in the services layer.
+This module defines FastAPI routes for semantic deduplication of topics.
+Routes:
+    POST /_dedup_semantic:
+        Deduplicate semantically similar topics using sentence-transformers and DBSCAN clustering.
+        - Accepts parameters for similarity threshold, maximum clusters, and dry-run mode.
+        - Returns the result of the deduplication process or raises HTTP exceptions for invalid input or errors.
+Dependencies:
+    - FastAPI
+    - shared.log_config.get_logger
+    - app.services.topic.dedup_semantic._topic_deduplicate_semantic
+Logging:
+    Uses a module-specific logger for request and result tracing.
 """
 
 from fastapi import APIRouter, HTTPException, status, Query

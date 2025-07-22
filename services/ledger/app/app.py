@@ -29,6 +29,7 @@ from app.user.sync import router as user_sync_router
 
 from app.routes.memory import router as memory_router
 from app.routes.topic import router as topic_router
+from app.routes.context import router as context_router
 
 
 # Topic management routers
@@ -67,6 +68,7 @@ app.include_router(user_sync_router, tags=["user"])
 # Memory management endpoints
 app.include_router(memory_router, tags=["memories"], prefix="/memories")
 app.include_router(topic_router, tags=["topics"], prefix="/topics")
+app.include_router(context_router, tags=["context"], prefix="/context")
 
 # Topic management endpoints
 app.include_router(topic_create_router, tags=["topic"])

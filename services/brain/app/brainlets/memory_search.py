@@ -23,6 +23,8 @@ from typing import Dict, Any
 from shared.models.proxy import MultiTurnRequest
 import json
 import uuid
+import os
+import httpx
 
 from shared.models.proxy import ProxyOneShotRequest
 from app.message.singleturn import incoming_singleturn_message
@@ -98,10 +100,36 @@ async def memory_search(brainlets_output: Dict[str, Any], message: MultiTurnRequ
         req_kwargs["max_tokens"] = max_tokens
     req = ProxyOneShotRequest(**req_kwargs)
     response = await incoming_singleturn_message(req)
-    keyword_string = response.response
+    keyword_response = response.response
 
-    # Convert the comma-separated keyword string to a list of keywords
-    keywords = [k.strip() for k in keyword_string.split(',') if k.strip()]
+    # Parse the JSON response from the LLM
+    try:
+        keywords_with_weights = json.loads(keyword_response.strip())
+        if not isinstance(keywords_with_weights, dict):
+            raise ValueError("Response is not a dictionary")
+        
+        # Extract just the keywords for memory search
+        keywords = list(keywords_with_weights.keys())
+        
+        # Update the heatmap with weighted keywords
+        try:
+            ledger_port = os.getenv("LEDGER_PORT", 4203)
+            async with httpx.AsyncClient(timeout=60) as client:
+                heatmap_response = await client.post(
+                    f'http://ledger:{ledger_port}/context/update_heatmap',
+                    json={"keywords": keywords_with_weights}
+                )
+                heatmap_response.raise_for_status()
+                logger.debug(f"Heatmap updated: {heatmap_response.json()}")
+        except Exception as e:
+            logger.warning(f"Failed to update heatmap: {e}")
+            # Continue with memory search even if heatmap update fails
+            
+    except (json.JSONDecodeError, ValueError) as e:
+        logger.warning(f"Failed to parse keywords JSON: {e}. Falling back to comma-separated parsing.")
+        # Fallback to old comma-separated format
+        keywords = [k.strip() for k in keyword_response.split(',') if k.strip()]
+        keywords_with_weights = {k: "medium" for k in keywords}  # Default weight
 
     tool_call_id = f"call_{uuid.uuid4().hex[:20]}"
     # Assistant function call entry
@@ -117,29 +145,52 @@ async def memory_search(brainlets_output: Dict[str, Any], message: MultiTurnRequ
             }
         }
     }
-    # Tool response entry
-    tool_result = await memory_search_tool(keywords=keywords)
-
-    if not tool_result.get("memories"):
-        return "No memories found for the provided keywords."
-
-    # Only keep 'id' and 'memory' fields in each memory
-    minimal_memories = [
-        {"id": m.get("id"), "memory": m.get("memory"), "created_at": m.get("created_at")} for m in tool_result["memories"]
-    ]
-    tool_result = {"memories": minimal_memories}
     
-    # limit to the first 5 memories
-    if len(minimal_memories) > 5:
-        minimal_memories = minimal_memories[:5]
+    # NEW: Get contextual memories based on heatmap scores
+    try:
+        ledger_port = os.getenv("LEDGER_PORT", 4203)
+        async with httpx.AsyncClient(timeout=60) as client:
+            context_response = await client.get(
+                f'http://ledger:{ledger_port}/context/?limit=5'
+            )
+            context_response.raise_for_status()
+            context_data = context_response.json()
+            memories = context_data.get("memories", [])
+            
+        if not memories:
+            return "No contextual memories found."
+            
+        # Format memories for tool response (just the content, no metadata)
+        memory_text = [f"{memory}\n" for memory in memories]
+        
+    except Exception as e:
+        logger.error(f"Failed to get contextual memories: {e}")
+        return "Error retrieving contextual memories."
+    
+    # OLD MEMORY SEARCH CODE (commented out)
+    # # Tool response entry
+    # tool_result = await memory_search_tool(keywords=keywords)
 
-    memory_text = [
-        f"{m['id']}|{m['memory']}|{m['created_at']}\n" for m in minimal_memories
-    ]
+    # if not tool_result.get("memories"):
+    #     return "No memories found for the provided keywords."
 
-    if not memory_text:
-        logger.debug("No memories found for the provided keywords.")
-        return "No memories found for the provided keywords."
+    # # Only keep 'id' and 'memory' fields in each memory
+    # minimal_memories = [
+    #     {"id": m.get("id"), "memory": m.get("memory"), "created_at": m.get("created_at")} for m in tool_result["memories"]
+    # ]
+    # tool_result = {"memories": minimal_memories}
+    # 
+    # # limit to the first 5 memories
+    # if len(minimal_memories) > 5:
+    #     minimal_memories = minimal_memories[:5]
+
+    # memory_text = [
+    #     f"{m['id']}|{m['memory']}|{m['created_at']}\n" for m in minimal_memories
+    # ]
+
+    # if not memory_text:
+    #     logger.debug("No memories found for the provided keywords.")
+    #     return "No memories found for the provided keywords."
 
     tool_entry = {
         "role": "tool",

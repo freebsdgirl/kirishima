@@ -1,3 +1,23 @@
+"""
+This module defines FastAPI routes for managing memory entries in the ledger application.
+It provides endpoints for listing, adding, updating, deleting, searching, and deduplicating memories,
+as well as assigning topics and scanning user messages to extract memories.
+Endpoints:
+    - GET    /memories: List all memories with pagination.
+    - POST   /memories: Add a new memory entry.
+    - PATCH  /memories/by-id/{memory_id}: Update an existing memory entry by ID.
+    - PATCH  /memories/by-id/{memory_id}/topic: Assign a topic to a memory.
+    - DELETE /memories/by-id/{memory_id}: Delete a memory entry by ID.
+    - GET    /memories/by-id/{memory_id}: Retrieve a memory entry by ID.
+    - GET    /memories/by-topic/{topic_id}: Retrieve all memories associated with a topic.
+    - POST   /memories/_scan: Scan user messages to extract memories (scheduler endpoint).
+    - GET    /memories/_search: Search for memories using various filters.
+    - GET    /memories/_dedup: Deduplicate memories using different grouping strategies.
+    - POST   /memories/_dedup_topic_based: Topic-based deduplication with timeframe chunking.
+    - GET    /memories/_dedup_semantic: Semantic deduplication using timeframe or keyword grouping.
+Each endpoint handles validation, error handling, and logging, and delegates business logic to the service layer.
+"""
+
 from app.services.memory.assign_topic_to_memory import _memory_assign_topic
 from app.services.memory.create import _memory_add
 from app.services.memory.delete import _memory_delete

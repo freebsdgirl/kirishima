@@ -10,6 +10,7 @@ The ledger service operates as the persistent storage layer for:
 - **Memory System**: Long-term knowledge storage with semantic organization
 - **Topic Management**: Conversation threading and categorization
 - **Summary Storage**: Temporal summary data with metadata
+- **Context Heatmap**: Dynamic keyword relevance tracking for contextual memory scoring
 
 ## Core Features
 
@@ -44,6 +45,14 @@ The ledger service operates as the persistent storage layer for:
 - Temporal summaries with typed periods (morning, afternoon, evening, night, daily, weekly, monthly)
 - Summary metadata including timestamps and classification
 - Summary creation, retrieval, and deletion endpoints
+
+### Context Heatmap System
+
+- Dynamic keyword relevance tracking for contextual memory retrieval
+- Weighted keyword scoring with decay and reinforcement mechanisms
+- Memory scoring based on keyword matches from current conversation context
+- Real-time heatmap updates with automatic memory rescoring
+- Context-aware memory retrieval based on conversation relevance
 
 ## Summary System Details
 
@@ -131,6 +140,113 @@ Each summary includes comprehensive metadata:
 - **Quick Access**: Rapid retrieval of historical information without full message parsing
 - **Backup and Recovery**: Structured data for system recovery and migration
 
+## Context Heatmap System Details
+
+The context heatmap system provides dynamic keyword relevance tracking to identify the most contextually relevant memories for ongoing conversations. This system maintains a weighted keyword map that adjusts in real-time based on conversation patterns and automatically scores memories for contextual retrieval.
+
+### Heatmap Architecture
+
+#### Keyword Scoring System
+
+- **Weight Categories**: Keywords are classified into three weight levels:
+  - **High**: 1.0 score (most relevant to current conversation)
+  - **Medium**: 0.7 score (moderately relevant)
+  - **Low**: 0.5 score (background relevance)
+
+- **Score Dynamics**: Keyword scores are not static but evolve based on:
+  - **Reinforcement**: Same-weight keywords receive 10% boost when mentioned again
+  - **Adjustment**: Different-weight keywords gradually adjust toward new target scores
+  - **Decay**: Unused keywords decay by 0.08 per update cycle
+  - **Removal**: Keywords with scores below 0.1 are automatically removed
+
+#### Memory Scoring System
+
+- **Real-time Scoring**: All memories are automatically rescored when the heatmap updates
+- **Tag-based Calculation**: Memory scores are calculated as sum of matching keyword scores
+- **Dynamic Ranking**: Memories are ranked by their total heatmap score for contextual relevance
+- **Efficient Storage**: Memory scores are cached in the `heatmap_memories` table for fast retrieval
+
+### Heatmap Configuration
+
+```python
+# Default scoring weights
+DEFAULT_SCORES = {
+    "high": 1.0,
+    "medium": 0.7, 
+    "low": 0.5
+}
+
+# Adjustment parameters
+ADJUSTMENT_FACTOR = 0.1      # Gradual score adjustment rate
+DECAY_RATE = 0.08           # Unused keyword decay rate  
+MIN_SCORE = 0.1             # Minimum score before removal
+SAME_WEIGHT_ADJUSTMENT = 0.02  # Minimal drift for same weights
+```
+
+### Heatmap Database Schema
+
+#### heatmap_score Table
+
+```sql
+CREATE TABLE heatmap_score (
+    keyword TEXT PRIMARY KEY,
+    score REAL NOT NULL,
+    last_updated DATETIME NOT NULL DEFAULT (STRFTIME('%Y-%m-%d %H:%M:%f','now','localtime'))
+);
+```
+
+- Stores keyword-to-score mappings with update timestamps
+- Indexed on `score` and `last_updated` for efficient queries
+- Primary key on `keyword` ensures uniqueness
+
+#### heatmap_memories Table  
+
+```sql
+CREATE TABLE heatmap_memories (
+    memory_id TEXT PRIMARY KEY REFERENCES memories(id) ON DELETE CASCADE,
+    score REAL NOT NULL,
+    last_updated DATETIME NOT NULL DEFAULT (STRFTIME('%Y-%m-%d %H:%M:%f','now','localtime'))
+);
+```
+
+- Caches computed memory scores for fast retrieval
+- Foreign key relationship ensures data consistency
+- Cascade delete maintains referential integrity
+
+### Heatmap Use Cases
+
+#### Contextual Memory Retrieval
+
+- **Conversation Context**: Provides memories most relevant to current discussion topics
+- **Dynamic Ranking**: Memory relevance changes as conversation evolves
+- **Efficient Lookup**: Fast retrieval of top-N contextually relevant memories
+
+#### Conversational Intelligence
+
+- **Topic Tracking**: Identifies which topics are currently most important
+- **Context Switching**: Adapts to changing conversation focus automatically  
+- **Memory Prioritization**: Surfaces most relevant historical information
+
+#### System Integration
+
+- **Real-time Updates**: Other services can update heatmap via API calls
+- **Context Injection**: Contextual memories can be injected into LLM prompts
+- **Adaptive Learning**: System learns conversation patterns over time
+
+### Heatmap Development Tools
+
+#### Scripts
+
+- **`scripts/generate_heatmap_wordcloud.py`**: Creates visual word clouds from heatmap keyword scores
+  - Generates PNG visualizations with word sizes proportional to keyword relevance
+  - Includes keyword statistics and configurable dimensions
+  - Usage: `python generate_heatmap_wordcloud.py [-o output.png] [--show] [--stats-only]`
+
+- **`scripts/test_heatmap.py`**: Integration testing script for heatmap functionality
+  - Tests keyword updates, score retrieval, and memory ranking
+  - Validates API endpoints and response formats
+  - Usage: `python test_heatmap.py` (requires ledger service running)
+
 ## API Endpoints
 
 ### Message Operations
@@ -170,6 +286,13 @@ Each summary includes comprehensive metadata:
 - `DELETE /summaries/{summary_id}` - Delete specific summaries
 - `POST /summaries/create` - Generate summaries from message data
 
+### Context/Heatmap Operations
+
+- `GET /context/` - Retrieve contextually relevant memories based on heatmap scores
+- `POST /context/update_heatmap` - Update keyword heatmap with weighted keywords
+- `GET /context/top_memories` - Get top-scored memories with heatmap details
+- `GET /context/keyword_scores` - Get current keyword scores from heatmap
+
 ## Database Schema
 
 ### Core Tables
@@ -181,6 +304,8 @@ Each summary includes comprehensive metadata:
 - **`memory_topics`**: Many-to-many memory-to-topic relationships
 - **`topics`**: Topic definitions with names and creation timestamps
 - **`summaries`**: Temporal summary storage with metadata
+- **`heatmap_score`**: Dynamic keyword scoring for contextual relevance tracking
+- **`heatmap_memories`**: Cached memory scores based on keyword matches
 
 ### Key Features
 

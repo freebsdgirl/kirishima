@@ -9,7 +9,7 @@
 ## Microservices (see `services/` directory)
 - **brain**: Orchestrates chat, memory, tool invocation, notifications, and scheduler jobs. Implements modular "brainlets" for pre/post-processing. All cross-service coordination flows through here.
 - **proxy**: LLM gateway. Handles prompt construction, model/provider resolution, and async queueing for OpenAI/Anthropic/Ollama. Prompts are built using Jinja templates and provider/mode-specific modules in `app/prompts/`. Implements provider-specific queues and workers for parallel processing.
-- **ledger**: Comprehensive persistent data store for messages, memories, topics, and summaries. Implements advanced message synchronization with deduplication, in-place editing, and conflict resolution. Features include: multi-parameter memory search with AND logic filtering, topic-based conversation threading, temporal summary management, and platform-agnostic storage across API/Discord/iMessage with tool call preservation.
+- **ledger**: Comprehensive persistent data store for messages, memories, topics, summaries, and contextual heatmaps. Implements advanced message synchronization with deduplication, in-place editing, and conflict resolution. Features include: multi-parameter memory search with AND logic filtering, topic-based conversation threading, temporal summary management, platform-agnostic storage across API/Discord/iMessage with tool call preservation, and dynamic keyword heatmap system for contextual memory scoring.
 - **contacts**: Manages user/contact info and cross-platform IDs.
 - **scheduler**: Triggers jobs and reminders, often by calling endpoints on `brain`.
 - **api**: OpenAI-compatible REST API front-end, handles prompt routing and model modes.
@@ -46,6 +46,8 @@ The ledger service uses SQLite with WAL mode and foreign key constraints for dat
 - **`memory_topics`**: Many-to-many memory-to-topic relationships for conversation threading
 - **`topics`**: UUID-based topic storage with names and creation timestamps
 - **`summaries`**: Temporal summary storage with metadata (`timestamp_begin`, `timestamp_end`, `summary_type`)
+- **`heatmap_score`**: Dynamic keyword scoring for contextual relevance (score, last_updated)
+- **`heatmap_memories`**: Cached memory scores based on keyword matches for fast contextual retrieval
 
 ### Message Synchronization Logic
 The `/user/{user_id}/sync` endpoint implements complex synchronization rules:
@@ -64,6 +66,15 @@ Advanced search capabilities with multiple combined filters using AND logic:
 - **Time Filtering**: Created before/after timestamp ranges for temporal queries
 - **Memory ID**: Direct lookup bypassing other filters
 - **Search Algorithm**: Intersection-based filtering ensuring all conditions match, with efficient indexing
+
+### Context Heatmap System  
+Dynamic keyword relevance tracking for contextual memory scoring:
+- **Weight Categories**: Keywords classified as "high" (1.0), "medium" (0.7), or "low" (0.5) scores
+- **Score Evolution**: Keywords adjust based on reinforcement (10% boost), decay (0.08 per cycle), and removal (below 0.1)
+- **Memory Scoring**: Real-time calculation of memory relevance as sum of matching keyword scores
+- **Contextual Retrieval**: `/context/` endpoint provides most relevant memories based on current heatmap
+- **API Endpoints**: `/context/update_heatmap` (POST), `/context/top_memories` (GET), `/context/keyword_scores` (GET)
+- **Use Cases**: Conversation context injection, dynamic memory prioritization, adaptive learning patterns
 
 ### Configuration Parameters
 - **`ledger.turns`**: Default message history limit (default: 15)

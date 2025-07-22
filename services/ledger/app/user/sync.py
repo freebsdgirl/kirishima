@@ -242,10 +242,14 @@ def sync_user_buffer(
                 else:
                     return result
             # --- Check for assistant edit before appending user ---
+            # Only update if this is truly an edit scenario (same user message but different assistant response)
             if (
                 len(snapshot) >= 2 and
                 snapshot[-2].role == "assistant" and
-                assistant_rows
+                assistant_rows and
+                user_rows and
+                len(incoming_user) >= 1 and
+                incoming_user[-1].content == user_rows[-1][1][2]  # Same user message as last in DB
             ):
                 incoming_assistant_content = snapshot[-2].content
                 last_db_assistant_content = assistant_rows[-1][1][2]

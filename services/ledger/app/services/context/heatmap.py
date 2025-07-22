@@ -32,7 +32,7 @@ DEFAULT_SCORES = {
 ADJUSTMENT_FACTOR = 0.1  # Very gradual adjustment
 
 # How much to decay unused keywords each update
-DECAY_RATE = 0.05
+DECAY_RATE = 0.08  # Increased from 0.05 to handle higher scores
 
 # Minimum score before removal from heatmap
 MIN_SCORE = 0.1
@@ -74,18 +74,21 @@ async def update_heatmap(keywords_with_weights: Dict[str, str]) -> Dict[str, any
             target_score = DEFAULT_SCORES[weight]
             
             if keyword in existing_keywords:
-                # Adjust existing keyword score towards target
                 current_score = existing_keywords[keyword]["score"]
                 
-                # If the weight is the same as what would produce the current score, 
-                # apply minimal adjustment to prevent drift
-                if abs(current_score - target_score) < 0.1:
-                    new_score = current_score + (target_score - current_score) * SAME_WEIGHT_ADJUSTMENT
+                # Check if the current weight matches the incoming weight
+                # (within a small tolerance to account for previous boosts)
+                base_score_for_weight = DEFAULT_SCORES[weight]
+                
+                # If the keyword is being reinforced with the same weight, boost by 10%
+                if abs(current_score - base_score_for_weight) < 0.2:  # Allow some tolerance for previous boosts
+                    new_score = current_score * 1.1  # 10% boost for reinforcement
+                    logger.debug(f"Reinforcing keyword '{keyword}': {current_score:.3f} -> {new_score:.3f}")
                 else:
-                    # Apply normal adjustment for weight changes
+                    # Different weight - adjust towards new target
                     new_score = current_score + (target_score - current_score) * ADJUSTMENT_FACTOR
                 
-                new_score = max(MIN_SCORE, min(1.0, new_score))  # Clamp between MIN_SCORE and 1.0
+                new_score = max(MIN_SCORE, min(2.0, new_score))  # Clamp between MIN_SCORE and 2.0 (allow boosting beyond 1.0)
                 
                 cursor.execute(
                     "UPDATE heatmap_score SET score = ?, last_updated = ? WHERE keyword = ?",

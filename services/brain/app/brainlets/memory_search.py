@@ -108,6 +108,9 @@ async def memory_search(brainlets_output: Dict[str, Any], message: MultiTurnRequ
         if not isinstance(keywords_with_weights, dict):
             raise ValueError("Response is not a dictionary")
         
+        # Normalize keywords to lowercase for consistency
+        keywords_with_weights = {k.lower(): v for k, v in keywords_with_weights.items()}
+        
         # Extract just the keywords for memory search
         keywords = list(keywords_with_weights.keys())
         
@@ -128,7 +131,7 @@ async def memory_search(brainlets_output: Dict[str, Any], message: MultiTurnRequ
     except (json.JSONDecodeError, ValueError) as e:
         logger.warning(f"Failed to parse keywords JSON: {e}. Falling back to comma-separated parsing.")
         # Fallback to old comma-separated format
-        keywords = [k.strip() for k in keyword_response.split(',') if k.strip()]
+        keywords = [k.strip().lower() for k in keyword_response.split(',') if k.strip()]
         keywords_with_weights = {k: "medium" for k in keywords}  # Default weight
 
     tool_call_id = f"call_{uuid.uuid4().hex[:20]}"

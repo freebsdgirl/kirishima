@@ -3,7 +3,7 @@ API endpoint for retrieving summary records from the ledger SQLite database.
 Supports filtering by ID, period, and date.
 """
 
-from shared.models.ledger import Summary, SummaryMetadata
+from shared.models.ledger import Summary, SummaryMetadata, SummaryGetRequest
 from shared.log_config import get_logger
 logger = get_logger(f"ledger{__name__}")
 
@@ -14,8 +14,6 @@ from app.util import _open_conn
 router = APIRouter()
 TABLE = "summaries"
 
-
-@router.get("/summary", response_model=List[Summary])
 
 def _get_summaries(
     id: Optional[str] = None,

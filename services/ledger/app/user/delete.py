@@ -2,10 +2,8 @@
 This module provides an API endpoint for deleting user messages from the ledger database.
 
 Functions:
-    _open_conn(): Opens a SQLite database connection using configuration from a JSON file.
-    get_period_range(period: str, date_str: Optional[str] = None): Calculates the start and end datetime for a given period and date.
-    delete_user_buffer(user_id: str, period: Optional[str], date: Optional[str]) -> DeleteSummary:
-        FastAPI route handler to delete messages for a specific user, optionally filtered by time period and date.
+    _delete_user_messages(user_id, period, date): Internal helper to delete user messages by user ID, period, and date.
+    delete_user_buffer(user_id, period, date): FastAPI route handler to delete messages for a specific user.
 
 Routes:
     DELETE /user/{user_id}:
@@ -22,7 +20,7 @@ Constants:
     TABLE: Name of the user messages table in the database.
 """
 
-from shared.models.ledger import  DeleteSummary
+from shared.models.ledger import DeleteSummary
 from shared.log_config import get_logger
 logger = get_logger(f"ledger{__name__}")
 
@@ -35,14 +33,13 @@ router = APIRouter()
 TABLE = "user_messages"
 
 
-@router.delete("/user/{user_id}", response_model=DeleteSummary)
-def delete_user_buffer(
-    user_id: str = Path(...),
-    period: Optional[str] = Query(None, description="Time period to filter messages (e.g., 'morning', 'afternoon', etc.)"),
-    date: Optional[str] = Query(None, description="Date in YYYY-MM-DD format. Defaults to today."),
-) -> DeleteSummary:
+def _delete_user_messages(
+    user_id: str,
+    period: Optional[str] = None,
+    date: Optional[str] = None,
+) -> int:
     """
-    Delete all messages for a specific user, or only those in a given period and date.
+    Internal helper to delete user messages by user ID, optionally filtered by period and date.
 
     Args:
         user_id (str): The unique identifier of the user whose messages will be deleted.
@@ -50,9 +47,8 @@ def delete_user_buffer(
         date (Optional[str]): Date in YYYY-MM-DD format.
 
     Returns:
-        DeleteSummary: An object containing the count of deleted messages.
+        int: The number of deleted messages.
     """
-
     logger.debug(f"Deleting messages for user {user_id} (period={period}, date={date})")
 
     with _open_conn() as conn:
@@ -79,4 +75,25 @@ def delete_user_buffer(
             )
         deleted = cur.rowcount
         conn.commit()
-        return DeleteSummary(deleted=deleted)
+        return deleted
+
+
+@router.delete("/user/{user_id}", response_model=DeleteSummary)
+def delete_user_buffer(
+    user_id: str = Path(...),
+    period: Optional[str] = Query(None, description="Time period to filter messages (e.g., 'morning', 'afternoon', etc.)"),
+    date: Optional[str] = Query(None, description="Date in YYYY-MM-DD format. Defaults to today."),
+) -> DeleteSummary:
+    """
+    Delete all messages for a specific user, or only those in a given period and date.
+
+    Args:
+        user_id (str): The unique identifier of the user whose messages will be deleted.
+        period (Optional[str]): Time period to filter messages.
+        date (Optional[str]): Date in YYYY-MM-DD format.
+
+    Returns:
+        DeleteSummary: An object containing the count of deleted messages.
+    """
+    deleted_count = _delete_user_messages(user_id=user_id, period=period, date=date)
+    return DeleteSummary(deleted=deleted_count)

@@ -10,6 +10,7 @@ Functions:
 from fastapi import APIRouter
 from typing import List
 from app.util import _open_conn
+from shared.models.ledger import TopicResponse
 from shared.log_config import get_logger
 logger = get_logger(f"ledger.{__name__}")
 
@@ -21,22 +22,22 @@ def _get_all_topics():
     Helper function to retrieve all topics from the database.
 
     Returns:
-        List[dict]: A list of dictionaries, each containing the 'id' and 'name' of a topic.
+        List[TopicResponse]: A list of topic response objects, each containing the 'id' and 'name' of a topic.
     """
     with _open_conn() as conn:
         cur = conn.cursor()
         cur.execute("SELECT id, name FROM topics ORDER BY name")
         rows = cur.fetchall()
-        return [{"id": row[0], "name": row[1]} for row in rows]
+        return [TopicResponse(id=row[0], name=row[1]) for row in rows]
     
 
-@router.get("/topics", response_model=List[dict])
+@router.get("/topics", response_model=List[TopicResponse])
 def get_all_topics():
     """
     Retrieve all topics from the database.
 
     Returns:
-        list of dict: A list of dictionaries, each containing the 'id' and 'name' of a topic,
+        List[TopicResponse]: A list of topic response objects, each containing the 'id' and 'name' of a topic,
         ordered alphabetically by name.
     """
     return _get_all_topics()

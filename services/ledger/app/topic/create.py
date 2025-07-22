@@ -7,8 +7,9 @@ Functions:
     _create_topic(name: str): Creates a new topic in the database and returns its UUID.
     create_topic(name: str): FastAPI endpoint for creating a topic via HTTP POST.
 """
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Body
 from app.util import _find_or_create_topic
+from shared.models.ledger import TopicCreateRequest, TopicResponse
 from shared.log_config import get_logger
 logger = get_logger(f"ledger.{__name__}")
 
@@ -32,8 +33,8 @@ def _create_topic(name: str):
     return _find_or_create_topic(name)
 
 
-@router.post("/topics", response_model=dict)
-def create_topic(name: str):
+@router.post("/topics", response_model=TopicResponse)
+def create_topic(request: TopicCreateRequest = Body(...)):
     """
     Create a new topic via the /topics endpoint.
 
@@ -41,15 +42,15 @@ def create_topic(name: str):
     Raises an HTTPException if topic creation fails.
 
     Args:
-        name (str): The name of the topic to create.
+        request (TopicCreateRequest): The request containing the topic name.
 
     Returns:
-        dict: A dictionary containing the topic's ID and name.
+        TopicResponse: A response containing the topic's ID and name.
 
     Raises:
         HTTPException: If topic creation fails with a 500 Internal Server Error.
     """
-    topic_id = _create_topic(name)
+    topic_id = _create_topic(request.name)
 
     if not topic_id:
         raise HTTPException(
@@ -57,5 +58,5 @@ def create_topic(name: str):
             detail="Failed to create topic."
         )
     
-    return {"id": topic_id, "name": name}
+    return TopicResponse(id=topic_id, name=request.name)
     

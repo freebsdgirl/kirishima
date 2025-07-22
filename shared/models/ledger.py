@@ -1,20 +1,12 @@
 """
-This module defines Pydantic models for representing user messages, conversation messages, summaries, memories, and related request/response schemas for a multi-platform messaging and summarization system.
-Classes:
-    RawUserMessage: Represents a raw user message exchanged between a user and the system, including platform, role, content, and optional tool/function call data.
-    CanonicalUserMessage: Represents a canonical user message with unique ID, timestamps, and optional tool/function call data.
-    RawConversationMessage: Represents a raw message within a conversation, typically for storing or processing messages from various platforms.
-    CanonicalConversationMessage: Represents a canonical message within a conversation, including unique ID and timestamps.
-    DeleteSummary: Represents a summary of a delete operation, tracking the number of rows deleted.
-    SummaryType: Enum for different types of summary periods (e.g., morning, daily, weekly).
-    SummaryMetadata: Metadata information for a summary period, including timestamps and summary type.
-    Summary: Represents a summary entry with associated metadata and unique identifier.
-    SummaryCreateRequest: Request model for creating a summary for a specific time period.
-    CombinedSummaryRequest: Request model for combining multiple summaries into a single summary.
-    SummaryRequest: Request model for summarizing a list of user messages.
-    Memory: Represents a memory entry with associated keywords and optional category.
-    TopicIDsTimeframeRequest: Request model for retrieving topic IDs within a given time frame.
-    AssignTopicRequest: Request model for assigning a topic to messages within a specified time frame.
+This module defines Pydantic models for the ledger system, supporting user messages, conversations, summaries, memories, topics, and related operations.
+Models include:
+- Raw and canonical representations of user and conversation messages for various platforms.
+- Summary models for storing, creating, combining, and querying summaries over different periods (daily, weekly, monthly, etc.).
+- Memory models for storing, searching, deduplicating, and scoring memories, including heatmap-based relevance.
+- Topic models for creating, updating, and retrieving topics associated with memories.
+- Request and response models for API endpoints, supporting flexible filtering, pagination, and batch operations.
+These models are designed for use in a multi-platform conversational assistant, enabling structured storage, retrieval, and analysis of user interactions and contextual information.
 """
 
 from pydantic import BaseModel, Field
@@ -947,6 +939,227 @@ class ContextMemoriesResponse(BaseModel):
                         "Project kickoff meeting scheduled for Monday",
                         "Remember to buy groceries"
                     ]
+                }
+            ]
+        }
+    }
+
+
+class TopicCreateRequest(BaseModel):
+    """
+    Request model for creating a new topic.
+    
+    This model defines the required information for creating a topic with a specified name.
+    
+    Attributes:
+        name (str): The name of the topic to be created.
+    """
+    name: str   = Field(..., description="The name of the topic to create")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "name": "Project Planning"
+                },
+                {
+                    "name": "Personal Reminders"
+                }
+            ]
+        }
+    }
+
+
+class TopicResponse(BaseModel):
+    """
+    Response model representing a topic with its unique identifier and name.
+    
+    This model is used to return topic details, including the topic's unique ID and name.
+    Useful for retrieving and displaying topic information in various contexts.
+    
+    Attributes:
+        id (str): The unique identifier of the topic.
+        name (str): The name of the topic.
+    """
+    id: str     = Field(..., description="The unique identifier of the topic")
+    name: str   = Field(..., description="The name of the topic")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "id": "topic_123",
+                    "name": "Project Planning"
+                },
+                {
+                    "id": "topic_456",
+                    "name": "Personal Reminders"
+                }
+            ]
+        }
+    }
+
+
+class TopicUpdateRequest(BaseModel):
+    """
+    Request model for updating a topic's name.
+    
+    This model is used to provide the new name when updating an existing topic.
+    Useful for renaming topics in various contexts.
+    
+    Attributes:
+        name (str): The new name to be assigned to the topic.
+    """
+    name: str = Field(..., description="The new name for the topic")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "name": "Updated Project Planning"
+                },
+                {
+                    "name": "Updated Personal Reminders"
+                }
+            ]
+        }
+    }
+
+
+# User message request models  
+class UserMessagesRequest(BaseModel):
+    """
+    Request model for filtering and retrieving user messages.
+    
+    Allows filtering user messages by time period, date, and specific timestamp ranges.
+    Useful for querying messages within specific temporal contexts.
+    
+    Attributes:
+        period (Optional[str]): Time period filter (morning, afternoon, evening, night)
+        date (Optional[str]): Date filter in YYYY-MM-DD format
+        start (Optional[str]): Start timestamp filter
+        end (Optional[str]): End timestamp filter
+    """
+    period: Optional[str]   = Field(None, description="Time period filter (morning, afternoon, evening, night)")
+    date: Optional[str]     = Field(None, description="Date filter in YYYY-MM-DD format")
+    start: Optional[str]    = Field(None, description="Start timestamp filter")
+    end: Optional[str]      = Field(None, description="End timestamp filter")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "period": "morning",
+                    "date": "2023-10-01",
+                    "start": "2023-10-01 08:00:00",
+                    "end": "2023-10-01 12:00:00"
+                },
+                {
+                    "period": "afternoon",
+                    "date": "2023-10-01",
+                    "start": "2023-10-01 12:00:00",
+                    "end": "2023-10-01 18:00:00"
+                }
+            ]
+        }
+    }
+
+
+class UserSyncRequest(BaseModel):
+    """
+    Request model for synchronizing user messages.
+    
+    Allows sending a list of raw user messages to be synchronized with the system.
+    Useful for bulk message synchronization across different platforms and models.
+    
+    Attributes:
+        snapshot (List[RawUserMessage]): A list of raw user messages to synchronize
+    """
+    snapshot: List[RawUserMessage] = Field(..., description="List of messages to synchronize")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "snapshot": [
+                        {
+                            "user_id": "123e4567-e89b-12d3-a456-426614174000",
+                            "content": "This is a user message.",
+                            "role": "user",
+                            "platform": "api",
+                            "model": "default",
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+
+
+class SummaryGetRequest(BaseModel):
+    """
+    Request model for retrieving summaries with flexible filtering options.
+    
+    Allows querying summaries based on various criteria such as ID, period, 
+    timestamp range, keywords, and result limit.
+    
+    Attributes:
+        id (Optional[str]): Unique identifier to filter a specific summary.
+        period (Optional[str]): Period type to filter summaries (e.g., 'monthly').
+        timestamp_begin (Optional[str]): Start timestamp for filtering summaries.
+        timestamp_end (Optional[str]): End timestamp for filtering summaries.
+        keywords (Optional[List[str]]): List of keywords to search within summary text.
+        limit (Optional[int]): Maximum number of summaries to return in the query result.
+    """
+    id: Optional[str]               = Field(None, description="Filter by summary ID")
+    period: Optional[str]           = Field(None, description="Filter summaries by summary period")
+    timestamp_begin: Optional[str]  = Field(None, description="Lower bound for summary timestamp")
+    timestamp_end: Optional[str]    = Field(None, description="Upper bound for summary timestamp")
+    keywords: Optional[List[str]]   = Field(None, description="List of keywords to search for in summary text")
+    limit: Optional[int]            = Field(None, description="Maximum number of summaries to return")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "id": "123e4567-e89b-12d3-a456-426614174000",
+                    "period": "monthly",
+                    "timestamp_begin": "2023-10-01 00:00:00Z",
+                    "timestamp_end": "2023-10-31 23:59:59Z",
+                    "keywords": ["meeting", "project"],
+                    "limit": 10
+                }
+            ]
+        }
+    }
+
+
+class SummaryDeleteRequest(BaseModel):
+    """
+    Request model for deleting summaries with flexible filtering options.
+    
+    Allows deleting summaries based on various criteria such as ID, period, 
+    and timestamp range.
+    
+    Attributes:
+        id (Optional[str]): Unique identifier to delete a specific summary.
+        period (Optional[str]): Period type to filter summaries for deletion (e.g., 'monthly').
+        timestamp_begin (Optional[str]): Start timestamp for deletion range.
+        timestamp_end (Optional[str]): End timestamp for deletion range.
+    """
+    id: Optional[str]               = Field(None, description="Delete summary by ID")
+    period: Optional[str]           = Field(None, description="Delete summaries by period type")
+    timestamp_begin: Optional[str]  = Field(None, description="Lower bound for deletion timestamp range")
+    timestamp_end: Optional[str]    = Field(None, description="Upper bound for deletion timestamp range")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "id": "123e4567-e89b-12d3-a456-426614174000",
+                    "period": "monthly",
+                    "timestamp_begin": "2023-10-01 00:00:00Z",
+                    "timestamp_end": "2023-10-31 23:59:59Z"
                 }
             ]
         }

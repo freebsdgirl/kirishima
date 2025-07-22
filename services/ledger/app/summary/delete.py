@@ -6,13 +6,13 @@ by either their unique ID or by specifying a time period and date. The database 
 using settings from `/app/config/config.json`, and all deletions are performed on the `summaries` table.
 
 Functions:
-    _open_conn(): Opens and configures a SQLite database connection.
+    _delete_summary(): Internal helper to delete summary records by ID or by period and date.
     delete_summary(): FastAPI endpoint to delete summary records by ID or by period and date.
 
     The number of deleted records wrapped in a `DeleteSummary` response model.
 """
 
-from shared.models.ledger import DeleteSummary
+from shared.models.ledger import DeleteSummary, SummaryDeleteRequest
 from shared.log_config import get_logger
 logger = get_logger(f"ledger{__name__}")
 
@@ -28,7 +28,8 @@ TABLE = "summaries"
 def _delete_summary(
     id: Optional[str] = None,
     period: Optional[str] = None,
-    date: Optional[str] = None,
+    timestamp_begin: Optional[str] = None,
+    timestamp_end: Optional[str] = None,
 ) -> int:
     """
     Internal helper to delete summary records by ID or by period and date. Returns number deleted.
@@ -42,18 +43,19 @@ def _delete_summary(
             cur = conn.execute(f"DELETE FROM {TABLE} WHERE id = ?", (id,))
             deleted_count = cur.rowcount
         elif period:
-            # Delete by period and date
-            if not date:
-                date_obj = datetime.now().date()
-            else:
-                date_obj = datetime.strptime(date, "%Y-%m-%d").date()
-            # Build time range for the day
-            start_dt = datetime.combine(date_obj, time.min).strftime("%Y-%m-%d %H:%M:%S")
-            end_dt = datetime.combine(date_obj, time.max).strftime("%Y-%m-%d %H:%M:%S")
-            cur = conn.execute(
-                f"DELETE FROM {TABLE} WHERE summary_type = ? AND timestamp_begin >= ? AND timestamp_end <= ?",
-                (period, start_dt, end_dt)
-            )
+            # Delete by period and date range
+            clauses = ["summary_type = ?"]
+            params = [period]
+            
+            if timestamp_begin:
+                clauses.append("timestamp_begin >= ?")
+                params.append(timestamp_begin)
+            if timestamp_end:
+                clauses.append("timestamp_end <= ?")
+                params.append(timestamp_end)
+                
+            query = f"DELETE FROM {TABLE} WHERE " + " AND ".join(clauses)
+            cur = conn.execute(query, tuple(params))
             deleted_count = cur.rowcount
         else:
             # If neither id nor period, do nothing
@@ -68,11 +70,17 @@ def _delete_summary(
 def delete_summary(
     id: Optional[str] = Query(None, description="ID of the summary to delete."),
     period: Optional[str] = Query(None, description="Time period (e.g., 'morning', 'afternoon', 'daily', etc.)"),
-    date: Optional[str] = Query(None, description="Date in YYYY-MM-DD format."),
+    timestamp_begin: Optional[str] = Query(None, description="Lower bound for deletion timestamp range"),
+    timestamp_end: Optional[str] = Query(None, description="Upper bound for deletion timestamp range"),
 ) -> DeleteSummary:
     """
     Delete summary filtered by ID or period and date.
     """
-    deleted_count = _delete_summary(id=id, period=period, date=date)
+    deleted_count = _delete_summary(
+        id=id, 
+        period=period, 
+        timestamp_begin=timestamp_begin, 
+        timestamp_end=timestamp_end
+    )
     return DeleteSummary(deleted=deleted_count)
 

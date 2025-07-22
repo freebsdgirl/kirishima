@@ -131,14 +131,10 @@ def get_user_messages(
     )
 
 
-@router.get("/active")
-async def trigger_summaries_for_inactive_users():
+def _get_active_users() -> List[str]:
     """
-    Retrieve a list of unique user IDs from the user messages database.
-
-    This endpoint returns all distinct user IDs that have messages in the database.
-    Useful for identifying active or potentially inactive users across the system.
-
+    Internal helper to retrieve all unique user IDs from the database.
+    
     Returns:
         List[str]: A list of unique user IDs found in the user messages database.
     """
@@ -156,6 +152,20 @@ async def trigger_summaries_for_inactive_users():
         user_ids = [row[0] for row in cur.fetchall()]
         logger.debug(f"Found {len(user_ids)} unique user IDs in the database.")
         return user_ids
+
+
+@router.get("/active")
+async def trigger_summaries_for_inactive_users():
+    """
+    Retrieve a list of unique user IDs from the user messages database.
+
+    This endpoint returns all distinct user IDs that have messages in the database.
+    Useful for identifying active or potentially inactive users across the system.
+
+    Returns:
+        List[str]: A list of unique user IDs found in the user messages database.
+    """
+    return _get_active_users()
 
 
 def _get_user_untagged_messages(user_id: str) -> List[CanonicalUserMessage]:
@@ -217,10 +227,9 @@ def get_user_untagged_messages(user_id: str = Path(...)) -> List[CanonicalUserMe
     return _get_user_untagged_messages(user_id=user_id)
 
 
-@router.get("/user/{user_id}/messages/last", response_model=str)
-def get_last_message_timestamp(user_id: str = Path(...)) -> str:
+def _get_last_message_timestamp(user_id: str) -> str:
     """
-    Retrieves the timestamp of the most recent message sent by a specific user.
+    Internal helper to retrieve the timestamp of the most recent message sent by a specific user.
 
     Args:
         user_id (str): The unique identifier of the user.
@@ -238,3 +247,18 @@ def get_last_message_timestamp(user_id: str = Path(...)) -> str:
         cur.execute("SELECT created_at FROM user_messages WHERE user_id = ? ORDER BY created_at DESC LIMIT 1", (user_id,))
         row = cur.fetchone()
         return row[0] if row else ""
+
+
+@router.get("/user/{user_id}/messages/last", response_model=str)
+def get_last_message_timestamp(user_id: str = Path(...)) -> str:
+    """
+    Retrieves the timestamp of the most recent message sent by a specific user.
+
+    Args:
+        user_id (str): The unique identifier of the user.
+
+    Returns:
+        str: The timestamp of the latest message sent by the user in the 'created_at' field,
+             or an empty string if no messages are found.
+    """
+    return _get_last_message_timestamp(user_id)

@@ -6,7 +6,7 @@ Functions:
         ordered by 'created_at' in descending order, and returns their corresponding names from the 'topics' table.
 API Endpoints:
     GET /topics:
-        Returns a list of recent topics, each represented as a dictionary with 'id' and 'name'.
+        Returns a list of recent topics, each represented as a TopicResponse with 'id' and 'name'.
         The number of topics returned can be controlled via the 'limit' query parameter.
     - Topics are determined from the 'user_messages' table.
     - Topics are ordered by recency based on the 'created_at' timestamp.
@@ -14,6 +14,7 @@ API Endpoints:
 from fastapi import APIRouter, Query
 from typing import List
 from app.util import _open_conn
+from shared.models.ledger import TopicResponse
 from shared.log_config import get_logger
 logger = get_logger(f"ledger.{__name__}")
 
@@ -45,11 +46,11 @@ def _get_recent_topics(limit: int = 5):
             cur.execute("SELECT name FROM topics WHERE id = ?", (tid,))
             result = cur.fetchone()
             if result:
-                topics.append({"id": tid, "name": result[0]})
+                topics.append(TopicResponse(id=tid, name=result[0]))
         return topics
 
 
-@router.get("/topics/_recent", response_model=List[dict])
+@router.get("/topics/_recent", response_model=List[TopicResponse])
 def get_recent_topics(
     limit: int = Query(5, description="Number of recent topics to return (ordered by recency)"),
 ):
@@ -60,7 +61,7 @@ def get_recent_topics(
         limit (int, optional): Number of recent topics to return. Defaults to 5.
 
     Returns:
-        List[Dict[str, Any]]: A list of dictionaries, each containing the 'id' and 'name' of a recent topic.
+        List[TopicResponse]: A list of topic response objects, each containing the 'id' and 'name' of a recent topic.
 
     Notes:
         - Topics are determined from the 'user_messages' table, ordered by 'created_at' in descending order.

@@ -19,22 +19,24 @@ Process:
     - Stores the generated weekly summary in the ledger.
 """
 from shared.models.ledger import SummaryCreateRequest, SummaryMetadata, Summary
+from shared.models.openai import OpenAICompletionRequest
+from shared.prompt_loader import load_prompt
 
 from shared.log_config import get_logger
 logger = get_logger(f"ledger.{__name__}")
 
+from app.services.summary.insert import _insert_summary
+from app.services.summary.get import _get_summaries
+
 from datetime import datetime, timedelta
 from fastapi import HTTPException, status
-from app.summary.post import _insert_summary
-from app.summary.get import _get_summaries
 from typing import List
 import httpx
 import json
 import os
-from shared.models.openai import OpenAICompletionRequest
-from shared.prompt_loader import load_prompt
 
-async def create_weekly_summary(request: SummaryCreateRequest) -> List[dict]:
+
+async def _create_weekly_summary(request: SummaryCreateRequest) -> List[dict]:
     """
     Asynchronously creates a weekly summary for a user by aggregating daily summaries over a specified week (Monday to Sunday).
 

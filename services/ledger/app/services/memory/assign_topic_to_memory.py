@@ -4,7 +4,7 @@ logger = get_logger(f"ledger.{__name__}")
 from app.util import _open_conn
 from app.services.memory.util import _memory_exists
 
-from app.topic.util import topic_exists
+from app.services.topic.util import _topic_exists
 
 from fastapi import HTTPException, status
 
@@ -23,7 +23,7 @@ def _memory_assign_topic(memory_id: str, topic_id: str):
     if not _memory_exists(memory_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Memory not found.")
     
-    if not topic_exists(topic_id):
+    if not _topic_exists(topic_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Topic not found.")
 
     try:

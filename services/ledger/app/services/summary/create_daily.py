@@ -1,34 +1,36 @@
 """
-This module provides functionality to create a daily summary by aggregating and summarizing all period summaries for a given date.
-
+This module provides the asynchronous function `_create_daily_summary` for aggregating and generating a daily summary from multiple period summaries for a specified date.
 Functions:
-    create_daily_summary(request: SummaryCreateRequest) -> List[dict]:
+    _create_daily_summary(request: SummaryCreateRequest) -> List[dict]:
         Asynchronously creates a daily summary by:
-            1. Loading configuration settings and environment variables.
-            2. Retrieving all period summaries for the specified date.
-            3. Constructing a prompt to generate a daily summary using an external language model API.
-            4. Sending the prompt to the API and receiving the generated summary.
-            5. Storing the generated daily summary in the ledger.
+            1. Loading configuration and environment variables.
+            2. Retrieving all period summaries for the given date.
+            3. Formatting summaries and constructing a prompt for a language model.
+            4. Sending the prompt to an external API to generate the daily summary.
+            5. Storing the generated summary in the ledger.
             6. Deleting the original period summaries to avoid duplication.
 """
 from shared.models.ledger import SummaryCreateRequest, SummaryMetadata, Summary
+
+from shared.models.openai import OpenAICompletionRequest
+from shared.prompt_loader import load_prompt
+
+from app.services.summary.insert import _insert_summary
+from app.services.summary.get import _get_summaries
+from app.services.summary.delete import _delete_summary
 
 from shared.log_config import get_logger
 logger = get_logger(f"ledger.{__name__}")
 
 from datetime import datetime
 from fastapi import HTTPException, status
-from app.summary.post import _insert_summary
-from app.summary.get import _get_summaries
-from app.services.summary.delete import _delete_summary
 from typing import List
 import httpx
 import json
 import os
-from shared.models.openai import OpenAICompletionRequest
-from shared.prompt_loader import load_prompt
 
-async def create_daily_summary(request: SummaryCreateRequest) -> List[dict]:
+
+async def _create_daily_summary(request: SummaryCreateRequest) -> List[dict]:
     """
     Asynchronously creates a daily summary by aggregating and summarizing all period summaries for a given date.
 

@@ -16,7 +16,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import List, Dict, Set, Tuple
 
-from app.topic.get_all_topics import _get_all_topics
+from app.services.topic.get_all import _get_all_topics
 from app.services.memory.get_memory_by_topic import _get_memory_by_topic
 from app.services.memory.get import _get_memory
 from app.services.memory.delete import _memory_delete

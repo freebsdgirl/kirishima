@@ -1,50 +1,17 @@
-"""
-This module provides synchronization logic for user message buffers in the ledger service.
+from shared.models.ledger import CanonicalUserMessage, UserSyncRequest
 
-It exposes a FastAPI router with an endpoint to synchronize a user's message buffer with the server-side ledger,
-handling deduplication, consecutive user messages, assistant message edits, and appending new messages.
-The module interacts with a SQLite database to persist and update message history.
-
-Functions:
-    _open_conn(): Opens a SQLite connection using configuration from a JSON file.
-    ensure_first_user(messages): Ensures the returned message list starts with a user message.
-    sync_user_buffer(user_id, snapshot, background_tasks, limit): FastAPI endpoint to synchronize a user's message buffer.
-
-Key Features:
-    - Deduplication of user and assistant messages
-    - Handling of consecutive user messages (e.g., after server errors)
-    - Editing of assistant messages if the content changes
-    - Appending new messages to the ledger
-    - Optional limiting of returned message history
-    - Ensures the message buffer always starts with a user message
-
-Models:
-    - RawUserMessage: Incoming message format from the client
-    - CanonicalUserMessage: Server-side canonical message format
-
-Database Table:
-    - user_messages: Stores message history for each user
-
-Logging:
-    - Uses a shared logger for debug and operational messages
-
-"""
-
-from shared.models.ledger import RawUserMessage, CanonicalUserMessage, UserSyncRequest
 from shared.log_config import get_logger
 logger = get_logger(f"ledger.{__name__}")
 
-import json
-from typing import List
-from fastapi import APIRouter, Path, Body, BackgroundTasks
 from app.util import _open_conn
 
-router = APIRouter()
+import json
+from typing import List
 
 TABLE = "user_messages"
 
 
-def ensure_first_user(messages):
+def _ensure_first_user(messages):
     for i, msg in enumerate(messages):
         if msg.role == "user":
             return messages[i:]
@@ -132,10 +99,10 @@ def _sync_user_buffer_helper(request: UserSyncRequest) -> List[CanonicalUserMess
             ]
             if limit is not None:
                 result = result[-limit:]
-                result = ensure_first_user(result)
+                result = _ensure_first_user(result)
                 return result
             else:
-                result = ensure_first_user(result)
+                result = _ensure_first_user(result)
                 return result
 
     # Continue with rest of synchronization logic...
@@ -163,15 +130,15 @@ def _sync_user_buffer_helper(request: UserSyncRequest) -> List[CanonicalUserMess
                     'tool_call_id': row[colnames.index('tool_call_id')] if 'tool_call_id' in colnames else None,
                 }) for row in cur.fetchall()
             ]
-            result = ensure_first_user(result)
+            result = _ensure_first_user(result)
             #if last_msg.role == "assistant":
                 #background_tasks.add_task(create_summaries, user_id)
             if limit is not None:
                 result = result[-limit:]
-                result = ensure_first_user(result)
+                result = _ensure_first_user(result)
                 return result
             else:
-                result = ensure_first_user(result)
+                result = _ensure_first_user(result)
                 return result
 
     # ----------------- API logic -----------------
@@ -280,10 +247,10 @@ def _sync_user_buffer_helper(request: UserSyncRequest) -> List[CanonicalUserMess
                 #background_tasks.add_task(create_summaries, user_id)
             if limit is not None:
                 result = result[-limit:]
-                result = ensure_first_user(result)
+                result = _ensure_first_user(result)
                 return result
             else:
-                result = ensure_first_user(result)
+                result = _ensure_first_user(result)
                 return result
 
         # Rule 2 – edit assistant
@@ -317,10 +284,10 @@ def _sync_user_buffer_helper(request: UserSyncRequest) -> List[CanonicalUserMess
                 #background_tasks.add_task(create_summaries, user_id)
             if limit is not None:
                 result = result[-limit:]
-                result = ensure_first_user(result)
+                result = _ensure_first_user(result)
                 return result
             else:
-                result = ensure_first_user(result)
+                result = _ensure_first_user(result)
                 return result
 
         # Rule 3 – fallback append
@@ -343,36 +310,8 @@ def _sync_user_buffer_helper(request: UserSyncRequest) -> List[CanonicalUserMess
             #background_tasks.add_task(create_summaries, user_id)
         if limit is not None:
             result = result[-limit:]
-            result = ensure_first_user(result)
+            result = _ensure_first_user(result)
             return result
         else:
-            result = ensure_first_user(result)
+            result = _ensure_first_user(result)
             return result
-
-
-@router.post("/user/{user_id}/sync", response_model=List[CanonicalUserMessage])
-def sync_user_buffer(
-    user_id: str = Path(..., description="Unique user identifier"),
-    snapshot: List[RawUserMessage] = Body(..., embed=True),
-    background_tasks: BackgroundTasks = None
-) -> List[CanonicalUserMessage]:
-    """
-    Synchronize a user's message buffer with the server-side ledger.
-
-    This endpoint handles complex message buffer synchronization logic for a given user, supporting:
-    - Deduplication of messages
-    - Handling consecutive user messages
-    - Editing assistant messages
-    - Appending new messages
-    - Optional result limiting
-
-    Args:
-        user_id (str): Unique identifier for the user
-        snapshot (List[RawUserMessage]): Snapshot of user and assistant messages
-        background_tasks (BackgroundTasks, optional): Background task handler
-
-    Returns:
-        List[CanonicalUserMessage]: Synchronized and processed message buffer
-    """
-    request = UserSyncRequest(user_id=user_id, snapshot=snapshot)
-    return _sync_user_buffer_helper(request)

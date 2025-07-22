@@ -4,7 +4,7 @@ logger = get_logger(f"ledger.{__name__}")
 from app.util import _open_conn
 
 from shared.models.ledger import MemoryEntry
-from app.topic.get_topic_by_id import _get_topic_by_id
+from app.services.topic.get_id import _get_topic_by_id
 
 from fastapi import HTTPException, status
 

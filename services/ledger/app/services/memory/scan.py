@@ -7,12 +7,11 @@ from shared.prompt_loader import load_prompt
 
 from app.services.memory.create import _memory_add
 from app.services.memory.assign_topic_to_memory import _memory_assign_topic
-
-from app.user.get import _get_user_untagged_messages
-from app.topic.get_recent_topics import _get_recent_topics
-from app.topic.get_messages_by_topic import _get_topic_messages
-from app.topic.create import _create_topic
-from app.topic.update import _assign_messages_to_topic
+from app.services.user.get_untagged_messages import _get_user_untagged_messages
+from app.services.topic.get_recent import _get_recent_topics
+from app.services.topic.get_messages import _get_topic_messages
+from app.services.topic.create import _create_topic
+from app.services.topic.assign_messages import _assign_messages_to_topic
 
 import httpx
 import json

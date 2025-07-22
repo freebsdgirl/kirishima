@@ -2,7 +2,7 @@ from shared.log_config import get_logger
 logger = get_logger(f"ledger.{__name__}")
 
 from app.util import _open_conn
-from app.topic.util import topic_exists
+from app.services.topic.util import _topic_exists
 from fastapi import HTTPException, status
 
 
@@ -19,7 +19,7 @@ def _get_memory_by_topic(topic_id: str):
     Raises:
         HTTPException: If the topic does not exist or if there are no memories for the topic.
     """
-    if not topic_exists(topic_id):
+    if not _topic_exists(topic_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Topic not found.")
 
     with _open_conn() as conn:

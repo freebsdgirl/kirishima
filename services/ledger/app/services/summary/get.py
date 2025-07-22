@@ -1,17 +1,11 @@
-"""
-API endpoint for retrieving summary records from the ledger SQLite database.
-Supports filtering by ID, period, and date.
-"""
-
 from shared.models.ledger import Summary, SummaryMetadata, SummaryGetRequest
+
 from shared.log_config import get_logger
 logger = get_logger(f"ledger{__name__}")
 
-from typing import Optional, List
-from fastapi import APIRouter, Query, HTTPException, status
+from typing import List
 from app.util import _open_conn
 
-router = APIRouter()
 TABLE = "summaries"
 
 
@@ -72,41 +66,3 @@ def _get_summaries(request: SummaryGetRequest) -> List[Summary]:
         return summaries
     finally:
         conn.close()
-
-
-@router.get("/summary", response_model=List[Summary])
-def get_summary(
-    id: Optional[str] = Query(None, description="Filter by summary ID."),
-    period: Optional[str] = Query(None, description="Filter summaries by summary period ('morning', 'afternoon', 'daily', etc)."),
-    timestamp_begin: Optional[str] = Query(None, description="Lower bound for summary timestamp (YYYY-MM-DD HH:MM:SS)."),
-    timestamp_end: Optional[str] = Query(None, description="Upper bound for summary timestamp (YYYY-MM-DD HH:MM:SS)."),
-    keywords: Optional[List[str]] = Query(None, description="List of keywords to search for in summary text."),
-    limit: Optional[int] = Query(None, description="Maximum number of summaries to return."),
-) -> List[Summary]:
-    """
-    Retrieve summaries based on optional filtering criteria.
-    """
-    request = SummaryGetRequest(
-        id=id,
-        period=period,
-        timestamp_begin=timestamp_begin,
-        timestamp_end=timestamp_end,
-        keywords=keywords,
-        limit=limit
-    )
-    try:
-        summaries = _get_summaries(request)
-        if not summaries:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="No summaries found for the given criteria"
-            )
-        return summaries
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Unexpected error in get_summary: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"An unexpected error occurred while retrieving summaries: {e}"
-        )

@@ -11,29 +11,30 @@ Constants:
 
     The module uses structured logging to trace the summary creation process, including debug, warning, and error messages.
 """
-from shared.models.ledger import SummaryCreateRequest, SummaryMetadata, Summary
+from shared.models.ledger import SummaryCreateRequest, SummaryMetadata, Summary, CanonicalUserMessage
+from shared.models.openai import OpenAICompletionRequest
 from shared.prompt_loader import load_prompt
 
 from shared.log_config import get_logger
 logger = get_logger(f"ledger.{__name__}")
 
+from app.services.user.get_messages import _get_user_messages
+from app.services.summary.insert import _insert_summary
+
 from datetime import datetime, timedelta
 from fastapi import HTTPException, status
-from app.user.get import _get_user_messages
-from app.summary.post import _insert_summary
 from typing import List
 import httpx
 import json
 import os
+
 from transformers import AutoTokenizer
-from shared.models.ledger import CanonicalUserMessage
-from shared.models.openai import OpenAICompletionRequest
 
 
 VALID_PERIODS = ["night", "morning", "afternoon", "evening"]
 ALL_PERIODS = VALID_PERIODS + ["daily", "weekly", "monthly"]
 
-async def create_periodic_summary(request: SummaryCreateRequest) -> List[dict]:
+async def _create_periodic_summary(request: SummaryCreateRequest) -> List[dict]:
     """
     Asynchronously creates a periodic summary of user-assistant conversations for a specified period and date.
 

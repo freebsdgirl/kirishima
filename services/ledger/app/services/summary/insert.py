@@ -1,15 +1,10 @@
-"""
-API endpoint for creating a new summary record in the ledger SQLite database.
-"""
-
 from shared.models.ledger import Summary, SummaryMetadata
+
 from shared.log_config import get_logger
 logger = get_logger(f"ledger{__name__}")
 
-from fastapi import APIRouter, Body, HTTPException, status
 from app.util import _open_conn
 
-router = APIRouter()
 TABLE = "summaries"
 
 
@@ -48,20 +43,3 @@ def _insert_summary(summary: Summary) -> Summary:
         return summary
     finally:
         conn.close()
-
-
-@router.post("/summary", response_model=Summary)
-def create_summary(
-    summary: Summary = Body(..., description="Summary object to insert")
-) -> Summary:
-    """
-    Create a new summary record in the SQLite ledger database.
-    """
-    try:
-        return _insert_summary(summary)
-    except Exception as e:
-        logger.error(f"Error creating summary: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create summary: {e}"
-        )

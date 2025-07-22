@@ -3,7 +3,7 @@ logger = get_logger(f"ledger.{__name__}")
 
 from app.util import _open_conn
 
-def memory_exists(memory_id: str) -> bool:
+def _memory_exists(memory_id: str) -> bool:
     """
     Check if a memory exists in the database by its ID.
 

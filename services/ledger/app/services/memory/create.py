@@ -1,25 +1,3 @@
-"""
-This module provides functionality for creating and storing memory entries in the ledger application.
-It includes helper functions to add memory content, associated keywords, and categories to the database.
-The module also defines an API endpoint for adding new memory entries via FastAPI.
-Functions:
-    _memory_add_keywords(memory_id: str, keywords: list):
-        Adds a list of keywords to a memory entry in the database.
-    _memory_add_category(memory_id: str, category: str):
-        Adds a category to a memory entry in the database, validating against allowed categories.
-    _memory_add_memory(memory: str):
-        Creates a new memory entry in the database and returns its unique identifier.
-    _memory_add(memory: FullMemoryEntry):
-        Adds a new memory entry along with associated keywords and category, handling validation and errors.
-API Endpoints:
-    POST /memories:
-Dependencies:
-    - shared.log_config.get_logger: For logging.
-    - shared.models.ledger.MemoryEntry: Data model for memory entries.
-    - app.util._open_conn: Database connection utility.
-    - fastapi: For API routing and exception handling.
-    - uuid, datetime: For unique ID generation and timestamping.
-"""
 from shared.log_config import get_logger
 logger = get_logger(f"ledger.{__name__}")
 
@@ -29,8 +7,7 @@ from app.util import _open_conn
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, status
-router = APIRouter()
+from fastapi import HTTPException, status
 
 
 def _memory_add_keywords(memory_id: str, keywords: list):
@@ -165,17 +142,3 @@ def _memory_add(memory: MemoryEntry):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error adding memory: {str(e)}"
         )
-
-
-@router.post("/memories", response_model=dict)
-def memory_add(memory: MemoryEntry):
-    """
-    Adds a new memory entry to the database with associated metadata.
-
-    Parameters:
-        memory (MemoryEntry): The memory payload to save.
-
-    Returns:
-        The result of the add_memory_db function, typically the newly created memory entry or a status indicator.
-    """
-    return _memory_add(memory)

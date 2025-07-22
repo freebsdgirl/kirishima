@@ -1,27 +1,10 @@
-"""
-This module provides an API endpoint and helper function for retrieving a paginated list of memory entries from the ledger database.
-Functions:
-    _memory_list(request: MemoryListRequest):
-        Helper function to fetch memory entries with associated tags and categories, supporting pagination and ordering.
-        Raises HTTPException on error.
-    memory_list(limit: int, offset: int):
-        FastAPI route handler for GET /memories.
-        Returns a paginated list of memory entries with tags and categories.
-        Validates input parameters and raises HTTPException for errors or empty results.
-Dependencies:
-    - shared.log_config.get_logger: For logging.
-    - app.util._open_conn: For database connection management.
-    - shared.models.ledger.MemoryEntry, MemoryListRequest: Data models.
-    - fastapi.APIRouter, HTTPException, status, Query: FastAPI components.
-"""
 from shared.log_config import get_logger
 logger = get_logger(f"ledger.{__name__}")
 
 from app.util import _open_conn
 
 from shared.models.ledger import MemoryEntry, MemoryListRequest
-from fastapi import APIRouter, HTTPException, status, Query
-router = APIRouter()
+from fastapi import HTTPException, status
 
 
 def _memory_list(request: MemoryListRequest):
@@ -103,42 +86,3 @@ def _memory_list(request: MemoryListRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error fetching memories: {str(e)}"
         )
-
-@router.get("/memories")
-def memory_list(
-    limit: int = Query(10, description="Maximum number of memories to return."),
-    offset: int = Query(0, description="Offset for pagination, default is 0.")
-):
-    """
-    List all memories with pagination support.
-
-    Args:
-        limit (int): Maximum number of memories to return. Default is 10.
-        offset (int): Offset for pagination. Default is 0.
-        order_by (str): Column to order results by. Default is 'created_at'.
-
-    Returns:
-        dict: A dictionary containing the status and a list of memory records.
-    
-    Raises:
-        HTTPException: 
-            - 500 Internal Server Error: If an error occurs while fetching memories.
-    """
-    logger.debug(f"GET /memories Request: limit={limit}, offset={offset}")
-
-    if limit <= 0 or offset < 0:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid parameters: limit must be greater than 0 and offset must be non-negative."
-        )
-    
-    request = MemoryListRequest(limit=limit, offset=offset)
-    memories = _memory_list(request)
-
-    if not memories:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No memories found."
-        )
-
-    return {"status": "success", "memories": memories}

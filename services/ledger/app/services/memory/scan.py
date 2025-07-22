@@ -1,30 +1,3 @@
-"""
-This module provides functionality to scan user messages, identify conversational topics, and extract relevant memories using a language model (LLM). It is designed to process untagged messages, detect major conversational shifts, consolidate subtopics, and save important information as categorized memories for future reference.
-Key Features:
-- Retrieves untagged user messages and analyzes them for topic shifts.
-- Uses an LLM to identify topics and extract memories, including keywords and categories.
-- Updates message topics and saves extracted memories to the memory service.
-- Assigns memories to their respective topics.
-- Provides an API endpoint for scheduled scanning and extraction.
-Functions:
-- _scan_user_messages(user_id: str): Asynchronously scans messages for a given user, identifies topics and memories, and updates the database accordingly.
-- scan(): FastAPI endpoint to trigger the scanning process, intended for periodic execution.
-- HTTPException: If there are issues retrieving messages, processing LLM responses, or updating the database.
-
-Example scheduler job:
-
-import httpx
-
-request = {
-    "external_url": "http://ledger:4203/memories/scan",
-    "trigger": "interval",
-    "interval_minutes": 30,
-    "metadata": {}
-}
-
-response = httpx.post("http://127.0.0.1:4201/jobs", json=request)
-"""
-
 from shared.log_config import get_logger
 logger = get_logger(f"ledger.{__name__}")
 
@@ -32,44 +5,41 @@ from shared.models.openai import OpenAICompletionRequest
 from shared.models.ledger import MemoryEntry, AssignTopicRequest
 from shared.prompt_loader import load_prompt
 
+from app.services.memory.create import _memory_add
+from app.services.memory.assign_topic_to_memory import _memory_assign_topic
+
 from app.user.get import _get_user_untagged_messages
-from app.memory.create import _memory_add
-from app.memory.assign_topic_to_memory import _memory_assign_topic
 from app.topic.get_recent_topics import _get_recent_topics
 from app.topic.get_messages_by_topic import _get_topic_messages
 from app.topic.create import _create_topic
 from app.topic.update import _assign_messages_to_topic
-# Removed broken import - topic_dedup_utils was assistant-generated and deleted
 
 import httpx
 import json
 import os
 
-from fastapi import APIRouter, HTTPException, status
-router = APIRouter()
-
-with open('/app/config/config.json') as f:
-    _config = json.load(f)
-
-TIMEOUT = _config["timeout"]
-user_id = _config["user_id"]
+from fastapi import HTTPException, status
 
 
-async def _scan_user_messages(user_id: str):
+async def _scan_user_messages():
     """
     Scan the user's messages to identify topics and memories.
     
     This function retrieves untagged messages for a user, processes them to identify topics,
     and extracts relevant memories using an LLM.
-    
-    Args:
-        user_id (str): The ID of the user whose messages are to be scanned.
-    
+        
     Returns:
         dict: A summary of the scan process including successful and error counts.
     """
     logger.info(f"Starting scan for user: {user_id}")
     memory_count = 0
+
+
+    with open('/app/config/config.json') as f:
+        _config = json.load(f)
+
+    TIMEOUT = _config["timeout"]
+    user_id = _config["user_id"]
 
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         try:
@@ -314,30 +284,3 @@ async def _scan_user_messages(user_id: str):
         return {"status": "ok", "message": f"Scan completed. {memory_count} memories added."}
 
 
-@router.post("/memories/_scan", status_code=status.HTTP_200_OK)
-async def scan() -> dict:
-    """
-    Scan user messages to identify topics and extract memories.
-    
-    This endpoint is designed to be called periodically by a scheduler.
-    It processes each user's untagged messages, identifies conversational shifts,
-    and extracts relevant memories using an LLM.
-    
-    Returns:
-        dict: A summary of the scan process including successful and error counts.
-    
-    Raises:
-        HTTPException: If there are issues retrieving messages or processing the LLM response.
-    """
-    try:
-        result = await _scan_user_messages(user_id)
-        return result
-    except HTTPException as e:
-        logger.error(f"Scan failed: {e.detail}")
-        raise e
-    except Exception as e:
-        logger.error(f"Unexpected error during scan: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Unexpected error during scan: {e}"
-        )

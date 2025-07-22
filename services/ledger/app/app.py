@@ -27,19 +27,10 @@ from app.user.delete import router as user_delete_router
 from app.user.get import router as user_get_router
 from app.user.sync import router as user_sync_router
 
-# Memory management routers
-from app.memory.create import router as memory_create_router
-from app.memory.get import router as memory_get_router
-from app.memory.get_list import router as memory_get_list_router
-from app.memory.get_by_topic import router as memory_get_by_topic_router
-from app.memory.patch import router as memory_patch_router
-from app.memory.delete import router as memory_delete_router
-from app.memory.search import router as memory_search_router
-from app.memory.scan import router as memory_scan_router
-from app.memory.assign_topic_to_memory import router as memory_assign_topic_router
-from app.memory.dedup import router as memory_dedup_router
-from app.memory.dedup_topic_based import router as memory_dedup_topic_based_router
-from app.memory.dedup_semantic import router as memory_dedup_semantic_router
+from app.routes.memory import router as memory_router
+from app.routes.topic import router as topic_router
+
+
 # Topic management routers
 from app.topic.create import router as topic_create_router
 from app.topic.delete import router as topic_delete_router
@@ -49,7 +40,6 @@ from app.topic.get_recent_topics import router as topic_get_recent_router
 from app.topic.get_topic_by_id import router as topic_get_topic_by_id_router
 from app.topic.get_topic_ids_timeframe import router as topic_get_topic_ids_timeframe_router
 from app.topic.update import router as topic_update_router
-from app.topic.dedup_semantic import router as topic_dedup_semantic_router
 
 from app.setup import init_buffer_db
 
@@ -75,18 +65,8 @@ app.include_router(user_get_router, tags=["user"])
 app.include_router(user_sync_router, tags=["user"])
 
 # Memory management endpoints
-app.include_router(memory_create_router, tags=["memory"])
-app.include_router(memory_get_router, tags=["memory"])
-app.include_router(memory_get_list_router, tags=["memory"])
-app.include_router(memory_get_by_topic_router, tags=["memory"])
-app.include_router(memory_patch_router, tags=["memory"])
-app.include_router(memory_delete_router, tags=["memory"])
-app.include_router(memory_search_router, tags=["memory"])
-app.include_router(memory_scan_router, tags=["memory"])
-app.include_router(memory_assign_topic_router, tags=["memory"])
-app.include_router(memory_dedup_router, tags=["memory"])
-app.include_router(memory_dedup_topic_based_router, tags=["memory"])
-app.include_router(memory_dedup_semantic_router, tags=["memory"])
+app.include_router(memory_router, tags=["memories"], prefix="/memories")
+app.include_router(topic_router, tags=["topics"], prefix="/topics")
 
 # Topic management endpoints
 app.include_router(topic_create_router, tags=["topic"])
@@ -97,7 +77,6 @@ app.include_router(topic_get_recent_router, tags=["topic"])
 app.include_router(topic_get_topic_by_id_router, tags=["topic"])
 app.include_router(topic_get_topic_ids_timeframe_router, tags=["topic"])
 app.include_router(topic_update_router, tags=["topic"])
-app.include_router(topic_dedup_semantic_router, tags=["topic"])
 
 register_list_routes(app)
 

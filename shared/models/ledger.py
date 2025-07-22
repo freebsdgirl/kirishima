@@ -590,3 +590,80 @@ class MemoryListRequest(BaseModel):
             ]
         }
     }
+
+
+class MemoryDedupRequest(BaseModel):
+    """
+    Request model for memory deduplication operations.
+
+    Attributes:
+        dry_run (bool): If True, only analyze and return what would be done without making changes.
+        grouping_strategy (str): Strategy for grouping memories.
+        min_keyword_matches (int): Minimum number of matching keywords for keyword_overlap strategy.
+        timeframe_days (int): Number of days for timeframe grouping window.
+    """
+    dry_run: bool = Field(False, description="If True, only analyze and return what would be done without making changes")
+    grouping_strategy: str = Field("topic_similarity", description="Strategy for grouping memories")
+    min_keyword_matches: int = Field(2, description="Minimum number of matching keywords for keyword_overlap strategy")
+    timeframe_days: int = Field(7, description="Number of days for timeframe grouping window")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "dry_run": True,
+                    "grouping_strategy": "topic_similarity",
+                    "min_keyword_matches": 2,
+                    "timeframe_days": 7
+                }
+            ]
+        }
+    }
+
+
+class MemoryDedupGroup(BaseModel):
+    """
+    Represents a group of memories for deduplication.
+
+    Attributes:
+        memory_ids (List[str]): List of memory IDs in this group.
+        group_name (str): Descriptive name for this group.
+    """
+    memory_ids: List[str] = Field(..., description="List of memory IDs in this group")
+    group_name: str = Field(..., description="Descriptive name for this group")
+
+
+class MemoryDedupResult(BaseModel):
+    """
+    Result of a memory deduplication operation for a single group.
+
+    Attributes:
+        status (str): Status of the operation.
+        grouping_strategy (str): Strategy used for grouping.
+        group (str): Name/description of the group processed.
+        updated_memories (dict): Dictionary of memory IDs to their update data.
+        deleted_memories (List[str]): List of memory IDs that were deleted.
+    """
+    status: str = Field(..., description="Status of the operation")
+    grouping_strategy: str = Field(..., description="Strategy used for grouping")
+    group: str = Field(..., description="Name/description of the group processed")
+    updated_memories: dict = Field(default_factory=dict, description="Dictionary of memory IDs to their update data")
+    deleted_memories: List[str] = Field(default_factory=list, description="List of memory IDs that were deleted")
+
+
+class MemoryDedupResponse(BaseModel):
+    """
+    Response model for memory deduplication operations.
+
+    Attributes:
+        status (str): Overall status of the operation.
+        grouping_strategy (str): Strategy used for grouping.
+        message (str): Descriptive message about the operation.
+        results (Optional[List[MemoryDedupResult]]): List of deduplication results per group.
+        dry_run_info (Optional[dict]): Information about what would be done in dry run mode.
+    """
+    status: str = Field(..., description="Overall status of the operation")
+    grouping_strategy: str = Field(..., description="Strategy used for grouping")
+    message: str = Field(..., description="Descriptive message about the operation")
+    results: Optional[List[MemoryDedupResult]] = Field(None, description="List of deduplication results per group")
+    dry_run_info: Optional[dict] = Field(None, description="Information about what would be done in dry run mode")

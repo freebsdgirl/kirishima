@@ -12,19 +12,19 @@ Functions:
 from fastapi import APIRouter, HTTPException, status
 from app.util import _open_conn
 from app.topic.util import topic_exists
-from shared.models.ledger import TopicResponse
+from shared.models.ledger import TopicResponse, TopicByIdRequest
 from shared.log_config import get_logger
 logger = get_logger(f"ledger.{__name__}")
 
 router = APIRouter()
 
 
-def _get_topic_by_id(topic_id: str) -> TopicResponse:
+def _get_topic_by_id(request: TopicByIdRequest) -> TopicResponse:
     """
     Helper function to retrieve a topic by its ID.
     
     Args:
-        topic_id (str): The unique identifier of the topic.
+        request: TopicByIdRequest containing topic_id
     
     Returns:
         TopicResponse: A response object containing the topic's 'id' and 'name'.
@@ -32,6 +32,7 @@ def _get_topic_by_id(topic_id: str) -> TopicResponse:
     Raises:
         HTTPException: If the topic does not exist, raises a 404 Not Found error.
     """
+    topic_id = request.topic_id
     with _open_conn() as conn:
         cur = conn.cursor()
         cur.execute("SELECT id, name FROM topics WHERE id = ?", (topic_id,))
@@ -42,4 +43,5 @@ def _get_topic_by_id(topic_id: str) -> TopicResponse:
 def get_topic_by_id(topic_id: str):
     if not topic_exists(topic_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Topic not found.")
-    return _get_topic_by_id(topic_id)
+    request = TopicByIdRequest(topic_id=topic_id)
+    return _get_topic_by_id(request)

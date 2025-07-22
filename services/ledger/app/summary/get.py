@@ -15,17 +15,17 @@ router = APIRouter()
 TABLE = "summaries"
 
 
-def _get_summaries(
-    id: Optional[str] = None,
-    period: Optional[str] = None,
-    timestamp_begin: Optional[str] = None,
-    timestamp_end: Optional[str] = None,
-    keywords: Optional[List[str]] = None,
-    limit: Optional[int] = None,
-) -> List[Summary]:
+def _get_summaries(request: SummaryGetRequest) -> List[Summary]:
     """
     Retrieve summaries based on optional filtering criteria. (Internal helper)
     """
+    id = request.id
+    period = request.period
+    timestamp_begin = request.timestamp_begin
+    timestamp_end = request.timestamp_end
+    keywords = request.keywords
+    limit = request.limit
+    
     conn = _open_conn()
     try:
         cur = conn.cursor()
@@ -46,7 +46,7 @@ def _get_summaries(
             params.append(timestamp_end)
         if keywords:
             for kw in keywords:
-                clauses.append("summary LIKE ?")
+                clauses.append("LOWER(summary) LIKE LOWER(?)")
                 params.append(f"%{kw}%")
         if clauses:
             query += " WHERE " + " AND ".join(clauses)
@@ -86,15 +86,16 @@ def get_summary(
     """
     Retrieve summaries based on optional filtering criteria.
     """
+    request = SummaryGetRequest(
+        id=id,
+        period=period,
+        timestamp_begin=timestamp_begin,
+        timestamp_end=timestamp_end,
+        keywords=keywords,
+        limit=limit
+    )
     try:
-        summaries = _get_summaries(
-            id=id,
-            period=period,
-            timestamp_begin=timestamp_begin,
-            timestamp_end=timestamp_end,
-            keywords=keywords,
-            limit=limit,
-        )
+        summaries = _get_summaries(request)
         if not summaries:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

@@ -17,7 +17,7 @@ logger = get_logger(f"ledger.{__name__}")
 router = APIRouter()
 
 
-def _get_all_topics():
+def _get_all_topics() -> List[TopicResponse]:
     """
     Helper function to retrieve all topics from the database.
 

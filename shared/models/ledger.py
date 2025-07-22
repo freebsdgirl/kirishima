@@ -1026,20 +1026,63 @@ class TopicUpdateRequest(BaseModel):
     }
 
 
+class TopicByIdRequest(BaseModel):
+    """
+    Request model for retrieving a topic by its ID.
+    
+    Attributes:
+        topic_id (str): The unique identifier of the topic to retrieve.
+    """
+    topic_id: str = Field(..., description="The unique identifier of the topic")
+
+
+class TopicMessagesRequest(BaseModel):
+    """
+    Request model for retrieving messages associated with a topic.
+    
+    Attributes:
+        topic_id (str): The unique identifier of the topic.
+    """
+    topic_id: str = Field(..., description="The unique identifier of the topic")
+
+
+class TopicRecentRequest(BaseModel):
+    """
+    Request model for retrieving recent topics.
+    
+    Attributes:
+        limit (Optional[int]): Maximum number of recent topics to return.
+    """
+    limit: Optional[int] = Field(None, description="Maximum number of recent topics to return")
+
+
+class TopicDeleteRequest(BaseModel):
+    """
+    Request model for deleting a topic.
+    
+    Attributes:
+        topic_id (str): The unique identifier of the topic to delete.
+    """
+    topic_id: str = Field(..., description="The unique identifier of the topic to delete")
+
+
+
 # User message request models  
 class UserMessagesRequest(BaseModel):
     """
-    Request model for filtering and retrieving user messages.
+    Request model for filtering and retrieving user messages for a specific user.
     
-    Allows filtering user messages by time period, date, and specific timestamp ranges.
+    Allows filtering user messages by user_id, time period, date, and specific timestamp ranges.
     Useful for querying messages within specific temporal contexts.
     
     Attributes:
+        user_id (str): The unique identifier of the user whose messages are to be retrieved.
         period (Optional[str]): Time period filter (morning, afternoon, evening, night)
         date (Optional[str]): Date filter in YYYY-MM-DD format
         start (Optional[str]): Start timestamp filter
         end (Optional[str]): End timestamp filter
     """
+    user_id: str = Field(..., description="The unique identifier of the user whose messages are to be retrieved.")
     period: Optional[str]   = Field(None, description="Time period filter (morning, afternoon, evening, night)")
     date: Optional[str]     = Field(None, description="Date filter in YYYY-MM-DD format")
     start: Optional[str]    = Field(None, description="Start timestamp filter")
@@ -1049,12 +1092,14 @@ class UserMessagesRequest(BaseModel):
         "json_schema_extra": {
             "examples": [
                 {
+                    "user_id": "user-123",
                     "period": "morning",
                     "date": "2023-10-01",
                     "start": "2023-10-01 08:00:00",
                     "end": "2023-10-01 12:00:00"
                 },
                 {
+                    "user_id": "user-456",
                     "period": "afternoon",
                     "date": "2023-10-01",
                     "start": "2023-10-01 12:00:00",
@@ -1063,6 +1108,22 @@ class UserMessagesRequest(BaseModel):
             ]
         }
     }
+
+class UserUntaggedMessagesRequest(BaseModel):
+    """
+    Request model for retrieving all untagged messages for a specific user.
+    Attributes:
+        user_id (str): The unique identifier of the user whose untagged messages are to be retrieved.
+    """
+    user_id: str
+
+class UserLastMessageRequest(BaseModel):
+    """
+    Request model for retrieving the timestamp of the most recent message for a specific user.
+    Attributes:
+        user_id (str): The unique identifier of the user whose last message timestamp is to be retrieved.
+    """
+    user_id: str
 
 
 class UserSyncRequest(BaseModel):
@@ -1073,8 +1134,10 @@ class UserSyncRequest(BaseModel):
     Useful for bulk message synchronization across different platforms and models.
     
     Attributes:
+        user_id (str): The unique identifier of the user
         snapshot (List[RawUserMessage]): A list of raw user messages to synchronize
     """
+    user_id: str = Field(..., description="The unique identifier of the user")
     snapshot: List[RawUserMessage] = Field(..., description="List of messages to synchronize")
 
     model_config = {
@@ -1164,3 +1227,30 @@ class SummaryDeleteRequest(BaseModel):
             ]
         }
     }
+
+
+class MergeTopicsRequest(BaseModel):
+    """
+    Request model for merging multiple topics into a primary topic.
+    
+    Attributes:
+        primary_id (str): The ID of the topic to keep.
+        primary_name (Optional[str]): New name for the primary topic (optional).
+        merge_ids (List[str]): List of topic IDs to merge into the primary topic.
+    """
+    primary_id: str = Field(..., description="ID of the topic to keep")
+    primary_name: Optional[str] = Field(None, description="New name for the primary topic (optional)")
+    merge_ids: List[str] = Field(..., description="List of topic IDs to merge into primary")
+
+
+class DeleteUserMessagesRequest(BaseModel):
+    """
+    Request model for deleting user messages, optionally filtered by period and date.
+    Attributes:
+        user_id (str): The unique identifier of the user whose messages will be deleted.
+        period (Optional[str]): Time period to filter messages.
+        date (Optional[str]): Date in YYYY-MM-DD format.
+    """
+    user_id: str
+    period: Optional[str] = None
+    date: Optional[str] = None

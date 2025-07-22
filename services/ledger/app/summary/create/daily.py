@@ -20,7 +20,7 @@ from datetime import datetime
 from fastapi import HTTPException, status
 from app.summary.post import _insert_summary
 from app.summary.get import _get_summaries
-from app.summary.delete import _delete_summary
+from app.services.summary.delete import _delete_summary
 from typing import List
 import httpx
 import json

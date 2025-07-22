@@ -21,15 +21,16 @@ logger = get_logger(f"ledger.{__name__}")
 from fastapi import APIRouter, HTTPException, status
 from typing import List
 import json
-from shared.models.ledger import CanonicalUserMessage
+from shared.models.ledger import CanonicalUserMessage, TopicMessagesRequest
 
 router = APIRouter()
 
 
-def _get_topic_messages(topic_id: str) -> List[CanonicalUserMessage]:
+def _get_topic_messages(request: TopicMessagesRequest) -> List[CanonicalUserMessage]:
     """
     Helper function to get messages for a specific topic.
     """
+    topic_id = request.topic_id
     with _open_conn() as conn:
         cur = conn.cursor()
         cur.execute("SELECT * FROM user_messages WHERE topic_id = ? ORDER BY id", (topic_id,))
@@ -83,5 +84,6 @@ def get_messages_by_topic(topic_id: str) -> List[CanonicalUserMessage]:
     """
     if not topic_exists(topic_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Topic not found.")
-    return _get_topic_messages(topic_id)
+    request = TopicMessagesRequest(topic_id=topic_id)
+    return _get_topic_messages(request)
 

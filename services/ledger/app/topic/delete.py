@@ -10,25 +10,26 @@ Functions:
 from app.util import _open_conn
 from app.topic.util import topic_exists
 from fastapi import APIRouter, HTTPException, status
+from shared.models.ledger import TopicDeleteRequest
 from shared.log_config import get_logger
 logger = get_logger(f"ledger.{__name__}")
 
 router = APIRouter()
 
 
-def _delete_topic(topic_id: str):
+def _delete_topic(request: TopicDeleteRequest):
     """
     Helper function to delete a topic from the database by its ID.
     
     Args:
-        topic_id (str): The unique identifier of the topic to delete.
+        request (TopicDeleteRequest): The request containing the topic ID to delete.
     
     Returns:
         int: The number of deleted topics (should be 1 if successful).
     """
     with _open_conn() as conn:
         cur = conn.cursor()
-        cur.execute("DELETE FROM topics WHERE id = ?", (topic_id,))
+        cur.execute("DELETE FROM topics WHERE id = ?", (request.topic_id,))
         conn.commit()
         return cur.rowcount
 
@@ -37,7 +38,8 @@ def _delete_topic(topic_id: str):
 def delete_topic(topic_id: str):
     if not topic_exists(topic_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Topic not found.")
-    deleted_count = _delete_topic(topic_id)
+    request = TopicDeleteRequest(topic_id=topic_id)
+    deleted_count = _delete_topic(request)
     if deleted_count == 0:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Topic not found or already deleted.")
     return {"deleted": deleted_count}

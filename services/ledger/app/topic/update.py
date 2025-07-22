@@ -21,50 +21,15 @@ from app.util import _open_conn
 from app.topic.util import topic_exists, _validate_timestamp
 from fastapi import APIRouter, HTTPException, status
 from typing import List, Dict
+from shared.models.ledger import MergeTopicsRequest
 
 router = APIRouter()
 
 
-def _assign_messages_to_topic(body: AssignTopicRequest) -> int:
+def _assign_messages_to_topic(body: AssignTopicRequest) -> dict:
     """
-    Assigns a topic to all user messages within a specified time range.
-
-    Args:
-        topic_id (str): The ID of the topic to assign.
-        start (str): The start timestamp in the format 'YYYY-MM-DD HH:MM:SS[.sss]'.
-        end (str): The end timestamp in the format 'YYYY-MM-DD HH:MM:SS[.sss]'.
-
-    Returns:
-        int: The number of updated messages.
-    """
-    with _open_conn() as conn:
-        cur = conn.cursor()
-        cur.execute(
-            "UPDATE user_messages SET topic_id = ? WHERE created_at >= ? AND created_at <= ?",
-            (body.topic_id, body.start, body.end)
-        )
-        conn.commit()
-        return cur.rowcount
-
-
-@router.patch("/topics/{topic_id}")
-def assign_topic_to_messages(
-    body: AssignTopicRequest
-):
-    """
-    FastAPI route handler for assigning a topic to user messages within a specified timestamp range.
-    
-    Validates input by checking:
-    - Topic existence
-    - Timestamp format and validity
-    - Start time is before end time
-    - Messages exist in the given timeframe
-    
-    Raises:
-        HTTPException: For invalid input, non-existent topics, or if no messages are found/updated.
-    
-    Returns:
-        dict: Number of updated messages, e.g., {"updated": <rowcount>}.
+    Validates input and assigns a topic to all user messages within a specified time range.
+    Returns a dict: {"updated": <rowcount>} or raises HTTPException.
     """
     logger.debug(f"Assigning topic {body.topic_id} to messages from {body.start} to {body.end}")
     if not topic_exists(body.topic_id):
@@ -87,17 +52,30 @@ def assign_topic_to_messages(
         count = cur.fetchone()[0]
         if count == 0:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No messages found in the given timeframe.")
-        updated_count = _assign_messages_to_topic(body)
-        if updated_count == 0:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No messages found to update.")
+        # update messages
+        cur.execute(
+            "UPDATE user_messages SET topic_id = ? WHERE created_at >= ? AND created_at <= ?",
+            (body.topic_id, start, end)
+        )
+        updated_count = cur.rowcount
+        conn.commit()
     logger.debug(f"Updated {updated_count} messages with topic {body.topic_id}")
-    # Return the number of updated messages
     if updated_count == 0:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No messages found to update.")
     return {"updated": updated_count}
 
 
-def _merge_topics(primary_id: str, primary_name: str, merge_ids: List[str]) -> Dict:
+
+@router.patch("/topics/{topic_id}")
+def assign_topic_to_messages(body: AssignTopicRequest):
+    """
+    FastAPI route handler for assigning a topic to user messages within a specified timestamp range.
+    """
+    return _assign_messages_to_topic(body)
+
+
+
+def _merge_topics(request: MergeTopicsRequest) -> Dict:
     """
     Merge multiple topics into a primary topic.
     
@@ -107,15 +85,14 @@ def _merge_topics(primary_id: str, primary_name: str, merge_ids: List[str]) -> D
     3. Deletes the old topics
     
     Args:
-        primary_id: ID of the topic to keep
-        primary_name: New name for the primary topic (optional)
-        merge_ids: List of topic IDs to merge into primary
-        
+        request (MergeTopicsRequest): The merge request model.
+    
     Returns:
         Dict with merge results including moved memories and deleted topics
     """
-    from app.util import _open_conn
-    
+    primary_id = request.primary_id
+    primary_name = request.primary_name
+    merge_ids = request.merge_ids
     if not merge_ids:
         return {
             "primary_topic_id": primary_id,
@@ -123,19 +100,15 @@ def _merge_topics(primary_id: str, primary_name: str, merge_ids: List[str]) -> D
             "deleted_topics": [],
             "moved_memories": 0
         }
-    
     conn = _open_conn()
     cursor = conn.cursor()
-    
     moved_memories = 0
     deleted_topics = []
-    
     try:
         # Update primary topic name if provided and different
         if primary_name:
             cursor.execute("UPDATE topics SET name = ? WHERE id = ?", (primary_name, primary_id))
             logger.info(f"Updated primary topic {primary_id} name to '{primary_name}'")
-        
         # Move memories from merge topics to primary topic
         for topic_id in merge_ids:
             # Move memory-topic associations
@@ -146,26 +119,21 @@ def _merge_topics(primary_id: str, primary_name: str, merge_ids: List[str]) -> D
             """, (primary_id, topic_id))
             moved_count = cursor.rowcount
             moved_memories += moved_count
-            
             if moved_count > 0:
                 logger.info(f"Moved {moved_count} memory associations from topic {topic_id} to {primary_id}")
-            
             # Delete the old topic
             cursor.execute("DELETE FROM topics WHERE id = ?", (topic_id,))
             if cursor.rowcount > 0:
                 deleted_topics.append(topic_id)
                 logger.info(f"Deleted topic {topic_id}")
-        
         conn.commit()
         logger.info(f"Successfully merged {len(merge_ids)} topics into {primary_id}, moved {moved_memories} memory associations")
-        
     except Exception as e:
         conn.rollback()
         logger.error(f"Error merging topics: {e}")
         raise
     finally:
         conn.close()
-    
     return {
         "primary_topic_id": primary_id,
         "primary_topic_name": primary_name,

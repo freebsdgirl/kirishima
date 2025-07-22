@@ -20,7 +20,7 @@ Constants:
     TABLE: Name of the user messages table in the database.
 """
 
-from shared.models.ledger import DeleteSummary
+from shared.models.ledger import DeleteSummary, DeleteUserMessagesRequest
 from shared.log_config import get_logger
 logger = get_logger(f"ledger{__name__}")
 
@@ -33,11 +33,7 @@ router = APIRouter()
 TABLE = "user_messages"
 
 
-def _delete_user_messages(
-    user_id: str,
-    period: Optional[str] = None,
-    date: Optional[str] = None,
-) -> int:
+def _delete_user_messages(request: DeleteUserMessagesRequest) -> int:
     """
     Internal helper to delete user messages by user ID, optionally filtered by period and date.
 
@@ -49,6 +45,9 @@ def _delete_user_messages(
     Returns:
         int: The number of deleted messages.
     """
+    user_id = request.user_id
+    period = request.period
+    date = request.date
     logger.debug(f"Deleting messages for user {user_id} (period={period}, date={date})")
 
     with _open_conn() as conn:
@@ -95,5 +94,6 @@ def delete_user_buffer(
     Returns:
         DeleteSummary: An object containing the count of deleted messages.
     """
-    deleted_count = _delete_user_messages(user_id=user_id, period=period, date=date)
+    request = DeleteUserMessagesRequest(user_id=user_id, period=period, date=date)
+    deleted_count = _delete_user_messages(request)
     return DeleteSummary(deleted=deleted_count)

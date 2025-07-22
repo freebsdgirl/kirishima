@@ -16,7 +16,7 @@ logger = get_logger(f"ledger.{__name__}")
 router = APIRouter()
 
 
-def _create_topic(name: str):
+def _create_topic(request: TopicCreateRequest):
     """
     Find an existing topic by name or create a new one if it doesn't exist.
     
@@ -25,12 +25,12 @@ def _create_topic(name: str):
     topic's ID. If not found, creates a new topic and returns its ID.
     
     Args:
-        name (str): The name of the topic to find or create.
+        request (TopicCreateRequest): The request containing the topic name.
     
     Returns:
         str: The UUID of the existing or newly created topic.
     """
-    return _find_or_create_topic(name)
+    return _find_or_create_topic(request.name)
 
 
 @router.post("/topics", response_model=TopicResponse)
@@ -50,7 +50,7 @@ def create_topic(request: TopicCreateRequest = Body(...)):
     Raises:
         HTTPException: If topic creation fails with a 500 Internal Server Error.
     """
-    topic_id = _create_topic(request.name)
+    topic_id = _create_topic(request)
 
     if not topic_id:
         raise HTTPException(

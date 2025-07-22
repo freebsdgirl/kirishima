@@ -14,7 +14,7 @@ Utility Functions:
 - get_period_range: Convert a period string and optional date into a datetime range.
 """
 
-from shared.models.ledger import CanonicalUserMessage
+from shared.models.ledger import CanonicalUserMessage, UserMessagesRequest, UserUntaggedMessagesRequest, UserLastMessageRequest
 from shared.log_config import get_logger
 logger = get_logger(f"ledger{__name__}")
 
@@ -29,16 +29,22 @@ from app.util import get_period_range
 router = APIRouter()
 
 
-def _get_user_messages(
-    user_id: str,
-    period: Optional[str] = None,
-    date: Optional[str] = None,
-    start: Optional[str] = None,
-    end: Optional[str] = None,
-) -> List[CanonicalUserMessage]:
+def _get_user_messages(request: UserMessagesRequest) -> List[CanonicalUserMessage]:
     """
     Internal helper to retrieve messages for a specific user, optionally filtered by time period, date, or explicit start/end timestamps.
+    
+    Args:
+        request: UserMessagesRequest containing filtering parameters
+        
+    Returns:
+        List[CanonicalUserMessage]: Filtered user messages
     """
+    user_id = request.user_id
+    period = request.period
+    date = request.date
+    start = request.start
+    end = request.end
+    
     logger.debug(f"Fetching messages for user {user_id} (date={date}, period={period}, start={start}, end={end})")
 
     # Default date logic
@@ -122,13 +128,14 @@ def get_user_messages(
     """
     Retrieve messages for a specific user, optionally filtered by time period, date, or explicit start/end timestamps.
     """
-    return _get_user_messages(
+    request = UserMessagesRequest(
         user_id=user_id,
         period=period,
         date=date,
         start=start,
-        end=end,
+        end=end
     )
+    return _get_user_messages(request)
 
 
 def _get_active_users() -> List[str]:
@@ -168,16 +175,18 @@ async def trigger_summaries_for_inactive_users():
     return _get_active_users()
 
 
-def _get_user_untagged_messages(user_id: str) -> List[CanonicalUserMessage]:
+def _get_user_untagged_messages(request: UserUntaggedMessagesRequest) -> List[CanonicalUserMessage]:
     """
     Retrieve all untagged messages for a specific user.
 
     Args:
-        user_id (str): The unique identifier of the user.
+        request: UserUntaggedMessagesRequest containing user_id
 
     Returns:
         List[CanonicalUserMessage]: A list of untagged messages for the user.
     """
+    user_id = request.user_id
+    
     with _open_conn() as conn:
         cur = conn.cursor()
         cur.execute(
@@ -224,20 +233,23 @@ def get_user_untagged_messages(user_id: str = Path(...)) -> List[CanonicalUserMe
         List[CanonicalUserMessage]: A list of CanonicalUserMessage objects representing the user's untagged messages,
         excluding tool messages and assistant messages with empty content.
     """
-    return _get_user_untagged_messages(user_id=user_id)
+    request = UserUntaggedMessagesRequest(user_id=user_id)
+    return _get_user_untagged_messages(request)
 
 
-def _get_last_message_timestamp(user_id: str) -> str:
+def _get_last_message_timestamp(request: UserLastMessageRequest) -> str:
     """
     Internal helper to retrieve the timestamp of the most recent message sent by a specific user.
 
     Args:
-        user_id (str): The unique identifier of the user.
+        request: UserLastMessageRequest containing user_id
 
     Returns:
         str: The timestamp of the latest message sent by the user in the 'created_at' field,
              or an empty string if no messages are found.
     """
+    user_id = request.user_id
+    
     with open('/app/config/config.json') as f:
         _config = json.load(f)
     db = _config["db"]["ledger"]
@@ -261,4 +273,5 @@ def get_last_message_timestamp(user_id: str = Path(...)) -> str:
         str: The timestamp of the latest message sent by the user in the 'created_at' field,
              or an empty string if no messages are found.
     """
-    return _get_last_message_timestamp(user_id)
+    request = UserLastMessageRequest(user_id=user_id)
+    return _get_last_message_timestamp(request)

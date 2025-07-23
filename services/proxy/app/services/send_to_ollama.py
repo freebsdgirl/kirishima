@@ -1,4 +1,3 @@
-import app.config
 from shared.models.proxy import OllamaRequest, OllamaResponse
 
 from shared.log_config import get_logger
@@ -31,6 +30,7 @@ async def send_to_ollama(request: OllamaRequest) -> OllamaResponse:
         _config = json.load(f)
 
     TIMEOUT = _config["timeout"]
+    ollama_url = _config.get("ollama", {}).get("server_url", "http://localhost:11434")
 
     payload = {
         "model": request.model,
@@ -46,7 +46,7 @@ async def send_to_ollama(request: OllamaRequest) -> OllamaResponse:
     # Send the POST request using an async HTTP client
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         try:
-            response = await client.post(f"{app.config.OLLAMA_URL}/api/generate", json=payload)
+            response = await client.post(f"{ollama_url}/api/generate", json=payload)
             response.raise_for_status()
 
         except httpx.HTTPStatusError as http_err:

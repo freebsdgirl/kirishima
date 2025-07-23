@@ -1,28 +1,22 @@
-"""
-This module defines the FastAPI router for managing a proxy task queue.
-It provides endpoints to enqueue tasks (with support for both blocking and non-blocking modes),
-check the status of the entire queue, and retrieve the status of individual tasks. The queue
-supports task prioritization, optional callback URLs for non-blocking tasks, and timeout handling
-for blocking tasks.
-Endpoints:
-    - POST /queue/enqueue: Enqueue a new task to the proxy queue.
-    - GET /queue/status: Retrieve the current status and contents of the queue.
-    - GET /queue/task/{task_id}: Retrieve the status and result (if available) of a specific task.
-Models:
-    - EnqueueTaskRequest: Request schema for enqueuing tasks.
-    - EnqueueTaskResponse: Response schema for task enqueue operations.
-    - TaskStatusResponse: Response schema for individual task status.
-    - QueueTaskInfo: Information about a task in the queue.
-    - QueueStatusResponse: Status and contents of the queue.
-    - ProxyTask: Internal representation of a task.
-    - ProxyTaskQueue: In-memory queue manager for proxy tasks.
-Exceptions:
-    - HTTPException 504: Raised if a blocking task times out.
-    - HTTPException 404: Raised if a requested task is not found in the queue.
 
-"""
+from app.services.send_to_ollama import send_to_ollama
+from app.services.send_to_openai import send_to_openai
+from app.services.send_to_anthropic import send_to_anthropic
 
-from shared.models.queue import EnqueueTaskRequest, EnqueueTaskResponse, TaskStatusResponse, QueueTaskInfo, QueueStatusResponse, ProxyTask, ProxyTaskQueue
+from shared.models.queue import (
+    EnqueueTaskRequest,
+    EnqueueTaskResponse,
+    TaskStatusResponse,
+    QueueTaskInfo,
+    QueueStatusResponse,
+    ProxyTask,
+    ProxyTaskQueue
+)
+
+from shared.models.proxy import OllamaRequest, OpenAIRequest, AnthropicRequest
+
+from shared.log_config import get_logger
+logger = get_logger(f"proxy.{__name__}")
 
 import uuid
 import asyncio
@@ -39,8 +33,7 @@ anthropic_queue = ProxyTaskQueue()
 queue = ollama_queue
 
 
-@router.post("/queue/enqueue", response_model=EnqueueTaskResponse)
-async def enqueue_task(req: EnqueueTaskRequest, request: Request):
+async def _enqueue_task(req: EnqueueTaskRequest, request: Request):
     """
     Enqueue a task to the proxy task queue.
 
@@ -104,8 +97,7 @@ async def enqueue_task(req: EnqueueTaskRequest, request: Request):
         )
 
 
-@router.get("/queue/status", response_model=QueueStatusResponse)
-async def queue_status():
+async def _queue_status():
     """
     Retrieve the current status of the task queue.
 
@@ -130,8 +122,7 @@ async def queue_status():
     )
 
 
-@router.get("/queue/task/{task_id}", response_model=TaskStatusResponse)
-async def task_status(task_id: str):
+async def _task_status(task_id: str):
     """
     Retrieve the status of a specific task by its task ID.
 
@@ -166,3 +157,56 @@ async def task_status(task_id: str):
         status=status_str,
         result=result
     )
+
+
+async def queue_worker_main(queue: ProxyTaskQueue):
+    """
+    Process tasks from a ProxyTaskQueue by sending payloads to the correct provider.
+    
+    This async function continuously dequeues tasks from the provided queue, sends each task's 
+    payload to Ollama, OpenAI, or Anthropic, and handles both blocking and non-blocking task types. For blocking tasks, 
+    it sets the future's result or exception. For non-blocking tasks, it calls the provided callback.
+    
+    Args:
+        queue (ProxyTaskQueue): The queue from which tasks will be dequeued and processed.
+    
+    Raises:
+        Exception: If an error occurs during task processing, which is logged and potentially 
+        set as an exception on the task's future for blocking tasks.
+    """
+    logger.debug("Queue worker started.")
+
+    while True:
+        task: ProxyTask = await queue.dequeue()
+        logger.debug(f"Dequeued task {task.task_id} (priority={task.priority}, blocking={task.blocking})")
+
+        try:
+            # Dispatch based on payload type
+            if isinstance(task.payload, OllamaRequest):
+                result = await send_to_ollama(task.payload)
+            elif isinstance(task.payload, OpenAIRequest):
+                result = await send_to_openai(task.payload)
+            elif isinstance(task.payload, AnthropicRequest):
+                result = await send_to_anthropic(task.payload)
+            else:
+                raise Exception(f"Unknown payload type: {type(task.payload)}")
+
+            if task.blocking and task.future:
+                task.future.set_result(result)
+                logger.debug(f"Set result for blocking task {task.task_id}")
+
+            elif not task.blocking and task.callback:
+                task.callback(result)
+                logger.debug(f"Called callback for non-blocking task {task.task_id}")
+
+        except Exception as e:
+            logger.error(f"Error processing task {task.task_id}: {e}")
+            if task.blocking and task.future and not task.future.done():
+                task.future.set_exception(e)
+
+        finally:
+            queue.remove_task(task.task_id)
+# In your main app startup, you should start a worker for each queue, e.g.:
+# asyncio.create_task(queue_worker_main(ollama_queue))
+# asyncio.create_task(queue_worker_main(openai_queue))
+# asyncio.create_task(queue_worker_main(anthropic_queue))   

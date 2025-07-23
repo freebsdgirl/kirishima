@@ -18,15 +18,10 @@ Dependencies:
 - Shared configurations and tracing utilities are imported from the `shared` module.
 """
 
-from app.api.singleturn import router as singleturn_router
-from app.api.multiturn import router as multiturn_router
+from app.routes.openai import router as openai_router
+from app.routes.queue import router as queue_router
 
-from app.summary import router as summary_router
-from app.json import router as json_router
-
-from app.queue.router import router as queue_router
-from app.queue.router import ollama_queue, openai_queue, anthropic_queue
-from app.queue.worker import queue_worker_main
+from app.services.queue import ollama_queue, openai_queue, anthropic_queue, queue_worker_main
 
 from shared.docs_exporter import router as docs_router
 from shared.routes import router as routes_router, register_list_routes
@@ -65,11 +60,9 @@ app.add_middleware(CacheRequestBodyMiddleware)
 
 app.include_router(routes_router, tags=["system"])
 app.include_router(docs_router, tags=["docs"])
-app.include_router(singleturn_router, tags=["api"])
-app.include_router(multiturn_router, tags=["api"])
-app.include_router(summary_router, tags=["summary"])
-app.include_router(json_router, tags=["json"])
-app.include_router(queue_router, tags=["queue"])
+
+app.include_router(openai_router, tags=["openai"])
+app.include_router(queue_router, tags=["queue"], prefix="/queue")
 
 register_list_routes(app)
 

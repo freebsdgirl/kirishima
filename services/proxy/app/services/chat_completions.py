@@ -1,30 +1,10 @@
-"""
-This module defines an API endpoint for handling multi-turn conversation requests.
-The `/api/multiturn` endpoint processes requests to generate responses for multi-turn
-conversations using a language model. It validates the request, constructs a system
-prompt, builds an instruct-style prompt, and communicates with the Ollama API to
-generate a response. The endpoint returns the generated response along with metadata.
-Modules:
-    - shared.config: Provides configuration constants such as TIMEOUT.
-    - shared.models.proxy: Defines data models for ProxyRequest, ChatMessages, etc.
-    - app.util: Contains utility functions for building prompts.
-    - app.config: Application-specific configuration.
-    - shared.log_config: Provides logging configuration.
-    - httpx: Used for making asynchronous HTTP requests.
-    - json: Used for JSON serialization and deserialization.
-    - datetime, dateutil.tz: Used for handling timestamps with timezone information.
-    - fastapi: Provides the APIRouter and HTTPException classes for API routing and error handling.
-Functions:
-    - from_api_multiturn(request: ProxyMultiTurnRequest) -> ProxyResponse:
-        Handles multi-turn API requests by generating prompts for language models.
-"""
 from shared.models.proxy import MultiTurnRequest, ProxyResponse, OllamaRequest, OpenAIRequest, AnthropicRequest
 from shared.models.prompt import BuildSystemPrompt
 
 from app.util import build_multiturn_prompt, resolve_model_provider_options
 from app.prompts.dispatcher import get_system_prompt
 
-from app.queue.router import ollama_queue, openai_queue, anthropic_queue
+from app.services.queue import ollama_queue, openai_queue, anthropic_queue
 from shared.models.queue import ProxyTask
 import uuid
 import asyncio
@@ -33,7 +13,6 @@ from shared.log_config import get_logger
 logger = get_logger(f"proxy.{__name__}")
 
 import json
-import os
 
 from datetime import datetime
 from dateutil import tz
@@ -41,17 +20,9 @@ from dateutil import tz
 local_tz = tz.tzlocal()
 ts_with_offset = datetime.now(local_tz).isoformat(timespec="seconds")
 
-from fastapi import APIRouter, HTTPException, status
-router = APIRouter()
+from fastapi import HTTPException, status
 
-with open('/app/config/config.json') as f:
-    _config = json.load(f)
-
-TIMEOUT = _config["timeout"]
-
-
-@router.post("/api/multiturn", response_model=ProxyResponse)
-async def from_api_multiturn(request: MultiTurnRequest) -> ProxyResponse:
+async def _chat_completions(request: MultiTurnRequest) -> ProxyResponse:
     """ 
     Handle multi-turn API requests by generating prompts for language models.
 
@@ -68,8 +39,12 @@ async def from_api_multiturn(request: MultiTurnRequest) -> ProxyResponse:
     Raises:
         HTTPException: If the model is not instruct-compatible or API request fails.
     """
-
     logger.debug(f"/api/multiturn Request:\n{json.dumps(request.model_dump(), indent=4, ensure_ascii=False)}")
+
+    with open('/app/config/config.json') as f:
+        _config = json.load(f)
+
+    TIMEOUT = _config["timeout"]
 
     # resolve provider/model/options from mode
     provider, model, options = resolve_model_provider_options(request.model)

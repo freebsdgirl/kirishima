@@ -1,33 +1,35 @@
 """
-This module defines the FastAPI router and endpoint for handling single-turn language model
-completion requests via the `/api/singleturn` route. It supports forwarding requests to
-different model providers (such as Ollama and OpenAI), normalizing the request and response
-formats, and managing asynchronous task execution with timeout handling.
+This module provides the core logic for handling single-turn completion requests
+to various language model providers (Ollama, OpenAI, Anthropic) via a unified API.
 
-Key Components:
-- Imports shared models and utilities for request/response schemas, logging, and queue management.
-- Loads configuration (e.g., timeout) from a JSON file.
-- Defines a POST endpoint `/api/singleturn` that:
-    - Accepts a ProxyOneShotRequest payload.
-    - Resolves the appropriate provider and constructs a provider-specific request.
-    - Enqueues the request as a blocking task in the appropriate queue.
-    - Waits asynchronously for the result, with timeout handling.
-    - Normalizes the provider-specific response to a ProxyResponse.
-    - Handles errors and task cleanup.
+Functions:
+    _completions(message: ProxyOneShotRequest) -> ProxyResponse:
+        Handles a completion request by determining the appropriate provider,
+        constructing the provider-specific payload, enqueuing the request for
+        asynchronous processing, and returning a normalized ProxyResponse.
 
-    HTTPException: For unknown providers or if the task times out.
+Configuration:
+    Loads timeout and other settings from '/app/config/config.json'.
 
+Dependencies:
+    - shared.models.proxy: Data models for requests and responses.
+    - shared.log_config: Logger configuration.
+    - app.util: Utility for resolving model/provider/options.
+    - app.queue.router: Provider-specific queues.
+    - shared.models.queue: ProxyTask definition.
+    - fastapi: For HTTPException and status codes.
+
+    HTTPException: For unknown providers or timeout errors.
 """
-
 from shared.models.proxy import ProxyOneShotRequest, ProxyResponse, OllamaRequest
 
 from shared.log_config import get_logger
 logger = get_logger(f"proxy.{__name__}")
 
-
 from app.util import resolve_model_provider_options
-from app.queue.router import queue, ollama_queue, openai_queue, anthropic_queue
+from app.services.queue import ollama_queue, openai_queue, anthropic_queue
 from shared.models.queue import ProxyTask
+
 import uuid
 import asyncio
 from datetime import datetime
@@ -36,14 +38,14 @@ import json
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
 
+
 with open('/app/config/config.json') as f:
     _config = json.load(f)
 
 TIMEOUT = _config["timeout"]
 
 
-@router.post("/api/singleturn", response_model=ProxyResponse)
-async def from_api_completions(message: ProxyOneShotRequest) -> ProxyResponse:
+async def _completions(message: ProxyOneShotRequest) -> ProxyResponse:
     """
     Handle API completions request by forwarding the request to the Ollama language model service.
 
@@ -64,7 +66,6 @@ async def from_api_completions(message: ProxyOneShotRequest) -> ProxyResponse:
     """
     logger.debug(f"/api/singleturn Request:\n{message.model_dump_json(indent=4)}")
 
-    
     options = {
         "temperature": message.temperature,
         "max_tokens": message.max_tokens,

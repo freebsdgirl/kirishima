@@ -5,13 +5,12 @@ This module provides prompt loading functionality specifically for the proxy ser
 avoiding shared module import issues in Docker containers.
 """
 
-import os
 import json
-import logging
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 
-logger = logging.getLogger(__name__)
+from shared.log_config import get_logger
+logger = get_logger(f"proxy.{__name__}")
 
 # Base path for prompts in Docker containers
 PROMPTS_BASE_PATH = "/app/config/prompts"

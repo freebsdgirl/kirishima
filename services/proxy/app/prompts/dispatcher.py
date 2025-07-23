@@ -6,10 +6,10 @@ prompt system (from the private config repo) or the legacy local prompt modules.
 """
 
 import importlib
-import logging
 from app.prompts.centralized_loader import load_proxy_prompt
 
-logger = logging.getLogger(__name__)
+from shared.log_config import get_logger
+logger = get_logger(f"proxy.{__name__}")
 
 def get_system_prompt(request, provider=None, mode=None):
     """

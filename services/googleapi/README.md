@@ -5,6 +5,7 @@ This service provides integration with Google APIs (Gmail, Calendar, Tasks, Peop
 ## Features
 
 ### Gmail Integration
+
 - **Send emails**: Send new emails with attachments, CC/BCC support
 - **Reply to emails**: Reply to email threads
 - **Search emails**: Full-text search using Gmail query syntax
@@ -13,6 +14,7 @@ This service provides integration with Google APIs (Gmail, Calendar, Tasks, Peop
 - **Automatic monitoring**: Monitor inbox for new emails and forward them to the brain service
 
 ### Authentication
+
 - OAuth2 flow for secure Google API access
 - Automatic token refresh
 - Configurable token and credentials paths
@@ -39,10 +41,12 @@ This service provides integration with Google APIs (Gmail, Calendar, Tasks, Peop
 
 1. Copy `credentials.json` to `~/.kirishima/credentials.json`
 2. Run the OAuth setup script:
+
    ```bash
    cd /home/randi/kirishima
    python scripts/google_oauth_setup.py
    ```
+
 3. Follow the browser OAuth flow to authorize the application
 4. The script will save `token.json` to `~/.kirishima/token.json`
 
@@ -77,6 +81,7 @@ The service will automatically start email monitoring if enabled in the configur
 ### API Endpoints
 
 #### Send Email
+
 ```bash
 POST /gmail/send
 {
@@ -89,6 +94,7 @@ POST /gmail/send
 ```
 
 #### Reply to Email
+
 ```bash
 POST /gmail/reply
 {
@@ -98,6 +104,7 @@ POST /gmail/reply
 ```
 
 #### Search Emails
+
 ```bash
 POST /gmail/search
 {
@@ -107,21 +114,25 @@ POST /gmail/search
 ```
 
 #### Get Unread Emails
+
 ```bash
 GET /gmail/unread?max_results=10
 ```
 
 #### Get Recent Emails
+
 ```bash
 GET /gmail/recent?max_results=10
 ```
 
 #### Get Specific Email
+
 ```bash
 GET /gmail/email/{email_id}
 ```
 
 #### Search by Sender
+
 ```bash
 POST /gmail/search/sender
 {
@@ -131,6 +142,7 @@ POST /gmail/search/sender
 ```
 
 #### Search by Subject
+
 ```bash
 POST /gmail/search/subject
 {
@@ -140,6 +152,7 @@ POST /gmail/search/subject
 ```
 
 #### Monitoring Control
+
 ```bash
 POST /gmail/monitor/start    # Start monitoring
 POST /gmail/monitor/stop     # Stop monitoring
@@ -168,7 +181,7 @@ The service can automatically monitor the Gmail inbox for new emails and forward
 
 - `enabled`: Enable/disable automatic monitoring
 - `poll_interval`: Seconds between Gmail API polls (default: 30)
-- `brain_url`: URL of the brain service (default: "http://brain:8000")
+- `brain_url`: URL of the brain service
 
 ## Error Handling
 

@@ -1,8 +1,19 @@
 """
-Main application entry point for the googleapi service.
-
-Environment:
-    - Expects configuration at '/app/config/config.json'
+Main FastAPI application entrypoint for the Google API service.
+- Loads configuration from `/app/config/config.json`.
+- Sets up logging, middleware, and routers for system, documentation, and Gmail endpoints.
+- Manages application lifespan with startup and shutdown hooks:
+    - On startup, optionally starts Gmail email monitoring if enabled in config.
+    - On shutdown, stops Gmail email monitoring and cleans up background tasks.
+- Registers additional list routes and tracing if enabled in configuration.
+Modules imported:
+    - shared.log_config: Logging setup.
+    - shared.docs_exporter: Documentation routes.
+    - shared.routes: System routes and route registration.
+    - shared.models.middleware: Custom middleware for caching request bodies.
+    - app.routes.gmail: Gmail-specific API routes.
+    - app.services.gmail.monitor: Email monitoring service (imported as needed).
+    - shared.tracing: Distributed tracing setup (optional).
 """
 
 from shared.log_config import get_logger
@@ -12,6 +23,7 @@ from shared.docs_exporter import router as docs_router
 from shared.routes import router as routes_router, register_list_routes
 
 from shared.models.middleware import CacheRequestBodyMiddleware
+
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 import asyncio
@@ -32,7 +44,7 @@ async def lifespan(app: FastAPI):
         config = _config
         if config.get('gmail', {}).get('monitor', {}).get('enabled', False):
             logger.info("Starting email monitoring on startup")
-            from .gmail.monitor import start_email_monitoring
+            from app.services.gmail.monitor import start_email_monitoring
             # Start monitoring in the background
             monitor_task = asyncio.create_task(start_email_monitoring())
     except Exception as e:
@@ -43,7 +55,7 @@ async def lifespan(app: FastAPI):
     # Shutdown
     try:
         logger.info("Stopping email monitoring on shutdown")
-        from .gmail.monitor import stop_email_monitoring
+        from app.services.gmail.monitor import stop_email_monitoring
         stop_email_monitoring()
         if monitor_task and not monitor_task.done():
             monitor_task.cancel()

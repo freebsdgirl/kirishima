@@ -1,26 +1,51 @@
+"""
+This module provides an EmailMonitor class and related functions to monitor a Gmail inbox for new unread emails,
+process them using an external "brain" service, and take actions such as replying, forwarding, saving drafts, or ignoring emails
+based on the response from the brain service.
+Classes:
+    EmailMonitor: Monitors a Gmail inbox for new unread emails, processes them, and takes actions (reply, forward, draft, ignore)
+                  as determined by the brain service. Handles authentication, polling, and communication with the brain service.
+Functions:
+    get_config(): Loads configuration from a JSON file.
+    start_email_monitoring(): Starts the global email monitoring service asynchronously.
+    stop_email_monitoring(): Stops the global email monitoring service.
+    get_monitor_status(): Returns the current status of the email monitor, including running state, last check time, seen emails count, and poll interval.
+Dependencies:
+    - shared.prompt_loader
+    - shared.models.proxy
+    - shared.models.googleapi
+    - app.services.gmail.auth
+    - app.services.gmail.search
+    - app.services.gmail.send
+    - shared.log_config
+    - httpx
+    - asyncio
+    - json
+    - os
+Usage:
+    Instantiate and start the EmailMonitor to begin monitoring a Gmail inbox for new unread emails and process them
+    according to the logic defined in the brain service.
+"""
+
+from shared.prompt_loader import load_prompt
+from shared.models.proxy import MultiTurnRequest
+from shared.models.googleapi import ForwardEmailRequest, SaveDraftRequest
+
+from app.services.gmail.auth import get_gmail_service
+from app.services.gmail.search import get_unread_emails, get_email_by_id
+from app.services.gmail.send import forward_email, save_draft
+
+from app.services.gmail.util import get_config
+
+from shared.log_config import get_logger
+logger = get_logger(f"googleapi.{__name__}")
+
 import asyncio
 import json
 from typing import Dict, Any, Set
 import httpx
 import os
 
-from shared.prompt_loader import load_prompt
-from shared.models.proxy import MultiTurnRequest, ProxyResponse
-from shared.models.googleapi import EmailResponse, ReplyEmailRequest, ForwardEmailRequest, SaveDraftRequest
-from app.gmail.auth import get_gmail_service
-from app.gmail.search import get_unread_emails, get_email_by_id
-from app.gmail.send import reply_to_email, forward_email, save_draft
-from shared.log_config import get_logger
-logger = get_logger(f"googleapi.{__name__}")
-
-def get_config():
-    """Load configuration from config.json"""
-    try:
-        with open('/app/config/config.json', 'r') as f:
-            return json.load(f)
-    except Exception as e:
-        logger.error(f"Error loading config: {e}")
-        return {}
 
 class EmailMonitor:
     """
@@ -41,7 +66,8 @@ class EmailMonitor:
         self.last_check_time = None
         self.seen_email_ids: Set[str] = set()
         self.running = False
-        
+
+
     async def start(self):
         """Start the email monitoring loop."""
         logger.info(f"Starting email monitor - filtering emails from AI address: {self.ai_email}")
@@ -58,12 +84,14 @@ class EmailMonitor:
             except Exception as e:
                 logger.error(f"Error in email monitoring loop: {e}")
                 await asyncio.sleep(self.poll_interval)
-    
+
+
     def stop(self):
         """Stop the email monitoring loop."""
         logger.info("Stopping email monitor")
         self.running = False
-    
+
+
     async def _initialize_seen_emails(self):
         """Initialize the set of seen emails to avoid processing existing unread emails."""
         try:
@@ -76,7 +104,8 @@ class EmailMonitor:
                 logger.warning("No unread emails found during initialization.")
         except Exception as e:
             logger.error(f"Error initializing seen emails: {e}")
-    
+
+
     async def _check_for_new_emails(self):
         """Check for new unread emails and process them."""
         try:
@@ -93,7 +122,8 @@ class EmailMonitor:
                 logger.warning("No unread emails found during check.")
         except Exception as e:
             logger.error(f"Error checking for new emails: {e}")
-    
+
+
     async def _process_new_email(self, email_id: str):
         """Process a new email and forward it to the brain service."""
         try:
@@ -205,8 +235,8 @@ class EmailMonitor:
         elif action == 'ignore':
             # Handle ignore action
             logger.info(f"Ignoring email {email_id}")
-        
-    
+
+
     def _create_multiturn_request(self, email_data: Dict[str, Any]) -> MultiTurnRequest:
         """
         Create a MultiTurnRequest object for the brain service from email data.
@@ -250,19 +280,22 @@ class EmailMonitor:
         )
 
         return request
-    
+
+
     def _extract_sender_name(self, from_header: str) -> str:
         """Extract sender name from From header."""
         if '<' in from_header:
             return from_header.split('<')[0].strip().strip('"')
         return from_header.strip()
-    
+
+
     def _extract_sender_email(self, from_header: str) -> str:
         """Extract sender email from From header."""
         if '<' in from_header and '>' in from_header:
             return from_header.split('<')[1].split('>')[0].strip()
         return from_header.strip()
-    
+
+
     async def _send_to_brain(self, multiturn_request: MultiTurnRequest) -> str:
         """
         Send MultiTurnRequest to the brain service.
@@ -303,16 +336,20 @@ class EmailMonitor:
         except Exception as e:
             logger.error(f"Error sending to brain service: {e}")
 
+
 # Global monitor instance
 email_monitor = EmailMonitor()
+
 
 async def start_email_monitoring():
     """Start the email monitoring service."""
     await email_monitor.start()
 
+
 def stop_email_monitoring():
     """Stop the email monitoring service."""
     email_monitor.stop()
+
 
 def get_monitor_status() -> Dict[str, Any]:
     """Get the current status of the email monitor."""

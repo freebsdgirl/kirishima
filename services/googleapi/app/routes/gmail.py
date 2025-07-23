@@ -32,10 +32,10 @@ from shared.models.googleapi import (
     EmailResponse
 )
 
-from app.gmail.auth import get_gmail_service
-from app.gmail.send import send_email, reply_to_email, forward_email, save_draft, get_drafts
-from app.gmail.search import search_emails, get_unread_emails, get_recent_emails, get_emails_by_sender, get_emails_by_subject, get_email_by_id
-from app.gmail.monitor import start_email_monitoring, stop_email_monitoring, get_monitor_status
+from app.services.gmail.auth import get_gmail_service
+from app.services.gmail.send import send_email, reply_to_email, forward_email, save_draft, get_drafts
+from app.services.gmail.search import search_emails, get_unread_emails, get_recent_emails, get_emails_by_sender, get_emails_by_subject, get_email_by_id
+from app.services.gmail.monitor import start_email_monitoring, stop_email_monitoring, get_monitor_status
 
 from shared.log_config import get_logger
 logger = get_logger(f"googleapi.{__name__}")

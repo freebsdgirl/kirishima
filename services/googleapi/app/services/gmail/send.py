@@ -1,15 +1,42 @@
-from shared.models.googleapi import ForwardEmailRequest, SendEmailRequest, SaveDraftRequest, EmailResponse
+"""
+This module provides Gmail email sending, forwarding, replying, draft saving, and draft retrieval functionalities using the Gmail API and shared data models.
+Functions:
+    - forward_email(service, request: ForwardEmailRequest) -> EmailResponse:
+        Forwards the latest message in a Gmail thread to a new recipient, optionally with a preface body, and returns an EmailResponse indicating success or failure.
+    - create_message(request: SendEmailRequest) -> dict:
+        Constructs a MIME email message (with optional attachments) from a SendEmailRequest model and returns it as a base64-encoded dictionary suitable for the Gmail API.
+    - send_email(service, request: SendEmailRequest) -> EmailResponse:
+        Sends an email using the Gmail API based on the provided SendEmailRequest model and returns an EmailResponse with the result.
+    - reply_to_email(service, request: ReplyEmailRequest) -> EmailResponse:
+        Replies to the latest message in a Gmail thread, maintaining proper threading headers, and returns an EmailResponse indicating the result.
+    - save_draft(service, request: SaveDraftRequest) -> EmailResponse:
+        Saves an email as a draft in Gmail using the provided SaveDraftRequest model and returns an EmailResponse with draft details.
+    - get_drafts(service, max_results: int = 10) -> EmailResponse:
+        Retrieves a list of draft emails from Gmail, up to the specified maximum number, and returns an EmailResponse containing draft metadata.
+Dependencies:
+    - shared.models.googleapi: Data models for email requests and responses.
+    - shared.log_config: Logger configuration.
+    - email, base64, os: Standard libraries for email construction and encoding.
+"""
+from shared.models.googleapi import (
+    ForwardEmailRequest,
+    SendEmailRequest,
+    SaveDraftRequest,
+    EmailResponse
+)
 
-import base64
+from shared.log_config import get_logger
+logger = get_logger(f"googleapi.{__name__}")
+
+from shared.models.googleapi import ReplyEmailRequest
+
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
 from email import encoders
-import os
-from typing import List, Optional
 
-from shared.log_config import get_logger
-logger = get_logger(f"googleapi.{__name__}")
+import base64
+import os
 
 
 def forward_email(service, request: ForwardEmailRequest) -> EmailResponse:
@@ -118,6 +145,7 @@ def create_message(request: SendEmailRequest):
     raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
     return {'raw': raw_message}
 
+
 def send_email(service, request: SendEmailRequest) -> EmailResponse:
     """
     Send an email using Gmail API and shared models.
@@ -142,7 +170,6 @@ def send_email(service, request: SendEmailRequest) -> EmailResponse:
     except Exception as e:
         return EmailResponse(success=False, message=f"Failed to send email: {str(e)}", data=None)
 
-from shared.models.googleapi import ReplyEmailRequest
 
 def reply_to_email(service, request: ReplyEmailRequest) -> EmailResponse:
     """
@@ -222,6 +249,7 @@ def reply_to_email(service, request: ReplyEmailRequest) -> EmailResponse:
     except Exception as e:
         return EmailResponse(success=False, message=f"Failed to send reply: {str(e)}", data=None)
 
+
 def save_draft(service, request: SaveDraftRequest) -> EmailResponse:
     """
     Save an email as a draft for later review and sending.
@@ -276,6 +304,7 @@ def save_draft(service, request: SaveDraftRequest) -> EmailResponse:
     except Exception as e:
         logger.error(f"Failed to save draft: {str(e)}")
         return EmailResponse(success=False, message=f"Failed to save draft: {str(e)}", data=None)
+
 
 def get_drafts(service, max_results: int = 10) -> EmailResponse:
     """

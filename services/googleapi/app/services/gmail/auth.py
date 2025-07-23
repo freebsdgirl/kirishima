@@ -1,26 +1,28 @@
 """
-Gmail authentication and service initialization.
-
-Loads the OAuth2 token from ~/.kirishima/token.json and creates an authenticated Gmail service.
+This module provides authentication utilities for accessing the Gmail API using OAuth2 credentials.
+Functions:
+    get_config():
+        Loads configuration settings from a JSON file.
+    get_gmail_service():
+        Loads OAuth2 credentials from a token file, refreshes them if expired, and returns an authenticated Gmail API service instance.
+    get_user_profile(service):
+        Retrieves the authenticated user's Gmail profile information using the provided Gmail service.
+Logging:
+    Uses a shared logger for error and status reporting.
 """
-import os
-import json
-from google.auth.transport.requests import Request
-from googleapiclient.discovery import build
-from google.oauth2.credentials import Credentials
-import logging
 
 from shared.log_config import get_logger
 logger = get_logger(f"googleapi.{__name__}")
 
-def get_config():
-    """Load configuration from config.json"""
-    try:
-        with open('/app/config/config.json', 'r') as f:
-            return json.load(f)
-    except Exception as e:
-        logger.error(f"Error loading config: {e}")
-        return {}
+from app.services.gmail.util import get_config
+
+from google.auth.transport.requests import Request
+from googleapiclient.discovery import build
+from google.oauth2.credentials import Credentials
+
+import os
+import json
+
 
 def get_gmail_service():
     """
@@ -58,6 +60,7 @@ def get_gmail_service():
     # Build and return Gmail service
     service = build('gmail', 'v1', credentials=creds)
     return service
+
 
 def get_user_profile(service):
     """

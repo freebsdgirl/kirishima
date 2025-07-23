@@ -1,8 +1,17 @@
 """
-Gmail search functionality.
+This module provides services for searching and retrieving emails using the Gmail API.
+It defines functions to search emails by various criteria (query, unread, recent, sender, subject),
+retrieve a specific email by its ID, and extract body content from email payloads.
+All functions utilize shared models for request and response handling.
+Functions:
+    - search_emails: Search for emails using Gmail's search syntax.
+    - get_unread_emails: Retrieve unread emails from the inbox.
+    - get_recent_emails: Retrieve recent emails from the inbox.
+    - get_emails_by_sender: Retrieve emails sent by a specific sender.
+    - get_emails_by_subject: Retrieve emails with a specific subject.
+    - get_email_by_id: Retrieve a specific email by its ID.
+    - extract_body_content: Extract text and HTML body content from an email payload.
 """
-from typing import Dict, Any
-
 from shared.models.googleapi import (
     SearchEmailRequest,
     EmailSearchByRequest,
@@ -13,6 +22,9 @@ from googleapiclient.discovery import Resource
 
 from shared.log_config import get_logger
 logger = get_logger(f"googleapi.{__name__}")
+
+from typing import Dict, Any
+
 
 def search_emails(service, request: SearchEmailRequest) -> EmailResponse:
     """
@@ -60,12 +72,14 @@ def search_emails(service, request: SearchEmailRequest) -> EmailResponse:
     except Exception as e:
         return EmailResponse(success=False, message=f"Failed to search emails: {str(e)}", data=None)
 
+
 def get_unread_emails(service, max_results: int = 10) -> EmailResponse:
     """
     Get unread emails from inbox using shared models.
     """
     req = SearchEmailRequest(query='is:unread in:inbox', max_results=max_results)
     return search_emails(service, req)
+
 
 def get_recent_emails(service, max_results: int = 10) -> EmailResponse:
     """
@@ -74,6 +88,7 @@ def get_recent_emails(service, max_results: int = 10) -> EmailResponse:
     req = SearchEmailRequest(query='in:inbox', max_results=max_results)
     return search_emails(service, req)
 
+
 def get_emails_by_sender(service, request: EmailSearchByRequest) -> EmailResponse:
     """
     Get emails by sender using shared models.
@@ -81,12 +96,14 @@ def get_emails_by_sender(service, request: EmailSearchByRequest) -> EmailRespons
     req = SearchEmailRequest(query=f'from:{request.value}', max_results=request.max_results)
     return search_emails(service, req)
 
+
 def get_emails_by_subject(service, request: EmailSearchByRequest) -> EmailResponse:
     """
     Get emails by subject using shared models.
     """
     req = SearchEmailRequest(query=f'subject:"{request.value}"', max_results=request.max_results)
     return search_emails(service, req)
+
 
 def get_email_by_id(service: Resource, email_id: str, format: str = "full") -> EmailResponse:
     """
@@ -124,6 +141,7 @@ def get_email_by_id(service: Resource, email_id: str, format: str = "full") -> E
         logger.error(f"Error retrieving email {email_id}: {e}")
         return EmailResponse(success=False, message=f"Error retrieving email {email_id}: {e}", data=None)
 
+
 def extract_body_content(payload: Dict[str, Any]) -> Dict[str, str]:
     """
     Extract text and HTML body content from email payload.
@@ -135,7 +153,8 @@ def extract_body_content(payload: Dict[str, Any]) -> Dict[str, str]:
         Dictionary with 'text' and 'html' content
     """
     body = {'text': '', 'html': ''}
-    
+
+
     def extract_from_part(part):
         mime_type = part.get('mimeType', '')
         if mime_type == 'text/plain':

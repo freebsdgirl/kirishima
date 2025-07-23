@@ -17,6 +17,7 @@ Main endpoint:
 from app.util import ha_ws_call, get_ws_url
 from app.services.device import _list_devices, _get_device_entities
 from app.services.entity import _get_entity, _get_options_for_entity
+from app.services.media import _is_media_request, _build_media_context_for_llm
 
 from shared.models.openai import OpenAICompletionRequest
 from shared.models.smarthome import UserRequest
@@ -33,6 +34,63 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException, status
 
 router = APIRouter()
+
+
+async def _handle_media_recommendation(request: UserRequest, media_types: list, devices: list) -> dict:
+    """
+    Handle media recommendation requests using user's consumption history.
+    """
+    try:
+        logger.debug(f"Building media context for recommendation: {media_types}")
+        
+        # Build context with user's media preferences
+        media_context = _build_media_context_for_llm(request.full_request, devices, media_types)
+        logger.debug(f"Media context built: {media_context}")
+        
+        # Load the media recommendation prompt
+        prompt_content = load_prompt("smarthome/user_request/media_recommendations.j2", media_context)
+        logger.debug(f"Media recommendation prompt generated")
+        
+        # Make LLM call for recommendations
+        openai_request = OpenAICompletionRequest(
+            prompt=prompt_content,
+            model="gpt-4o",
+            max_tokens=1500,
+            temperature=0.7,
+            provider="openai"
+        )
+        
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                f"http://proxy:8082/multiturn",
+                json=openai_request.model_dump()
+            )
+            response.raise_for_status()
+        
+        recommendation_data = response.json()
+        logger.debug(f"Media recommendation LLM response: {recommendation_data}")
+        
+        try:
+            recommendations_obj = json.loads(recommendation_data['choices'][0]['content'])
+            logger.info(f"Generated media recommendations: {recommendations_obj}")
+            
+            return {
+                "intent": "MEDIA_RECOMMENDATION",
+                "media_types": media_types,
+                "recommendations": recommendations_obj.get("recommendations", []),
+                "device_ids": recommendations_obj.get("device_ids", []),
+                "reasoning": recommendations_obj.get("reasoning", ""),
+                "status": "success"
+            }
+            
+        except (json.JSONDecodeError, TypeError, KeyError) as e:
+            logger.error(f"Failed to parse media recommendation response: {e}")
+            logger.debug(f"Raw recommendation response: {recommendation_data.get('choices', [{}])[0].get('content', 'No content')}")
+            return {"error": "Failed to generate media recommendations."}
+            
+    except Exception as e:
+        logger.exception(f"Error handling media recommendation: {e}")
+        return {"error": f"Failed to process media recommendation: {str(e)}"}
 
 
 async def _user_request(request: UserRequest) -> dict:
@@ -99,7 +157,7 @@ async def _user_request(request: UserRequest) -> dict:
                         name=name, 
                         devices=json.dumps(devices, indent=2))
 
-    request = OpenAICompletionRequest(
+    openai_request = OpenAICompletionRequest(
         model="gpt-4.1-mini",
         prompt=prompt,
         max_tokens=1000,
@@ -112,7 +170,7 @@ async def _user_request(request: UserRequest) -> dict:
             api_port = os.getenv("API_PORT", 4200)
             response = await client.post(
                 f"http://api:{api_port}/v1/completions",
-                json=request.model_dump()
+                json=openai_request.model_dump()
             )
             response.raise_for_status()
         except httpx.HTTPStatusError as http_err:
@@ -135,15 +193,41 @@ async def _user_request(request: UserRequest) -> dict:
             )
         
         data = response.json()
+        logger.debug(f"Device matching LLM response: {data}")
 
         try:
             device_matches_obj = json.loads(data['choices'][0]['content'])
+            logger.debug(f"Parsed device matching response: {device_matches_obj}")
+            
+            intent = device_matches_obj.get("intent", "DEVICE_CONTROL")
             device_matches = device_matches_obj.get("devices", [])
             reasoning = device_matches_obj.get("reasoning", "")
-        except (json.JSONDecodeError, TypeError, KeyError):
-            return {"error": "No matching devices found."}
+            
+            logger.info(f"Request intent: {intent}, matched devices/types: {device_matches}, reasoning: {reasoning}")
+            
+        except (json.JSONDecodeError, TypeError, KeyError) as e:
+            logger.error(f"Failed to parse device matching response: {e}")
+            logger.debug(f"Raw LLM response content: {data.get('choices', [{}])[0].get('content', 'No content')}")
+            return {"error": "Failed to parse device matching response."}
+
+        # Handle different intents
+        if intent == "MEDIA_RECOMMENDATION":
+            logger.info(f"Processing media recommendation request for media type(s): {device_matches}")
+            return await _handle_media_recommendation(request, device_matches, devices)
+        
+        elif intent == "MEDIA_CONTROL":
+            logger.info(f"Processing media control request for devices: {device_matches}")
+            # Continue with normal device control flow but for media devices
+        
+        elif intent == "DEVICE_CONTROL":
+            logger.info(f"Processing device control request for devices: {device_matches}")
+            # Continue with normal device control flow
+        
+        else:
+            logger.warning(f"Unknown intent: {intent}, defaulting to device control")
 
         if not device_matches:
+            logger.warning("No matching devices found after intent processing")
             return {"error": "No matching devices found."}
 
         logger.debug(f"Matched device_ids: {device_matches}")
@@ -223,7 +307,7 @@ async def _user_request(request: UserRequest) -> dict:
                         device_entities=json.dumps(device_entities, indent=2),
                         related_device_entities=json.dumps(related_device_entities, indent=2))
 
-    request = OpenAICompletionRequest(
+    action_request = OpenAICompletionRequest(
         model="gpt-4.1-mini",
         prompt=prompt,
         max_tokens=1000,
@@ -237,7 +321,7 @@ async def _user_request(request: UserRequest) -> dict:
             api_port = os.getenv("API_PORT", 4200)
             response = await client.post(
                 f"http://api:{api_port}/v1/completions",
-                json=request.model_dump()
+                json=action_request.model_dump()
             )
             response.raise_for_status()
         except httpx.HTTPStatusError as http_err:

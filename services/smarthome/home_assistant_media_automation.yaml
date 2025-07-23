@@ -1,0 +1,166 @@
+# Home Assistant Automation Configuration for Media Tracking
+# Place this in your configuration.yaml or automations.yaml
+
+# Example automation to track media events
+automation:
+  - alias: "Track Media Events - HomePod"
+    description: "Send media state changes to Kirishima smarthome service"
+    trigger:
+      - platform: state
+        entity_id: 
+          - media_player.homepod
+          - media_player.homepod_mini
+          - media_player.living_room  # Replace with your media player entities
+        attribute: media_title
+      - platform: state
+        entity_id:
+          - media_player.homepod
+          - media_player.homepod_mini
+          - media_player.living_room
+        from: "playing"
+        to: "paused"
+      - platform: state
+        entity_id:
+          - media_player.homepod
+          - media_player.homepod_mini
+          - media_player.living_room
+        from: "paused"
+        to: "playing"
+      - platform: state
+        entity_id:
+          - media_player.homepod
+          - media_player.homepod_mini
+          - media_player.living_room
+        to: "idle"
+    condition:
+      # Only track meaningful changes (not just position updates)
+      - condition: template
+        value_template: >
+          {{ trigger.to_state.attributes.media_title != trigger.from_state.attributes.media_title or
+             trigger.to_state.state != trigger.from_state.state }}
+    action:
+      - service: rest_command.track_media_event
+        data:
+          device_id: "{{ trigger.entity_id }}"
+          device_name: "{{ state_attr(trigger.entity_id, 'friendly_name') }}"
+          app_name: "{{ state_attr(trigger.entity_id, 'app_name') or 'Music Assistant' }}"
+          media_content_type: "{{ state_attr(trigger.entity_id, 'media_content_type') }}"
+          media_title: "{{ state_attr(trigger.entity_id, 'media_title') }}"
+          media_duration: "{{ state_attr(trigger.entity_id, 'media_duration') | int(0) }}"
+          media_position: "{{ state_attr(trigger.entity_id, 'media_position') | int(0) }}"
+          media_artist: "{{ state_attr(trigger.entity_id, 'media_artist') }}"
+          media_album: "{{ state_attr(trigger.entity_id, 'media_album') }}"
+          media_album_artist: "{{ state_attr(trigger.entity_id, 'media_album_artist') }}"
+          media_track: "{{ state_attr(trigger.entity_id, 'media_track') | int(0) }}"
+          media_series_title: "{{ state_attr(trigger.entity_id, 'media_series_title') }}"
+          media_season: "{{ state_attr(trigger.entity_id, 'media_season') }}"
+          media_episode: "{{ state_attr(trigger.entity_id, 'media_episode') }}"
+          media_year: "{{ state_attr(trigger.entity_id, 'media_year') | int(0) }}"
+          event_type: >
+            {% if trigger.to_state.state == 'playing' and trigger.from_state.state != 'playing' %}
+              play
+            {% elif trigger.to_state.state in ['paused', 'idle'] and trigger.from_state.state == 'playing' %}
+              pause
+            {% elif trigger.to_state.state == 'idle' %}
+              stop
+            {% elif trigger.to_state.attributes.media_title != trigger.from_state.attributes.media_title %}
+              skip
+            {% else %}
+              state_change
+            {% endif %}
+          raw_attributes: >
+            {{ trigger.to_state.attributes | tojson }}
+
+  # Alternative simplified version for just Music Assistant
+  - alias: "Track Music Assistant Events"
+    description: "Track music playback from Music Assistant"
+    trigger:
+      - platform: state
+        entity_id: media_player.music_assistant_player  # Your Music Assistant player
+    condition:
+      - condition: template
+        value_template: >
+          {{ trigger.to_state.attributes.media_title != trigger.from_state.attributes.media_title or
+             trigger.to_state.state != trigger.from_state.state }}
+    action:
+      - service: rest_command.track_music_event
+        data:
+          device_id: "{{ trigger.entity_id }}"
+          media_title: "{{ state_attr(trigger.entity_id, 'media_title') }}"
+          media_artist: "{{ state_attr(trigger.entity_id, 'media_artist') }}"
+          media_album: "{{ state_attr(trigger.entity_id, 'media_album') }}"
+          event_type: >
+            {% if trigger.to_state.state == 'playing' %}
+              play
+            {% elif trigger.to_state.state == 'paused' %}
+              pause
+            {% else %}
+              stop
+            {% endif %}
+
+# REST command configuration (add to configuration.yaml)
+rest_command:
+  track_media_event:
+    url: "http://localhost:8087/media/media_event"  # Adjust port if needed
+    method: POST
+    headers:
+      Content-Type: "application/json"
+    payload: >
+      {
+        "device_id": "{{ device_id }}",
+        "device_name": "{{ device_name }}",
+        "app_name": "{{ app_name }}",
+        "media_content_type": "{{ media_content_type }}",
+        "media_title": "{{ media_title }}",
+        {% if media_duration and media_duration != 0 %}
+        "media_duration": {{ media_duration }},
+        {% endif %}
+        {% if media_position and media_position != 0 %}
+        "media_position": {{ media_position }},
+        {% endif %}
+        {% if media_artist %}
+        "media_artist": "{{ media_artist }}",
+        {% endif %}
+        {% if media_album %}
+        "media_album": "{{ media_album }}",
+        {% endif %}
+        {% if media_album_artist %}
+        "media_album_artist": "{{ media_album_artist }}",
+        {% endif %}
+        {% if media_track and media_track != 0 %}
+        "media_track": {{ media_track }},
+        {% endif %}
+        {% if media_series_title %}
+        "media_series_title": "{{ media_series_title }}",
+        {% endif %}
+        {% if media_season %}
+        "media_season": "{{ media_season }}",
+        {% endif %}
+        {% if media_episode %}
+        "media_episode": "{{ media_episode }}",
+        {% endif %}
+        {% if media_year and media_year != 0 %}
+        "media_year": {{ media_year }},
+        {% endif %}
+        "event_type": "{{ event_type }}",
+        "timestamp": "{{ now().isoformat() }}",
+        "raw_attributes": {{ raw_attributes }}
+      }
+
+  track_music_event:
+    url: "http://localhost:8087/media/media_event"
+    method: POST
+    headers:
+      Content-Type: "application/json"
+    payload: >
+      {
+        "device_id": "{{ device_id }}",
+        "device_name": "Music Assistant",
+        "app_name": "Music Assistant",
+        "media_content_type": "music",
+        "media_title": "{{ media_title }}",
+        "media_artist": "{{ media_artist }}",
+        "media_album": "{{ media_album }}",
+        "event_type": "{{ event_type }}",
+        "timestamp": "{{ now().isoformat() }}"
+      }

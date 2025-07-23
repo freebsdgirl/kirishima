@@ -60,7 +60,7 @@ This creates an unprecedented feedback loop where the AI experiences the consequ
 | Service      | Description                                                                 | Status           |
 |--------------|-----------------------------------------------------------------------------|------------------|
 | `Brain`      | The control freak. Orchestrates everything, routes messages, manages context | ✅ Core built     |
-| `Proxy`      | Shoots prompts to local LLMs (Ollama, OpenAI, Mistral, etc.)                | 🛠️ Working        |
+| `Proxy`      | Shoots prompts to local LLMs (Ollama, OpenAI, Mistral, etc.)                | ✅ Working        |
 | `API`        | OpenAI-compatible REST API front-end, handles prompt routing and model modes | ✅ Working  |
 | `Ledger`     | Cross-platform message log—persistent, dedupes, keeps context sharp          | ✅ Working        |
 | `Contacts`   | Knows who's who, wrangles aliases and IDs across platforms                   | ✅ Working        |

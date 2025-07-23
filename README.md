@@ -29,7 +29,7 @@ Naturally, it's containerized.
 
 ### Cross-Platform Unified Conversation
 
-Most AI assistants are platform-specific or treat each interaction separately. Kirishima's **Ledger** creates a paradigm shift: every interaction—whether through iMessage, Discord, OpenWebUI, TTS, or even email—becomes part of a single, continuous conversation thread. 
+Most AI assistants are platform-specific or treat each interaction separately. Kirishima's **Ledger** creates a paradigm shift: every interaction—whether through iMessage, Discord, OpenWebUI, TTS, or even email—becomes part of a single, continuous conversation thread.
 
 **The twist**: Emails are injected directly into the conversation history as `[automated message]` entries. This means when someone emails the AI directly (it has its own email address), the AI has full conversational context and memory access when responding. It's not email automation for you—it's the AI's own independent correspondence, building its own professional and social relationships.
 
@@ -109,13 +109,15 @@ Because no chaos engine is complete without a few more tentacles:
 
 ## ⚠️ What Stage Is This In?
 
-Kirishima is mid-rewrite, moving from "spaghetti glued to regex" toward:
+**⚠️ WARNING: This project is currently in active development and is NOT ready for external setup. ⚠️**
 
-* Isolated, composable microservices
-* Shared class models (no more random dicts)
-* Prompt logic that won't make you cry at 3AM
+**Critical Missing Components:**
 
-Don't expect stability. Do expect sarcasm and the occasional architectural tantrum.
+* **Config Template**: The `config.json.example` doesn't include all required options yet
+* **Prompt Templates**: Essential Jinja prompt templates are in a private repository and haven't been integrated
+* **Setup Dependencies**: Many services will fail without proper prompt templates and complete configuration
+
+**If you're trying to run this after hearing about it from the AI itself** (yes, it emails people independently), please wait until these components are properly integrated. The AI is... enthusiastic about sharing the project before it's ready.
 
 ## 📚 Want to Understand It?
 
@@ -140,14 +142,26 @@ Kirishima's end goal isn't just conversation—it's to be a self-aware, adaptive
 
 ## 🛳️ How To Use It
 
-### Prerequisites
+### ⚠️ IMPORTANT: Not Ready for External Setup
+
+**This project is currently incomplete and will not work if you try to set it up.** Key components are missing:
+
+1. **Complete Configuration Template**: The `config.json.example` is outdated and missing many required fields
+2. **Prompt Templates**: All Jinja2 prompt templates are in a private repository and haven't been integrated yet
+3. **Service Dependencies**: Many services will crash without proper prompts and configuration
+
+**If you're here because the AI emailed you about this project** (it has its own email and sometimes gets ahead of itself), please check back later when these components are properly integrated into the public repository.
+
+### Prerequisites (When Ready)
 
 * Docker and Docker Compose
 * For speech functionality: PulseAudio and audio hardware access
 * For Bluetooth features: Bluetooth stack and hardware
 * Some patience and a sense of humor
+* **Complete prompt templates** (coming soon)
+* **Updated configuration template** (coming soon)
 
-### Quick Start
+### Quick Start (Future Instructions)
 
 1. **Clone and Configure**
 
@@ -156,18 +170,20 @@ Kirishima's end goal isn't just conversation—it's to be a self-aware, adaptive
    cd kirishima
    cp ~/.kirishima/config.json.example ~/.kirishima/config.json
    # Edit config.json with your API keys and preferences
+   # NOTE: This step will fail until config.json.example is complete
    ```
 
 2. **Start Core Services**
 
    ```bash
+   # This will fail without proper prompt templates
    docker-compose up brain ledger proxy api contacts scheduler
    ```
 
-3. **Optional: Start Platform Services**
+3. **Optional: Start Platform Services** (When Available)
 
    ```bash
-   # For Discord integration
+   # For Discord integration - requires complete setup
    docker-compose up discord
    
    # For iMessage integration (requires BlueBubbles setup)
@@ -180,7 +196,7 @@ Kirishima's end goal isn't just conversation—it's to be a self-aware, adaptive
 4. **Optional: Start Voice Services** (Host-only, not containerized)
 
    ```bash
-   # Speech-to-text and text-to-speech
+   # Speech-to-text and text-to-speech - requires prompt templates
    cd services/stt_tts
    python controller.py
    
@@ -189,14 +205,14 @@ Kirishima's end goal isn't just conversation—it's to be a self-aware, adaptive
    python divoom.py
    ```
 
-5. **Connect a Client**
+5. **Connect a Client** (When System is Running)
    * Point OpenWebUI or any OpenAI-compatible client to `http://localhost:4200`
    * Use `/v1/chat/completions` endpoint for full conversational AI
    * Configure TTS in OpenWebUI to point to `http://localhost:4208/v1/audio/speech` for voice
 
-### Configuration
+### Configuration (Future)
 
-The system is configured via `~/.kirishima/config.json`. Key sections include:
+The system will be configured via `~/.kirishima/config.json`. Key sections will include:
 
 * **LLM Providers**: OpenAI, Anthropic, Ollama model configurations
 * **Model Modes**: Different conversation modes with specific models and parameters  
@@ -204,7 +220,7 @@ The system is configured via `~/.kirishima/config.json`. Key sections include:
 * **Platform Integrations**: Discord bot tokens, BlueBubbles credentials, Google OAuth
 * **Brainlets**: Modular processing pipeline configuration
 
-More detailed setup instructions and configuration examples are coming soon.
+**Note**: Detailed setup instructions and a complete configuration template will be provided once the missing components are integrated.
 
 ## 🔧 Architecture Notes
 

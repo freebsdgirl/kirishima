@@ -17,9 +17,9 @@ Main endpoint:
 from app.util import ha_ws_call, get_ws_url
 from app.services.device import _list_devices, _get_device_entities
 from app.services.entity import _get_entity, _get_options_for_entity
-from app.services.media import _is_media_request, _build_media_context_for_llm
+from app.services.media import _build_media_context_for_llm
 
-from shared.models.openai import OpenAICompletionRequest
+from shared.models.proxy import SingleTurnRequest
 from shared.models.smarthome import UserRequest
 from shared.prompt_loader import load_prompt
 
@@ -31,9 +31,7 @@ import json
 import os
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, status
-
-router = APIRouter()
+from fastapi import HTTPException, status
 
 
 async def _handle_media_recommendation(request: UserRequest, media_types: list, devices: list) -> dict:
@@ -51,19 +49,16 @@ async def _handle_media_recommendation(request: UserRequest, media_types: list, 
         prompt_content = load_prompt("smarthome/user_request/media_recommendations.j2", media_context)
         logger.debug(f"Media recommendation prompt generated")
         
-        # Make LLM call for recommendations
-        openai_request = OpenAICompletionRequest(
-            prompt=prompt_content,
-            model="gpt-4o",
-            max_tokens=1500,
-            temperature=0.7,
-            provider="openai"
+        singleturn_request = SingleTurnRequest(
+            model="smarthome",
+            prompt=prompt_content
         )
-        
+
+        proxy_port = os.getenv("PROXY_PORT", 4205)
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
-                f"http://proxy:8082/multiturn",
-                json=openai_request.model_dump()
+                f"http://proxy:{proxy_port}/api/singleturn",
+                json=singleturn_request.model_dump()
             )
             response.raise_for_status()
         
@@ -157,20 +152,16 @@ async def _user_request(request: UserRequest) -> dict:
                         name=name, 
                         devices=json.dumps(devices, indent=2))
 
-    openai_request = OpenAICompletionRequest(
-        model="gpt-4.1-mini",
-        prompt=prompt,
-        max_tokens=1000,
-        temperature=0.3,
-        n=1,
-        provider="openai"
+    singleturn_request = SingleTurnRequest(
+        model="smarthome",
+        prompt=prompt
     )
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         try:
-            api_port = os.getenv("API_PORT", 4200)
+            proxy_port = os.getenv("PROXY_PORT", 4205)
             response = await client.post(
-                f"http://api:{api_port}/v1/completions",
-                json=openai_request.model_dump()
+                f"http://proxy:{proxy_port}/api/singleturn",
+                json=singleturn_request.model_dump()
             )
             response.raise_for_status()
         except httpx.HTTPStatusError as http_err:
@@ -307,21 +298,16 @@ async def _user_request(request: UserRequest) -> dict:
                         device_entities=json.dumps(device_entities, indent=2),
                         related_device_entities=json.dumps(related_device_entities, indent=2))
 
-    action_request = OpenAICompletionRequest(
-        model="gpt-4.1-mini",
-        prompt=prompt,
-        max_tokens=1000,
-        temperature=0.3,
-        n=1,
-        provider="openai"
+    singleturn_request = SingleTurnRequest(
+        model="smarthome",
+        prompt=prompt
     )
-
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         try:
-            api_port = os.getenv("API_PORT", 4200)
+            proxy_port = os.getenv("PROXY_PORT", 4205)
             response = await client.post(
-                f"http://api:{api_port}/v1/completions",
-                json=action_request.model_dump()
+                f"http://proxy:{proxy_port}/api/singleturn",
+                json=singleturn_request.model_dump()
             )
             response.raise_for_status()
         except httpx.HTTPStatusError as http_err:

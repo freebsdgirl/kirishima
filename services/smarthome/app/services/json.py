@@ -1,37 +1,17 @@
-"""
-This module provides an API endpoint to populate a JSON file with a list of smart home devices and their associated entities.
+from app.services.device import _list_devices
+from app.services.entity import _list_entities
 
-Endpoint:
-    GET /populate-devices-json
-
-Functionality:
-    - Retrieves devices and entities using utility functions.
-    - Associates entities with their corresponding devices.
-    - Constructs Device objects, each containing its related Entity objects.
-    - Serializes the list of devices (with entities) to a JSON file at '/app/app/devices.json'.
-
-Dependencies:
-    - FastAPI for API routing.
-    - Shared models for Device and Entity representations.
-    - Utility functions for fetching devices and entities.
-    - Standard json module for file output.
-"""
-from fastapi import APIRouter
 from shared.models.smarthome import Device, Entity
-from app.util import get_devices, get_entities
 import json
 
-router = APIRouter()
 
-
-@router.get("/populate-devices-json")
-async def populate_devices_json():
+async def _populate_devices_json():
     """
     Populate the devices.json file with a list of devices and entities.
     """
 
-    devices = await get_devices()  # Should be a list of dicts or objects
-    entities = await get_entities()  # Should be a list of dicts or objects
+    devices = await _list_devices()  # Should be a list of dicts or objects
+    entities = await _list_entities()  # Should be a list of dicts or objects
 
     # Build a mapping from device_id to list of entities
     device_entities = {}

@@ -14,33 +14,28 @@ Main endpoint:
             full_request (str): The complete user request for context.
             dict: Result object containing executed actions, reasoning, and status.
 """
-from app.util import get_devices, get_entities_for_device, get_states_for_entity_ids, get_options_for_entity, ha_ws_call, get_ws_url
+from app.util import ha_ws_call, get_ws_url
+from app.services.device import _list_devices, _get_device_entities
+from app.services.entity import _get_entity, _get_options_for_entity
 
 from shared.models.openai import OpenAICompletionRequest
 from shared.models.smarthome import UserRequest
 from shared.prompt_loader import load_prompt
 
 from shared.log_config import get_logger
-logger = get_logger(f"scheduler.{__name__}")
+logger = get_logger(f"smarthome.{__name__}")
 
 import httpx
 import json
 import os
-
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, status
 
 router = APIRouter()
 
-with open('/app/config/config.json') as f:
-    _config = json.load(f)
 
-TIMEOUT = _config["timeout"]
-
-
-@router.post("/user_request")
-async def user_request(request: UserRequest) -> dict:
+async def _user_request(request: UserRequest) -> dict:
     """
     Retrieve and match devices based on a user request, with intelligent device selection and action execution.
     
@@ -58,6 +53,10 @@ async def user_request(request: UserRequest) -> dict:
     Returns:
         dict: A result object containing executed actions, reasoning, and status
     """
+    with open('/app/config/config.json') as f:
+        _config = json.load(f)
+
+    TIMEOUT = _config["timeout"]
 
     full_request = request.full_request.strip()
     name = request.name.strip() if request.name else ""
@@ -73,7 +72,7 @@ async def user_request(request: UserRequest) -> dict:
         lighting_overrides = {}
 
     # Get devices (filtered as needed)
-    response = await get_devices()
+    response = await _list_devices()
 
     # Only need device_id, name, notes, type, and controller (if present)
     devices = []
@@ -150,14 +149,14 @@ async def user_request(request: UserRequest) -> dict:
         logger.debug(f"Matched device_ids: {device_matches}")
 
         # so now we have this list of device_ids. we need to get entities for these devices.
-        device_entities = await get_entities_for_device(device_matches)
+        device_entities = await _get_device_entities(device_matches)
 
         device_info_by_id = {d["device_id"]: d for d in devices}
         # Gather all controller entity_ids from devices that have a controller
         controller_entity_ids = [info.get("controller") for info in device_info_by_id.values() if info.get("controller")]
         controller_states = {}
         if controller_entity_ids:
-            states = await get_states_for_entity_ids(controller_entity_ids)
+            states = await _get_entity(controller_entity_ids)
             controller_states = {s["entity_id"]: s["state"] for s in states}
 
         for device in device_entities:
@@ -169,7 +168,7 @@ async def user_request(request: UserRequest) -> dict:
             if controller:
                 device["controller"] = controller
                 device["controller_state"] = controller_states.get(controller, None)
-                device["controller_values"] = await get_options_for_entity(controller, lighting_overrides)
+                device["controller_values"] = await _get_options_for_entity(controller, lighting_overrides)
 
         # Build set of matched device_ids
         matched_device_ids = set(device_matches)
@@ -187,7 +186,7 @@ async def user_request(request: UserRequest) -> dict:
         related_controller_entity_ids = [d.get("controller") for d in related_devices if d.get("controller")]
         related_controller_states = {}
         if related_controller_entity_ids:
-            related_states = await get_states_for_entity_ids(related_controller_entity_ids)
+            related_states = await _get_entity(related_controller_entity_ids)
             related_controller_states = {s["entity_id"]: s["state"] for s in related_states}
 
         related_device_entities = []

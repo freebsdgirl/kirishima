@@ -7,18 +7,25 @@ logger = get_logger(f"smarthome.{__name__}")
 from shared.models.middleware import CacheRequestBodyMiddleware
 from fastapi import FastAPI
 
-from app.list import router as list_devices_router
-from app.populate_devices_json import router as populate_devices_json_router
-from app.user_request import router as user_request_router
+from app.routes.area import router as area_router
+from app.routes.device import router as device_router
+from app.routes.entity import router as entity_router
+from app.routes.json import router as json_router
+from app.routes.request import router as request_router
+
 
 app = FastAPI()
 app.add_middleware(CacheRequestBodyMiddleware)
 
 app.include_router(routes_router, tags=["system"])
 app.include_router(docs_router, tags=["docs"])
-app.include_router(list_devices_router, tags=["smarthome"])
-app.include_router(populate_devices_json_router, tags=["smarthome"])
-app.include_router(user_request_router, tags=["smarthome"])
+
+app.include_router(area_router, prefix="/area", tags=["area"])
+app.include_router(device_router, prefix="/device", tags=["device"])
+app.include_router(entity_router, prefix="/entity", tags=["entity"])
+app.include_router(json_router, tags=["json"])
+app.include_router(request_router, tags=["request"])
+
 
 register_list_routes(app)
 

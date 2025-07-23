@@ -30,7 +30,7 @@ from shared.models.ledger import (
 )
 
 from shared.log_config import get_logger
-logger = get_logger(f"ledger{__name__}")
+logger = get_logger(f"ledger.{__name__}")
 
 from app.services.user.delete_messages import _delete_user_messages
 from app.services.user.get_messages import _get_user_messages

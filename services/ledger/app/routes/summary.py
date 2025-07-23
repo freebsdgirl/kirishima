@@ -29,7 +29,7 @@ from shared.models.ledger import (
 )
 
 from shared.log_config import get_logger
-logger = get_logger(f"ledger{__name__}")
+logger = get_logger(f"ledger.{__name__}")
 
 from typing import Optional, List
 

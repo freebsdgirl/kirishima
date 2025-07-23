@@ -43,9 +43,9 @@ This creates something unprecedented: an AI with its own social identity that ca
 
 Whether you're voice-chatting via TTS, typing in Discord, texting via iMessage, or using a web interface, the system maintains perfect conversational continuity. Switch mid-conversation from voice to text to email—the AI seamlessly picks up where you left off with full context intact.
 
-### ADHD-Aligned Architecture
+### 🧠 Human-aligned Memory Architecture
 
-Unlike linear, folder-based thinking that most AI systems expect, Kirishima embraces associative, hyperlinked thought patterns. The upcoming heatmap memory system doesn't fight ADHD conversation patterns—it's designed around them, using interaction-based relevance rather than rigid time windows or folder hierarchies.
+**Heatmap-Based Memory System**: Uses a novel weighted topic tracking system instead of traditional vector databases. Keywords get dynamic multipliers (0.1x-1x) that decay based on conversation patterns, not time. This mirrors human memory patterns and ADHD-appropriate associative thinking—topics heat up through use and cool down when attention shifts naturally. The system provides contextual memory scoring and retrieval based on current conversation relevance.
 
 ### Self-Modifying Agency & Autonomous Development
 
@@ -100,8 +100,6 @@ Because no chaos engine is complete without a few more tentacles:
 | `Node-RED`      | External workflow logic via low-code glue               |
 
 ### 🔬 Research & Development
-
-**Heatmap-Based Memory System**: Moving from traditional vector databases to a novel weighted topic tracking system. Instead of binary topic switches, keywords get dynamic multipliers (0.1x-1x) that decay based on conversation patterns, not time. This mirrors human memory patterns and ADHD-appropriate associative thinking—topics heat up through use and cool down when attention shifts naturally.
 
 **SLAM Broker**: A context-aware orchestration service that handles natural language commands issued to microservices. The agent focuses on "what do I want done?" while SLAM handles service discovery, blocking vs non-blocking logic, and async orchestration patterns.
 

@@ -26,7 +26,7 @@ from shared.models.proxy import ProxyOneShotRequest, ProxyResponse, OllamaReques
 from shared.log_config import get_logger
 logger = get_logger(f"proxy.{__name__}")
 
-from app.util import resolve_model_provider_options
+from app.services.util import _resolve_model_provider_options
 from app.services.queue import ollama_queue, openai_queue, anthropic_queue
 from shared.models.queue import ProxyTask
 
@@ -83,7 +83,7 @@ async def _completions(message: ProxyOneShotRequest) -> ProxyResponse:
             message.provider = "openai"
         else:
             # Resolve provider/model/options from model name
-            provider, model, options = resolve_model_provider_options(message.model)
+            provider, model, options = _resolve_model_provider_options(message.model)
             logger.debug(f"Resolved provider/model/options: {provider}, {model}, {options}")
 
     # Branch on provider and construct provider-specific request

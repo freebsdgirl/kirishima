@@ -1,7 +1,7 @@
 from shared.models.proxy import MultiTurnRequest, ProxyResponse, OllamaRequest, OpenAIRequest, AnthropicRequest
 from shared.models.prompt import BuildSystemPrompt
 
-from app.util import build_multiturn_prompt, resolve_model_provider_options
+from app.services.util import _build_multiturn_prompt, _resolve_model_provider_options
 from app.prompts.dispatcher import get_system_prompt
 
 from app.services.queue import ollama_queue, openai_queue, anthropic_queue
@@ -47,7 +47,7 @@ async def _chat_completions(request: MultiTurnRequest) -> ProxyResponse:
     TIMEOUT = _config["timeout"]
 
     # resolve provider/model/options from mode
-    provider, model, options = resolve_model_provider_options(request.model)
+    provider, model, options = _resolve_model_provider_options(request.model)
     logger.debug(f"Resolved provider/model/options: {provider}, {model}, {options}")
 
     # if the model is auto, we query the LLM to resolve the provider/model/options
@@ -88,7 +88,7 @@ Conversation history:
 
         queue_to_use.remove_task(task_id)
 
-        provider, model, options = resolve_model_provider_options("default")
+        provider, model, options = _resolve_model_provider_options("default")
 
     # now get your dynamic system prompt
     system_prompt = get_system_prompt(
@@ -106,7 +106,7 @@ Conversation history:
     )
 
     # build the full instruct‑style prompt
-    full_prompt = build_multiturn_prompt(request.messages, system_prompt)
+    full_prompt = _build_multiturn_prompt(request.messages, system_prompt)
 
     # Branch on provider and construct provider-specific request/payload
     if provider == "ollama":

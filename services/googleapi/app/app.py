@@ -5,6 +5,9 @@ Environment:
     - Expects configuration at '/app/config/config.json'
 """
 
+from shared.log_config import get_logger
+logger = get_logger(f"googleapi.{__name__}")
+
 from shared.docs_exporter import router as docs_router
 from shared.routes import router as routes_router, register_list_routes
 
@@ -13,11 +16,8 @@ from fastapi import FastAPI
 from contextlib import asynccontextmanager
 import asyncio
 import json
-import logging
 
-from .routes.gmail import router as gmail_router
-
-logger = logging.getLogger(__name__)
+from app.routes.gmail import router as gmail_router
 
 # Load config
 with open('/app/config/config.json') as f:
@@ -59,7 +59,9 @@ app.add_middleware(CacheRequestBodyMiddleware)
 
 app.include_router(routes_router, tags=["system"])
 app.include_router(docs_router, tags=["docs"])
-app.include_router(gmail_router)
+
+app.include_router(gmail_router, tags=["gmail"], prefix="/gmail")
+
 register_list_routes(app)
 
 if _config['tracing_enabled']:

@@ -146,6 +146,31 @@ class ProxyOneShotRequest(BaseModel):
     }
 
 
+class SingleTurnRequest(BaseModel):
+    """
+    Represents a minimal single-turn request that uses mode-based model resolution.
+    
+    This model uses mode names (like 'default', 'work', 'claude') to resolve the actual
+    model, provider, and options from config.json, similar to MultiTurnRequest but
+    with minimal fields for single-turn interactions.
+    
+    Attributes:
+        model (str): The mode name to resolve from config.json (e.g., 'default', 'work', 'claude').
+        prompt (str): The input text or prompt to be processed by the model.
+    """
+    model: str = Field(..., description="The mode name to resolve from config.json.")
+    prompt: str = Field(..., description="The prompt or input text for the model.")
+    
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "model": "default",
+                "prompt": "Don't forget your meds"
+            }
+        }
+    }
+
+
 class MultiTurnRequest(BaseModel):
     """
     Represents a request for a multi-turn proxy interaction with a language model.

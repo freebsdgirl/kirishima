@@ -39,12 +39,6 @@ from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
 
 
-with open('/app/config/config.json') as f:
-    _config = json.load(f)
-
-TIMEOUT = _config["timeout"]
-
-
 async def _completions(message: ProxyOneShotRequest) -> ProxyResponse:
     """
     Handle API completions request by forwarding the request to the Ollama language model service.
@@ -64,6 +58,11 @@ async def _completions(message: ProxyOneShotRequest) -> ProxyResponse:
     Raises:
         HTTPException: If there are connection or communication errors with the Ollama service.
     """
+    with open('/app/config/config.json') as f:
+        _config = json.load(f)
+
+    TIMEOUT = _config["timeout"]
+
     logger.debug(f"/api/singleturn Request:\n{message.model_dump_json(indent=4)}")
 
     options = {
@@ -75,16 +74,12 @@ async def _completions(message: ProxyOneShotRequest) -> ProxyResponse:
     model = message.model
 
     if not message.provider:
-        if message.model == "nemo:latest":
-            message.provider = "ollama"
-        elif message.model.startswith("claude"):
+        if message.model.startswith("claude"):
             message.provider = "anthropic"
         elif message.model.startswith("gpt"):
             message.provider = "openai"
         else:
-            # Resolve provider/model/options from model name
-            provider, model, options = _resolve_model_provider_options(message.model)
-            logger.debug(f"Resolved provider/model/options: {provider}, {model}, {options}")
+            message.provider = "ollama"
 
     # Branch on provider and construct provider-specific request
     if message.provider == "ollama":

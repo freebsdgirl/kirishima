@@ -136,22 +136,36 @@ class EmailMonitor:
             logger.info(f"Action for email {email_id}: {action}")
 
         if action == 'reply':
-            # Handle reply action
+            # Handle reply action - save as draft for review instead of auto-sending
             reply_content = response_data.get('content', '')
             bcc = response_data.get('bcc', [])
             cc = response_data.get('cc', [])
-            reply_request = ReplyEmailRequest(
-                thread_id=thread_id,
+            
+            # Extract reply-to email (prefer Reply-To header over From header)
+            reply_to_header = email_dict.get('reply_to', '')
+            from_header = email_dict.get('from', '')
+            
+            if reply_to_header:
+                reply_email = self._extract_sender_email(reply_to_header)
+            else:
+                reply_email = self._extract_sender_email(from_header)
+            
+            # Create draft instead of direct reply
+            draft_subject = f"Re: {email_dict.get('subject', 'No Subject')}"
+            draft_request = SaveDraftRequest(
+                to=reply_email,
+                subject=draft_subject,
                 body=reply_content,
-                bcc=bcc,
-                cc=cc
+                cc=', '.join(cc) if cc else None,
+                bcc=', '.join(bcc) if bcc else None
             )
-            # Use the reply_to_email function to send the reply
-            reply_response = reply_to_email(self.service, reply_request)
-            if not reply_response.success:
-                logger.error(f"Failed to send reply for email {email_id}: {reply_response.message}")
+            
+            # Save as draft for manual review
+            draft_response = save_draft(self.service, draft_request)
+            if not draft_response.success:
+                logger.error(f"Failed to save reply draft for email {email_id}: {draft_response.message}")
                 return
-            logger.info(f"Reply sent for email {email_id} with content: {reply_content}, BCC: {bcc}, CC: {cc}, Thread ID: {thread_id}")
+            logger.info(f"Reply saved as draft for email {email_id} - Subject: {draft_subject}, To: {reply_email}, Draft ID: {draft_response.data.get('draft_id')} (BCC: {bcc}, CC: {cc})")
         elif action == 'forward':
             # Handle forward action
             forward_content = response_data.get('content', '')

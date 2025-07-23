@@ -1,21 +1,10 @@
 """
-This module provides an API endpoint for removing scheduled jobs from the application's scheduler.
-
-Endpoints:
-    DELETE /jobs/{job_id}:
-        Removes a scheduled job identified by the given job_id.
-
-Dependencies:
-    - FastAPI for API routing and exception handling.
-    - APScheduler for job scheduling and management.
-    - Shared logging configuration for consistent logging.
+This module provides functionality to remove a scheduled job from the scheduler.
 
 Functions:
-    remove_job(job_id: str) -> Dict[str, str]:
+    _remove_job(job_id: str) -> Dict[str, str]:
         Removes a job from the scheduler by its unique identifier.
-        Returns a success message if the job is removed.
-        Raises HTTP 404 if the job is not found.
-        Raises HTTP 500 for other errors.
+        Logs the removal attempt and handles errors by raising appropriate HTTP exceptions.
 """
 from app.util import scheduler
 
@@ -26,12 +15,10 @@ from apscheduler.jobstores.base import JobLookupError
 from shared.log_config import get_logger
 logger = get_logger(f"scheduler.{__name__}")
 
-from fastapi import APIRouter, HTTPException, status
-router = APIRouter()
+from fastapi import HTTPException, status
 
 
-@router.delete("/jobs/{job_id}", response_model=Dict[str, str])
-def remove_job(job_id: str) -> Dict[str, str]:
+def _remove_job(job_id: str) -> Dict[str, str]:
     """
     Remove a scheduled job from the scheduler.
 

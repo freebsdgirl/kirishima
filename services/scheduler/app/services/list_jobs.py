@@ -1,19 +1,15 @@
 """
-This module defines the FastAPI route for retrieving a list of all scheduled jobs
-from the scheduler service.
+Module for listing all scheduled jobs in the scheduler service.
 
-Routes:
-    - GET /jobs: Returns a list of all scheduled jobs, including job ID, next run time,
-      trigger type ('date', 'interval', or 'cron'), and associated metadata.
+This module provides a function to retrieve and format details about all jobs currently
+scheduled in the system. It handles identification of trigger types, extraction of job
+metadata, and error handling for jobs with incomplete or missing metadata.
 
-Dependencies:
-    - app.util.scheduler: Provides access to the scheduler instance.
-    - shared.models.scheduler.JobResponse: Response model for job details.
-    - shared.log_config.get_logger: Logger configuration for request logging.
-    - fastapi.APIRouter, HTTPException, status: FastAPI routing and exception handling.
-
-Logging:
-    - Logs incoming requests and errors encountered during job processing.
+Functions:
+    _list_jobs() -> List[JobResponse]:
+        Retrieves a list of all scheduled jobs, including job ID, next run time,
+        trigger type ('date', 'interval', or 'cron'), and associated metadata.
+        Raises an HTTPException if a job cannot be processed due to missing or invalid data.
 """
 from app.util import scheduler
 
@@ -24,12 +20,10 @@ from typing import List
 from shared.log_config import get_logger
 logger = get_logger(f"scheduler.{__name__}")
 
-from fastapi import APIRouter, HTTPException, status
-router = APIRouter()
+from fastapi import HTTPException, status
 
 
-@router.get("/jobs", response_model=List[JobResponse])
-def list_jobs() -> List[JobResponse]:
+def _list_jobs() -> List[JobResponse]:
     """
     Retrieve a list of all scheduled jobs in the scheduler.
 

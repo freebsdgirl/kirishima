@@ -1,18 +1,14 @@
 """
-This module provides an API endpoint for adding scheduled jobs to the application's scheduler.
-It defines a FastAPI router with a POST endpoint `/jobs` that allows clients to create new jobs
-with various trigger types ('date', 'interval', or 'cron'). The endpoint validates input parameters,
-ensures job uniqueness, and returns details of the scheduled job upon success.
-Key Components:
-- Imports utility functions for scheduling and job execution.
-- Uses shared models for request and response validation.
-- Handles logging for debugging and error tracking.
-- Raises appropriate HTTP exceptions for invalid input, conflicts, and internal errors.
-Endpoint:
-    POST /jobs
-        - Accepts: SchedulerJobRequest (job details and trigger configuration)
-        - Returns: JobResponse (job ID, next run time, trigger type, metadata)
-        - Errors: 400 (bad request), 409 (conflict), 500 (internal error)
+This module provides functionality to add new scheduled jobs to the application's scheduler.
+Functions:
+    _add_job(job_request: SchedulerJobRequest) -> JobResponse
+        Adds a new job to the scheduler based on the provided job request details.
+        Supports 'date', 'interval', and 'cron' triggers, and validates required parameters
+        for each trigger type. Handles job ID conflicts and unexpected scheduling errors,
+        returning appropriate HTTP exceptions when necessary.
+        - 400 Bad Request for invalid or missing trigger parameters.
+        - 409 Conflict if a job with the same ID already exists.
+        - 500 Internal Server Error for unexpected scheduling errors.
 """
 from app.util import scheduler, execute_job
 
@@ -23,12 +19,10 @@ import uuid
 from shared.log_config import get_logger
 logger = get_logger(f"scheduler.{__name__}")
 
-from fastapi import APIRouter, HTTPException, status
-router = APIRouter()
+from fastapi import HTTPException, status
 
 
-@router.post("/jobs", response_model=JobResponse)
-def add_job(job_request: SchedulerJobRequest) -> JobResponse:
+def _add_job(job_request: SchedulerJobRequest) -> JobResponse:
     """
     Add a new scheduled job to the scheduler.
 

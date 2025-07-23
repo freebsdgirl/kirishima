@@ -1,34 +1,42 @@
 """
 Main application entry point for the scheduler service.
 
-- Initializes FastAPI app with custom middleware for caching request bodies.
-- Registers routers for system routes, documentation, job pausing, and job management.
-- Registers additional list routes.
-- Configures distributed tracing if enabled in the shared configuration.
-- Starts the background scheduler.
+This module initializes the FastAPI application, configures middleware,
+registers routers for system, documentation, and scheduler endpoints,
+and sets up tracing if enabled in the configuration. It also starts the
+scheduler process.
 
-Modules imported:
-    - shared.docs_exporter: Documentation routes.
-    - shared.routes: System routes and route registration.
-    - app.pause: Job pause management routes.
-    - app.jobs: Job management routes.
-    - shared.log_config: Logger configuration.
-    - app.util: Scheduler utilities.
-    - shared.models.middleware: Middleware for caching request bodies.
-    - shared.tracing: Tracing setup (conditionally imported).
+Modules and Components:
+- shared.docs_exporter: Documentation router.
+- shared.routes: System routes and route registration utility.
+- app.routes.scheduler: Scheduler-specific API routes.
+- shared.log_config: Logger configuration.
+- app.util.scheduler: Scheduler utility for background tasks.
+- shared.models.middleware: Middleware for caching request bodies.
+- shared.tracing: Tracing setup for distributed tracing (optional).
 
-Attributes:
-    app (FastAPI): The FastAPI application instance.
-    logger (Logger): Logger instance for the scheduler app.
+Configuration:
+- Loads configuration from '/app/config/config.json'.
+- Enables tracing if 'tracing_enabled' is set to True.
+
+Middleware:
+- CacheRequestBodyMiddleware: Caches request bodies for downstream processing.
+
+Routers:
+- System routes (tag: "system")
+- Documentation routes (tag: "docs")
+- Scheduler routes (tag: "scheduler", prefix: "/scheduler")
+
+Functions:
+- register_list_routes: Registers additional list-related routes.
+- scheduler.start: Starts the background scheduler process.
 """
 
 from shared.docs_exporter import router as docs_router
 from shared.routes import router as routes_router, register_list_routes
 
-from app.delete import router as delete_router
-from app.get import router as get_router
-from app.post import router as post_router
-from app.pause import router as pause_router
+from app.routes.scheduler import router as scheduler_router
+
 
 from shared.log_config import get_logger
 logger = get_logger(f"scheduler.{__name__}")
@@ -43,10 +51,8 @@ app.add_middleware(CacheRequestBodyMiddleware)
 
 app.include_router(routes_router, tags=["system"])
 app.include_router(docs_router, tags=["docs"])
-app.include_router(pause_router, tags=["jobs"])
-app.include_router(delete_router, tags=["jobs"])
-app.include_router(get_router, tags=["jobs"])
-app.include_router(post_router, tags=["jobs"])
+
+app.include_router(scheduler_router, prefix="/scheduler", tags=["scheduler"])
 
 register_list_routes(app)
 

@@ -433,7 +433,9 @@ The ledger service provides comprehensive deduplication capabilities for both me
 **Purpose**: Global memory deduplication using timeframe or keyword grouping strategies.
 
 **Key Features**:
-- **Grouping Strategies**: 
+
+- **Grouping Strategies**:
+  
   - `timeframe`: Groups memories created within specified days (default: 7)
   - `keyword`: Groups memories sharing minimum keyword matches (default: 2)
 - **LLM Integration**: Uses existing `dedup_memories.j2` prompt template for intelligent deduplication
@@ -441,12 +443,14 @@ The ledger service provides comprehensive deduplication capabilities for both me
 - **Live Mode**: `dry_run=false` applies LLM recommendations with updates and deletions
 
 **Parameters**:
+
 - `dry_run` (bool): Preview mode vs. actual execution (default: true)
 - `grouping_strategy` (str): "timeframe" or "keyword" (default: "timeframe")
 - `min_keyword_matches` (int): Minimum shared keywords for grouping (default: 2)
 - `timeframe_days` (int): Days for timeframe grouping (default: 7)
 
 **Example**:
+
 ```bash
 # Preview grouping
 curl "http://localhost:4203/memories/_dedup_semantic?dry_run=true&grouping_strategy=keyword&min_keyword_matches=3"
@@ -456,6 +460,7 @@ curl "http://localhost:4203/memories/_dedup_semantic?dry_run=false&grouping_stra
 ```
 
 **Response Structure**:
+
 ```json
 {
   "strategy": "timeframe",
@@ -480,12 +485,14 @@ curl "http://localhost:4203/memories/_dedup_semantic?dry_run=false&grouping_stra
 **Purpose**: Comprehensive two-phase deduplication: topic consolidation followed by memory deduplication within consolidated topics.
 
 **Process Flow**:
+
 1. **Topic Similarity Analysis**: Uses sentence-transformers to find semantically similar topics
 2. **Topic Consolidation**: LLM determines which topics should be merged and optimal naming
 3. **Memory Chunking**: Groups memories by timeframe within consolidated topics  
 4. **Memory Deduplication**: LLM processes each memory chunk for deduplication
 
 **Key Features**:
+
 - **Semantic Topic Clustering**: Uses DBSCAN clustering with cosine similarity on topic names
 - **LLM Topic Merging**: Intelligent topic consolidation with naming optimization
 - **Timeframe Chunking**: Prevents token overflow by processing memories in temporal chunks
@@ -493,6 +500,7 @@ curl "http://localhost:4203/memories/_dedup_semantic?dry_run=false&grouping_stra
 - **Token Management**: Configurable limits to control LLM usage and costs
 
 **Parameters**:
+
 - `topic_similarity_threshold` (float): Cosine similarity threshold for topic clustering (0.7-0.9, default: 0.8)
 - `max_topic_groups` (int): Maximum topic groups to consolidate (10-50, default: 20)
 - `max_memory_chunks` (int): Maximum memory chunks to process (20-100, default: 50)
@@ -502,6 +510,7 @@ curl "http://localhost:4203/memories/_dedup_semantic?dry_run=false&grouping_stra
 - `dry_run` (bool): Analysis-only mode (default: false)
 
 **Example**:
+
 ```bash
 # Dry run analysis
 curl -X POST "http://localhost:4203/memories/_dedup_topic_based?dry_run=true&max_topic_groups=10"
@@ -511,6 +520,7 @@ curl -X POST "http://localhost:4203/memories/_dedup_topic_based?topic_similarity
 ```
 
 **Dry Run Response**:
+
 ```json
 {
   "status": "dry_run_complete",
@@ -535,6 +545,7 @@ curl -X POST "http://localhost:4203/memories/_dedup_topic_based?topic_similarity
 **Purpose**: Standalone topic deduplication using semantic similarity and LLM decision-making.
 
 **Key Features**:
+
 - **Sentence-Transformers**: Uses all-MiniLM-L6-v2 model for topic name embeddings
 - **DBSCAN Clustering**: Groups semantically similar topics with configurable similarity thresholds
 - **LLM Merge Decisions**: GPT-4.1 analyzes topic clusters and determines optimal consolidation
@@ -542,6 +553,7 @@ curl -X POST "http://localhost:4203/memories/_dedup_topic_based?topic_similarity
 - **Topic Ranking**: Prioritizes topics with more memories for primary selection
 
 **Parameters**:
+
 - `semantic_similarity_threshold` (float): Cosine similarity threshold (0.6-0.85, default: 0.7)
 - `min_cluster_size` (int): Minimum topics per cluster (2-4, default: 2)
 - `max_clusters_to_process` (int): Processing limit (5-15, default: 10)
@@ -549,6 +561,7 @@ curl -X POST "http://localhost:4203/memories/_dedup_topic_based?topic_similarity
 - `max_topics` (int): Maximum topics to analyze (50-200, default: 100)
 
 **Example**:
+
 ```bash
 # Preview what would be processed
 curl "http://localhost:4203/topics/_dedup_semantic/preview?max_topics=200&semantic_similarity_threshold=0.75"
@@ -558,6 +571,7 @@ curl -X POST "http://localhost:4203/topics/_dedup_semantic?max_topics=200&max_cl
 ```
 
 **Execution Response**:
+
 ```json
 {
   "status": "completed",
@@ -597,16 +611,19 @@ curl -X POST "http://localhost:4203/topics/_dedup_semantic?max_topics=200&max_cl
 ### Deduplication Dependencies
 
 **Required Packages**:
+
 - `sentence-transformers`: Semantic similarity analysis
 - `scikit-learn`: Clustering algorithms (DBSCAN)
 - `numpy`: Numerical operations for embeddings
 
 **LLM Integration**:
+
 - Uses existing prompt templates in `/home/randi/.kirishima/prompts/ledger/`
 - Integrates with proxy service for OpenAI API calls
 - Supports configurable model selection (default: gpt-4.1)
 
 **Safety Features**:
+
 - Transaction-based operations with rollback on errors
 - Comprehensive error logging and reporting
 - Dry run modes for cost estimation and planning

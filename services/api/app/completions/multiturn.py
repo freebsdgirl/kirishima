@@ -83,6 +83,26 @@ async def chat_completions(data: ChatCompletionRequest):
     token usage calculation, and OpenAI-compatible response generation.
 
     Args:
+        data (ChatCompletionRequest): The incoming chat completion request.
+
+    Returns:
+        ChatCompletionResponse: A formatted chat completion response compatible with OpenAI's API.
+    """
+    return await _chat_completions(data)
+
+
+async def _chat_completions(data: ChatCompletionRequest):
+    """
+    Handle OpenAI chat completions with support for special task routing and multi-turn conversations.
+
+    This endpoint processes chat completion requests, supporting two primary modes:
+    1. Special task routing for requests starting with '### Task'
+    2. Multi-turn conversation handling for standard chat interactions
+
+    Handles request filtering, proxy communication with internal brain service,
+    token usage calculation, and OpenAI-compatible response generation.
+
+    Args:
         request (ChatCompletionRequest): The incoming chat completion request.
 
     Returns:

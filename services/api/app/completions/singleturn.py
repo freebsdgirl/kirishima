@@ -60,7 +60,28 @@ async def openai_completions(request: OpenAICompletionRequest) -> RedirectRespon
 
 
 @router.post("/v1/completions", response_model=OpenAICompletionResponse)
-async def openai_v1_completions(request: Union[OpenAICompletionRequest, CompletionRequest], request_data: Request) -> OpenAICompletionResponse:
+async def openai_v1_completions(
+    request: Union[OpenAICompletionRequest, CompletionRequest],
+    request_data: Request
+) -> OpenAICompletionResponse:
+    """
+    Handles an OpenAI-style completions request and proxies it to the internal
+    proxy service (/api/singleturn). All incoming request data is logged.
+    
+    If the request includes the parameter `n`, the proxy call is executed sequentially
+    that many times. The response is then aggregated to simulate an OpenAI completions
+    response format, which includes a usage section detailing prompt and completion tokens.
+
+    Args:
+        request (OpenAICompletionRequest): The OpenAI-style request with a required prompt.
+
+    Returns:
+        OpenAICompletionResponse: A simulated OpenAI completions response.
+    """
+    return _openai_v1_completions(request, request_data)
+
+
+async def _openai_v1_completions(request: Union[OpenAICompletionRequest, CompletionRequest], request_data: Request) -> OpenAICompletionResponse:
     """
     Handles an OpenAI-style completions request and proxies it to the internal
     proxy service (/api/singleturn). All incoming request data is logged.

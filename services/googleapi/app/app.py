@@ -30,6 +30,7 @@ import asyncio
 import json
 
 from app.routes.gmail import router as gmail_router
+from app.routes.contacts import router as contacts_router
 
 # Load config
 with open('/app/config/config.json') as f:
@@ -42,13 +43,28 @@ async def lifespan(app: FastAPI):
     monitor_task = None
     try:
         config = _config
+        
+        # Initialize contacts database
+        logger.info("Initializing contacts database")
+        from app.services.contacts.database import init_contacts_db
+        init_contacts_db()
+        
+        # Refresh contacts cache on startup if enabled
+        if config.get('contacts', {}).get('cache_on_startup', True):
+            logger.info("Refreshing contacts cache on startup")
+            from app.services.contacts.contacts import refresh_contacts_cache
+            # Run cache refresh in background to avoid blocking startup
+            import asyncio
+            asyncio.create_task(asyncio.to_thread(refresh_contacts_cache))
+        
+        # Start Gmail monitoring if enabled
         if config.get('gmail', {}).get('monitor', {}).get('enabled', False):
             logger.info("Starting email monitoring on startup")
             from app.services.gmail.monitor import start_email_monitoring
             # Start monitoring in the background
             monitor_task = asyncio.create_task(start_email_monitoring())
     except Exception as e:
-        logger.error(f"Error starting email monitoring: {e}")
+        logger.error(f"Error during startup: {e}")
     
     yield
     
@@ -73,6 +89,7 @@ app.include_router(routes_router, tags=["system"])
 app.include_router(docs_router, tags=["docs"])
 
 app.include_router(gmail_router, tags=["gmail"], prefix="/gmail")
+app.include_router(contacts_router, tags=["contacts"], prefix="/contacts")
 
 register_list_routes(app)
 

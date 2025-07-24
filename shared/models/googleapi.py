@@ -219,3 +219,137 @@ class EmailResponse(BaseModel):
             ]
         }
     }
+
+
+# Google Contacts Models
+class ContactName(BaseModel):
+    """
+    Represents a contact's name information.
+    """
+    display_name: Optional[str] = Field(None, description="The contact's display name")
+    given_name: Optional[str] = Field(None, description="The contact's first name")
+    family_name: Optional[str] = Field(None, description="The contact's last name")
+    middle_name: Optional[str] = Field(None, description="The contact's middle name")
+
+
+class ContactEmail(BaseModel):
+    """
+    Represents a contact's email address.
+    """
+    value: str = Field(..., description="The email address")
+    type: Optional[str] = Field(None, description="The type of email (home, work, etc.)")
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Email metadata")
+
+
+class ContactPhoneNumber(BaseModel):
+    """
+    Represents a contact's phone number.
+    """
+    value: str = Field(..., description="The phone number")
+    type: Optional[str] = Field(None, description="The type of phone number (home, work, mobile, etc.)")
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Phone number metadata")
+
+
+class ContactAddress(BaseModel):
+    """
+    Represents a contact's address.
+    """
+    formatted_value: Optional[str] = Field(None, description="The formatted address")
+    street_address: Optional[str] = Field(None, description="Street address")
+    city: Optional[str] = Field(None, description="City")
+    region: Optional[str] = Field(None, description="State/region")
+    postal_code: Optional[str] = Field(None, description="Postal/ZIP code")
+    country: Optional[str] = Field(None, description="Country")
+    type: Optional[str] = Field(None, description="The type of address (home, work, etc.)")
+
+
+class GoogleContact(BaseModel):
+    """
+    Represents a Google contact with all available information.
+    """
+    resource_name: str = Field(..., description="The contact's resource name (ID)")
+    etag: Optional[str] = Field(None, description="The contact's etag for versioning")
+    names: Optional[List[ContactName]] = Field(None, description="The contact's names")
+    email_addresses: Optional[List[ContactEmail]] = Field(None, description="The contact's email addresses")
+    phone_numbers: Optional[List[ContactPhoneNumber]] = Field(None, description="The contact's phone numbers")
+    addresses: Optional[List[ContactAddress]] = Field(None, description="The contact's addresses")
+    organizations: Optional[List[Dict[str, Any]]] = Field(None, description="The contact's organizations")
+    birthdays: Optional[List[Dict[str, Any]]] = Field(None, description="The contact's birthdays")
+    photos: Optional[List[Dict[str, Any]]] = Field(None, description="The contact's photos")
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Contact metadata")
+    created_time: Optional[str] = Field(None, description="When the contact was created")
+    modified_time: Optional[str] = Field(None, description="When the contact was last modified")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "resource_name": "people/c12345",
+                    "etag": "abc123",
+                    "names": [
+                        {
+                            "display_name": "John Doe",
+                            "given_name": "John",
+                            "family_name": "Doe"
+                        }
+                    ],
+                    "email_addresses": [
+                        {
+                            "value": "john@example.com",
+                            "type": "work"
+                        }
+                    ],
+                    "phone_numbers": [
+                        {
+                            "value": "+1234567890",
+                            "type": "mobile"
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+
+
+class ContactsListResponse(BaseModel):
+    """
+    Response model for listing contacts.
+    """
+    contacts: List[GoogleContact] = Field(..., description="List of contacts")
+    next_page_token: Optional[str] = Field(None, description="Token for next page of results")
+    total_items: Optional[int] = Field(None, description="Total number of contacts")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "contacts": [],
+                    "next_page_token": "abc123",
+                    "total_items": 150
+                }
+            ]
+        }
+    }
+
+
+class RefreshCacheResponse(BaseModel):
+    """
+    Response model for cache refresh operations.
+    """
+    success: bool = Field(..., description="Whether the cache refresh was successful")
+    message: str = Field(..., description="Status message")
+    contacts_refreshed: int = Field(..., description="Number of contacts refreshed")
+    timestamp: str = Field(..., description="Timestamp of the refresh operation")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "success": True,
+                    "message": "Cache refreshed successfully",
+                    "contacts_refreshed": 150,
+                    "timestamp": "2023-01-01T12:00:00Z"
+                }
+            ]
+        }
+    }

@@ -31,6 +31,7 @@ import json
 
 from app.routes.gmail import router as gmail_router
 from app.routes.contacts import router as contacts_router
+from app.routes.calendar import router as calendar_router
 
 # Load config
 with open('/app/config/config.json') as f:
@@ -40,7 +41,8 @@ with open('/app/config/config.json') as f:
 async def lifespan(app: FastAPI):
     """Manage application lifespan - startup and shutdown."""
     # Startup
-    monitor_task = None
+    gmail_monitor_task = None
+    calendar_monitor_task = None
     try:
         config = _config
         
@@ -62,7 +64,28 @@ async def lifespan(app: FastAPI):
             logger.info("Starting email monitoring on startup")
             from app.services.gmail.monitor import start_email_monitoring
             # Start monitoring in the background
-            monitor_task = asyncio.create_task(start_email_monitoring())
+            gmail_monitor_task = asyncio.create_task(start_email_monitoring())
+        
+        # Start Calendar monitoring if enabled
+        if config.get('calendar', {}).get('monitor', {}).get('enabled', False):
+            logger.info("Starting calendar monitoring on startup")
+            
+            # Validate calendar access before starting monitoring
+            try:
+                from app.services.calendar.auth import validate_calendar_access, get_calendar_summary
+                calendar_info = validate_calendar_access()
+                calendar_summary = get_calendar_summary()
+                logger.info(f"Calendar validation successful: {calendar_summary}")
+                
+                from app.services.calendar.monitor import start_calendar_monitoring
+                # Start monitoring in the background
+                calendar_monitor_task = asyncio.create_task(start_calendar_monitoring())
+                
+            except Exception as e:
+                logger.error(f"Calendar validation failed - monitoring disabled: {e}")
+                logger.error("Please check your calendar configuration in config.json")
+                logger.error("Use GET /calendar/calendars/discover to find available calendars")
+            
     except Exception as e:
         logger.error(f"Error during startup: {e}")
     
@@ -70,17 +93,36 @@ async def lifespan(app: FastAPI):
     
     # Shutdown
     try:
-        logger.info("Stopping email monitoring on shutdown")
-        from app.services.gmail.monitor import stop_email_monitoring
-        stop_email_monitoring()
-        if monitor_task and not monitor_task.done():
-            monitor_task.cancel()
-            try:
-                await monitor_task
-            except asyncio.CancelledError:
-                pass
+        logger.info("Stopping monitoring services on shutdown")
+        
+        # Stop Gmail monitoring
+        try:
+            from app.services.gmail.monitor import stop_email_monitoring
+            stop_email_monitoring()
+            if gmail_monitor_task and not gmail_monitor_task.done():
+                gmail_monitor_task.cancel()
+                try:
+                    await gmail_monitor_task
+                except asyncio.CancelledError:
+                    pass
+        except Exception as e:
+            logger.error(f"Error stopping Gmail monitoring: {e}")
+        
+        # Stop Calendar monitoring
+        try:
+            from app.services.calendar.monitor import stop_calendar_monitoring
+            stop_calendar_monitoring()
+            if calendar_monitor_task and not calendar_monitor_task.done():
+                calendar_monitor_task.cancel()
+                try:
+                    await calendar_monitor_task
+                except asyncio.CancelledError:
+                    pass
+        except Exception as e:
+            logger.error(f"Error stopping Calendar monitoring: {e}")
+            
     except Exception as e:
-        logger.error(f"Error stopping email monitoring: {e}")
+        logger.error(f"Error during shutdown: {e}")
 
 app = FastAPI(lifespan=lifespan)
 app.add_middleware(CacheRequestBodyMiddleware)
@@ -90,6 +132,7 @@ app.include_router(docs_router, tags=["docs"])
 
 app.include_router(gmail_router, tags=["gmail"], prefix="/gmail")
 app.include_router(contacts_router, tags=["contacts"], prefix="/contacts")
+app.include_router(calendar_router, tags=["calendar"], prefix="/calendar")
 
 register_list_routes(app)
 

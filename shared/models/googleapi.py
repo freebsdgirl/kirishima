@@ -353,3 +353,69 @@ class RefreshCacheResponse(BaseModel):
             ]
         }
     }
+
+
+class CreateContactRequest(BaseModel):
+    """
+    Request model for creating a new contact.
+    """
+    display_name: Optional[str] = Field(None, description="The contact's display name")
+    given_name: Optional[str] = Field(None, description="The contact's first name")
+    family_name: Optional[str] = Field(None, description="The contact's last name")
+    middle_name: Optional[str] = Field(None, description="The contact's middle name")
+    email_addresses: Optional[List[ContactEmail]] = Field(None, description="The contact's email addresses")
+    phone_numbers: Optional[List[ContactPhoneNumber]] = Field(None, description="The contact's phone numbers")
+    addresses: Optional[List[ContactAddress]] = Field(None, description="The contact's addresses")
+    organizations: Optional[List[Dict[str, Any]]] = Field(None, description="The contact's organizations")
+    notes: Optional[str] = Field(None, description="Notes about the contact")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "display_name": "John Doe",
+                    "given_name": "John",
+                    "family_name": "Doe",
+                    "email_addresses": [
+                        {
+                            "value": "john@example.com",
+                            "type": "work"
+                        }
+                    ],
+                    "phone_numbers": [
+                        {
+                            "value": "+1234567890",
+                            "type": "mobile"
+                        }
+                    ],
+                    "notes": "Important contact"
+                }
+            ]
+        }
+    }
+
+
+class CreateContactResponse(BaseModel):
+    """
+    Response model for contact creation operations.
+    """
+    success: bool = Field(..., description="Whether the contact creation was successful")
+    message: str = Field(..., description="Status message")
+    contact: Optional[GoogleContact] = Field(None, description="The created contact data")
+    resource_name: Optional[str] = Field(None, description="The resource name of the created contact")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "success": True,
+                    "message": "Contact created successfully",
+                    "contact": {
+                        "resource_name": "people/c12345",
+                        "names": [{"display_name": "John Doe"}]
+                    },
+                    "resource_name": "people/c12345"
+                }
+            ]
+        }
+    }

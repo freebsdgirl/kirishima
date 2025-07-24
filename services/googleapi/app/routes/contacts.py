@@ -17,13 +17,14 @@ All endpoints handle exceptions and return appropriate HTTP error responses.
 from fastapi import APIRouter, HTTPException, status
 from typing import Optional
 
-from shared.models.googleapi import GoogleContact, ContactsListResponse, RefreshCacheResponse
+from shared.models.googleapi import GoogleContact, ContactsListResponse, RefreshCacheResponse, CreateContactRequest, CreateContactResponse
 from app.services.contacts.contacts import (
     get_admin_contact,
     get_contact_by_email,
     list_all_contacts,
     refresh_contacts_cache,
-    get_contacts_cache_status
+    get_contacts_cache_status,
+    create_contact
 )
 
 from shared.log_config import get_logger
@@ -187,4 +188,50 @@ async def get_cache_status_endpoint():
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get cache status: {str(e)}"
+        )
+
+
+@router.post("/", response_model=CreateContactResponse)
+async def create_contact_endpoint(request: CreateContactRequest):
+    """
+    Create a new contact in Google Contacts.
+    
+    Args:
+        request: The contact creation request data
+        
+    Returns:
+        CreateContactResponse: Status and data of the created contact
+        
+    Raises:
+        HTTPException: 400 for validation errors, 500 for other errors
+    """
+    try:
+        logger.info(f"Creating contact: {request.display_name}")
+        
+        # Validate that at least some contact information is provided
+        if not any([
+            request.display_name, request.given_name, request.family_name,
+            request.email_addresses, request.phone_numbers
+        ]):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="At least one of display_name, given_name, family_name, email_addresses, or phone_numbers must be provided"
+            )
+        
+        response = create_contact(request)
+        
+        if response.success:
+            logger.info(f"Contact created successfully: {response.resource_name}")
+        else:
+            logger.error(f"Contact creation failed: {response.message}")
+        
+        return response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating contact: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create contact: {str(e)}"
         )

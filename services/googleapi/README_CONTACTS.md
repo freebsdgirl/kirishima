@@ -83,6 +83,37 @@ Gets the current status of the contacts cache.
 curl http://localhost:4206/contacts/cache/status
 ```
 
+### POST /contacts/
+Creates a new contact in Google Contacts.
+
+**Request Body**: `CreateContactRequest` model
+
+**Response**: `CreateContactResponse` model
+
+**Example**:
+```bash
+curl -X POST http://localhost:4206/contacts/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "display_name": "John Doe",
+    "given_name": "John",
+    "family_name": "Doe",
+    "email_addresses": [
+      {
+        "value": "john@example.com",
+        "type": "work"
+      }
+    ],
+    "phone_numbers": [
+      {
+        "value": "+1234567890",
+        "type": "mobile"
+      }
+    ],
+    "notes": "Important contact"
+  }'
+```
+
 ## Data Models
 
 ### GoogleContact
@@ -128,6 +159,53 @@ curl http://localhost:4206/contacts/cache/status
   "message": "Cache refreshed successfully",
   "contacts_refreshed": 150,
   "timestamp": "2023-01-01T12:00:00Z"
+}
+```
+
+### CreateContactRequest
+```json
+{
+  "display_name": "John Doe",
+  "given_name": "John",
+  "family_name": "Doe",
+  "middle_name": "Michael",
+  "email_addresses": [
+    {
+      "value": "john@example.com",
+      "type": "work"
+    }
+  ],
+  "phone_numbers": [
+    {
+      "value": "+1234567890",
+      "type": "mobile"
+    }
+  ],
+  "addresses": [
+    {
+      "formatted_value": "123 Main St, Anytown, ST 12345",
+      "street_address": "123 Main St",
+      "city": "Anytown",
+      "region": "ST",
+      "postal_code": "12345",
+      "country": "US",
+      "type": "home"
+    }
+  ],
+  "notes": "Important business contact"
+}
+```
+
+### CreateContactResponse
+```json
+{
+  "success": true,
+  "message": "Contact created successfully",
+  "contact": {
+    "resource_name": "people/c12345",
+    "names": [{"display_name": "John Doe"}]
+  },
+  "resource_name": "people/c12345"
 }
 ```
 
@@ -184,10 +262,12 @@ python /home/randi/kirishima/scripts/test_google_contacts.py
 ```
 
 This script tests:
+
 - Cache refresh functionality
 - Cache status retrieval
 - Admin contact lookup
 - Contact search by email
+- Contact creation via API
 - Contact listing
 
 ## Error Handling

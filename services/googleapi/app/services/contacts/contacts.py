@@ -17,10 +17,10 @@ logger = get_logger(f"googleapi.{__name__}")
 from app.services.contacts.auth import get_people_service
 from app.services.contacts.database import (
     cache_contacts, get_cached_contact_by_email, get_all_cached_contacts,
-    clear_contacts_cache, get_cache_stats
+    clear_contacts_cache, get_cache_stats, cache_contact
 )
 from app.services.gmail.util import get_config
-from shared.models.googleapi import GoogleContact, ContactsListResponse, RefreshCacheResponse
+from shared.models.googleapi import GoogleContact, ContactsListResponse, RefreshCacheResponse, CreateContactRequest, CreateContactResponse
 
 from typing import Optional, List, Dict, Any
 from datetime import datetime
@@ -282,3 +282,114 @@ def get_contacts_cache_status() -> Dict[str, Any]:
             'cache_initialized': False,
             'error': str(e)
         }
+
+
+def create_contact(contact_request: CreateContactRequest) -> CreateContactResponse:
+    """
+    Create a new contact using the Google People API.
+    
+    Args:
+        contact_request: The contact data to create
+        
+    Returns:
+        CreateContactResponse: Status and data of the created contact
+    """
+    try:
+        logger.info(f"Creating new contact: {contact_request.display_name}")
+        
+        # Get People API service
+        service = get_people_service()
+        
+        # Build the contact data for Google People API
+        contact_body = {}
+        
+        # Add names if provided
+        if any([contact_request.display_name, contact_request.given_name, 
+                contact_request.family_name, contact_request.middle_name]):
+            names = [{}]
+            if contact_request.display_name:
+                names[0]['displayName'] = contact_request.display_name
+            if contact_request.given_name:
+                names[0]['givenName'] = contact_request.given_name
+            if contact_request.family_name:
+                names[0]['familyName'] = contact_request.family_name
+            if contact_request.middle_name:
+                names[0]['middleName'] = contact_request.middle_name
+            contact_body['names'] = names
+        
+        # Add email addresses if provided
+        if contact_request.email_addresses:
+            email_addresses = []
+            for email in contact_request.email_addresses:
+                email_data = {'value': email.value}
+                if email.type:
+                    email_data['type'] = email.type
+                email_addresses.append(email_data)
+            contact_body['emailAddresses'] = email_addresses
+        
+        # Add phone numbers if provided
+        if contact_request.phone_numbers:
+            phone_numbers = []
+            for phone in contact_request.phone_numbers:
+                phone_data = {'value': phone.value}
+                if phone.type:
+                    phone_data['type'] = phone.type
+                phone_numbers.append(phone_data)
+            contact_body['phoneNumbers'] = phone_numbers
+        
+        # Add addresses if provided
+        if contact_request.addresses:
+            addresses = []
+            for address in contact_request.addresses:
+                address_data = {}
+                if address.formatted_value:
+                    address_data['formattedValue'] = address.formatted_value
+                if address.street_address:
+                    address_data['streetAddress'] = address.street_address
+                if address.city:
+                    address_data['city'] = address.city
+                if address.region:
+                    address_data['region'] = address.region
+                if address.postal_code:
+                    address_data['postalCode'] = address.postal_code
+                if address.country:
+                    address_data['country'] = address.country
+                if address.type:
+                    address_data['type'] = address.type
+                addresses.append(address_data)
+            contact_body['addresses'] = addresses
+        
+        # Add organizations if provided
+        if contact_request.organizations:
+            contact_body['organizations'] = contact_request.organizations
+        
+        # Add notes if provided (stored as biography)
+        if contact_request.notes:
+            contact_body['biographies'] = [{'value': contact_request.notes, 'contentType': 'TEXT_PLAIN'}]
+        
+        # Create the contact via People API
+        result = service.people().createContact(body=contact_body).execute()
+        
+        # Convert the result to our GoogleContact model
+        created_contact = _convert_contact_data(result)
+        
+        # Cache the new contact
+        cache_contact(result)
+        
+        logger.info(f"Successfully created contact: {result.get('resourceName')}")
+        
+        return CreateContactResponse(
+            success=True,
+            message="Contact created successfully",
+            contact=created_contact,
+            resource_name=result.get('resourceName')
+        )
+        
+    except Exception as e:
+        logger.error(f"Error creating contact: {e}")
+        return CreateContactResponse(
+            success=False,
+            message=f"Failed to create contact: {str(e)}",
+            contact=None,
+            resource_name=None
+        )

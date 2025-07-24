@@ -120,6 +120,67 @@ def test_contact_by_email():
         print(f"Request failed: {e}")
     print()
 
+def test_create_contact():
+    """Test creating a new contact."""
+    print("Testing contact creation...")
+    try:
+        contact_data = {
+            "display_name": "Test Contact API",
+            "given_name": "Test",
+            "family_name": "Contact",
+            "email_addresses": [
+                {
+                    "value": "test.contact@example.com",
+                    "type": "work"
+                }
+            ],
+            "phone_numbers": [
+                {
+                    "value": "+1555123456",
+                    "type": "mobile"
+                }
+            ],
+            "notes": "Test contact created via API"
+        }
+        
+        response = requests.post(f"{BASE_URL}/contacts/", json=contact_data)
+        print(f"Status: {response.status_code}")
+        if response.status_code == 200:
+            data = response.json()
+            print(f"Success: {data.get('success')}")
+            print(f"Message: {data.get('message')}")
+            if data.get('resource_name'):
+                print(f"Resource Name: {data.get('resource_name')}")
+            if data.get('contact') and data['contact'].get('names'):
+                print(f"Created Contact: {data['contact']['names'][0].get('display_name')}")
+        else:
+            print(f"Error: {response.text}")
+    except requests.exceptions.RequestException as e:
+        print(f"Request failed: {e}")
+    print()
+
+def test_created_contact_lookup():
+    """Test looking up the contact we just created."""
+    print("Testing lookup of created contact...")
+    try:
+        response = requests.get(f"{BASE_URL}/contacts/test.contact@example.com")
+        print(f"Status: {response.status_code}")
+        if response.status_code == 200:
+            data = response.json()
+            print("Created contact found in cache:")
+            if data.get('names'):
+                print(f"  Name: {data['names'][0].get('display_name')}")
+            if data.get('email_addresses'):
+                for email in data['email_addresses']:
+                    print(f"  Email: {email.get('value')} ({email.get('type', 'unknown')})")
+        elif response.status_code == 404:
+            print("Created contact not found (may need cache refresh)")
+        else:
+            print(f"Error: {response.text}")
+    except requests.exceptions.RequestException as e:
+        print(f"Request failed: {e}")
+    print()
+
 def main():
     """Run all tests."""
     print("Google Contacts API Test Script")
@@ -139,6 +200,12 @@ def main():
     
     # Test contact by email
     test_contact_by_email()
+    
+    # Test creating a new contact
+    test_create_contact()
+    
+    # Test looking up the created contact
+    test_created_contact_lookup()
     
     # Test listing contacts
     test_list_contacts()

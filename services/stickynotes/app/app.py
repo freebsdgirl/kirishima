@@ -31,11 +31,7 @@ from fastapi import FastAPI
 
 from contextlib import asynccontextmanager
 
-from app.create import router as create_router
-from app.list import router as list_router
-from app.resolve import router as resolve_router
-from app.snooze import router as snooze_router
-from app.check import router as check_router
+from app.routes.sticky_note_routes import router as sticky_note_router
 
 
 @asynccontextmanager
@@ -50,11 +46,7 @@ app.add_middleware(CacheRequestBodyMiddleware)
 
 app.include_router(routes_router, tags=["system"])
 app.include_router(docs_router, tags=["docs"])
-app.include_router(create_router)
-app.include_router(list_router)
-app.include_router(resolve_router)
-app.include_router(snooze_router)
-app.include_router(check_router)
+app.include_router(sticky_note_router)
 
 register_list_routes(app)
 

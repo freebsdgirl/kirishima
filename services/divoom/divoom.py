@@ -68,4 +68,4 @@ async def send_emoji_endpoint(request: EmojiRequest):
         last_sent_emoji = request.emoji
         return {"status": "success", "emoji": request.emoji}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return {"status": "error", "detail": str(e)}

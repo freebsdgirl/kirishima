@@ -32,6 +32,7 @@ import json
 from app.routes.gmail import router as gmail_router
 from app.routes.contacts import router as contacts_router
 from app.routes.calendar import router as calendar_router
+from app.routes.tasks import router as tasks_router
 
 # Load config
 with open('/app/config/config.json') as f:
@@ -43,6 +44,7 @@ async def lifespan(app: FastAPI):
     # Startup
     gmail_monitor_task = None
     calendar_monitor_task = None
+    tasks_monitor_task = None
     try:
         config = _config
         
@@ -85,6 +87,24 @@ async def lifespan(app: FastAPI):
                 logger.error(f"Calendar validation failed - monitoring disabled: {e}")
                 logger.error("Please check your calendar configuration in config.json")
                 logger.error("Use GET /calendar/calendars/discover to find available calendars")
+        
+        # Start Tasks monitoring if enabled
+        if config.get('tasks', {}).get('monitor', {}).get('enabled', False):
+            logger.info("Starting tasks monitoring on startup")
+            
+            # Validate tasks access before starting monitoring
+            try:
+                from app.services.tasks.auth import validate_tasks_access
+                tasks_info = validate_tasks_access()
+                logger.info(f"Tasks validation successful: {tasks_info['message']}")
+                
+                from app.services.tasks.monitor import start_tasks_monitoring
+                # Start monitoring in the background
+                tasks_monitor_task = asyncio.create_task(start_tasks_monitoring())
+                
+            except Exception as e:
+                logger.error(f"Tasks validation failed - monitoring disabled: {e}")
+                logger.error("Please check your tasks configuration in config.json")
             
     except Exception as e:
         logger.error(f"Error during startup: {e}")
@@ -120,6 +140,19 @@ async def lifespan(app: FastAPI):
                     pass
         except Exception as e:
             logger.error(f"Error stopping Calendar monitoring: {e}")
+        
+        # Stop Tasks monitoring
+        try:
+            from app.services.tasks.monitor import stop_tasks_monitoring
+            stop_tasks_monitoring()
+            if tasks_monitor_task and not tasks_monitor_task.done():
+                tasks_monitor_task.cancel()
+                try:
+                    await tasks_monitor_task
+                except asyncio.CancelledError:
+                    pass
+        except Exception as e:
+            logger.error(f"Error stopping Tasks monitoring: {e}")
             
     except Exception as e:
         logger.error(f"Error during shutdown: {e}")
@@ -133,6 +166,7 @@ app.include_router(docs_router, tags=["docs"])
 app.include_router(gmail_router, tags=["gmail"], prefix="/gmail")
 app.include_router(contacts_router, tags=["contacts"], prefix="/contacts")
 app.include_router(calendar_router, tags=["calendar"], prefix="/calendar")
+app.include_router(tasks_router, tags=["tasks"], prefix="/tasks")
 
 register_list_routes(app)
 

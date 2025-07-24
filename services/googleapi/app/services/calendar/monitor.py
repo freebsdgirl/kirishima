@@ -1,15 +1,151 @@
 """
-Calendar push notifications and monitoring utilities.
+Calendar caching and monitoring utilities.
 
-This module provides functions for setting up and managing push notifications
-for calendar changes, as well as polling-based monitoring as a fallback.
+This module provides functions for background monitoring and caching of calendar
+events to improve response times and reduce Google API calls.
 
 Functions:
-    start_calendar_monitoring(): Start monitoring calendar changes
-    stop_calendar_monitoring(): Stop monitoring calendar changes
-    setup_push_notifications(): Set up push notification webhooks
-    handle_calendar_notification(): Handle incoming push notifications
+    start_calendar_cache(): Start background calendar caching
+    stop_calendar_cache(): Stop background calendar caching  
+    get_cache_status(): Get current cache status
 """
+
+from shared.log_config import get_logger
+logger = get_logger(f"googleapi.{__name__}")
+
+from app.services.calendar.auth import get_calendar_service, get_calendar_id
+from app.services.calendar.cache import init_cache_db, cache_events, get_cache_stats
+from app.services.gmail.util import get_config
+from typing import Dict, Any
+import asyncio
+from datetime import datetime, timezone, timedelta
+
+# Global caching state
+_cache_task = None
+
+
+async def start_calendar_cache():
+    """
+    Start background calendar caching.
+    """
+    global _cache_task
+    
+    if _cache_task and not _cache_task.done():
+        logger.warning("Calendar caching is already running")
+        return
+    
+    config = get_config()
+    calendar_config = config.get('calendar', {}).get('cache', {})
+    
+    if not calendar_config.get('enabled', False):
+        logger.info("Calendar caching is disabled in config")
+        return
+    
+    try:
+        # Initialize cache database
+        init_cache_db()
+        
+        # Start caching task
+        _cache_task = asyncio.create_task(_cache_loop())
+        logger.info("Calendar caching started successfully")
+        
+    except Exception as e:
+        logger.error(f"Failed to start calendar caching: {e}")
+        raise
+
+
+async def stop_calendar_cache():
+    """
+    Stop background calendar caching.
+    """
+    global _cache_task
+    
+    if _cache_task and not _cache_task.done():
+        _cache_task.cancel()
+        try:
+            await _cache_task
+        except asyncio.CancelledError:
+            pass
+        logger.info("Calendar caching stopped")
+
+
+async def _cache_loop():
+    """
+    Background loop for caching calendar events.
+    """
+    config = get_config()
+    poll_interval = config.get('calendar', {}).get('cache', {}).get('poll_interval', 300)
+    
+    logger.info(f"Calendar cache loop started with {poll_interval}s interval")
+    
+    while True:
+        try:
+            await _sync_calendar_cache()
+            await asyncio.sleep(poll_interval)
+            
+        except asyncio.CancelledError:
+            logger.info("Calendar cache loop cancelled")
+            break
+        except Exception as e:
+            logger.error(f"Error in calendar cache loop: {e}")
+            await asyncio.sleep(30)  # Short retry delay
+
+
+async def _sync_calendar_cache():
+    """
+    Sync calendar events to local cache.
+    """
+    try:
+        service = get_calendar_service()
+        calendar_id = get_calendar_id()
+        
+        # Get events from the next 90 days (reasonable cache window)
+        now = datetime.now(timezone.utc)
+        time_min = now.isoformat()
+        time_max = (now + timedelta(days=90)).isoformat()
+        
+        logger.debug(f"Syncing calendar cache for {calendar_id}")
+        
+        events_result = service.events().list(
+            calendarId=calendar_id,
+            timeMin=time_min,
+            timeMax=time_max,
+            maxResults=1000,  # Large limit for comprehensive caching
+            singleEvents=True,
+            orderBy='startTime'
+        ).execute()
+        
+        events = events_result.get('items', [])
+        
+        # Cache the events
+        cache_events(events, calendar_id)
+        
+        logger.info(f"Calendar cache synced: {len(events)} events cached")
+        
+    except Exception as e:
+        logger.error(f"Failed to sync calendar cache: {e}")
+
+
+def get_cache_status() -> Dict[str, Any]:
+    """
+    Get the current status of calendar caching.
+    
+    Returns:
+        Dict containing cache status information
+    """
+    global _cache_task
+    
+    config = get_config()
+    cache_config = config.get('calendar', {}).get('cache', {})
+    
+    status = {
+        "cache_enabled": cache_config.get('enabled', False),
+        "poll_interval": cache_config.get('poll_interval', 300),
+        "cache_active": _cache_task is not None and not _cache_task.done(),
+        "cache_stats": get_cache_stats()
+    }
+    
+    return status
 
 from shared.log_config import get_logger
 logger = get_logger(f"googleapi.{__name__}")

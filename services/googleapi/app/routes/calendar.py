@@ -39,9 +39,10 @@ from shared.models.googleapi import (
 )
 
 from app.services.calendar.auth import get_calendar_service, get_calendar_id, discover_shared_calendars, validate_calendar_access, get_calendar_summary
-from app.services.calendar.events import create_event, update_event, delete_event, get_event, get_upcoming_events
-from app.services.calendar.search import search_events, get_events_by_date_range, get_today_events, get_calendar_list, get_free_busy
-from app.services.calendar.monitor import start_calendar_monitoring, stop_calendar_monitoring, get_monitor_status, handle_calendar_notification
+from app.services.calendar.events import create_event, update_event, delete_event, get_event
+from app.services.calendar.search import get_calendar_list, get_free_busy
+from app.services.calendar.cache import get_cached_events, get_cache_stats
+from app.services.calendar.monitor import get_cache_status
 
 from shared.log_config import get_logger
 logger = get_logger(f"googleapi.{__name__}")
@@ -114,10 +115,24 @@ async def delete_event_endpoint(event_id: str, send_notifications: bool = True):
 
 @router.get("/events/upcoming", response_model=List[CalendarEvent])
 async def get_upcoming_events_endpoint(max_results: int = 10, days_ahead: int = 7):
-    """Get upcoming events from the calendar."""
+    """Get upcoming events from the cache."""
     try:
-        events = get_upcoming_events(max_results, days_ahead)
-        return events
+        calendar_id = get_calendar_id()
+        
+        # Calculate time range
+        from datetime import datetime, timezone, timedelta
+        now = datetime.now(timezone.utc)
+        time_min = now.isoformat()
+        time_max = (now + timedelta(days=days_ahead)).isoformat()
+        
+        events = get_cached_events(
+            calendar_id=calendar_id,
+            start_time=time_min,
+            end_time=time_max,
+            max_results=max_results
+        )
+        
+        return [CalendarEvent(**event) for event in events]
     except Exception as e:
         logger.error(f"Failed to get upcoming events: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get upcoming events: {str(e)}")
@@ -125,10 +140,23 @@ async def get_upcoming_events_endpoint(max_results: int = 10, days_ahead: int = 
 
 @router.get("/events/today", response_model=List[CalendarEvent])
 async def get_today_events_endpoint():
-    """Get events for today."""
+    """Get events for today from the cache."""
     try:
-        events = get_today_events()
-        return events
+        calendar_id = get_calendar_id()
+        
+        # Calculate today's date range
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_of_day = now.replace(hour=23, minute=59, second=59, microsecond=999999)
+        
+        events = get_cached_events(
+            calendar_id=calendar_id,
+            start_time=start_of_day.isoformat(),
+            end_time=end_of_day.isoformat()
+        )
+        
+        return [CalendarEvent(**event) for event in events]
     except Exception as e:
         logger.error(f"Failed to get today's events: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get today's events: {str(e)}")
@@ -148,30 +176,48 @@ async def get_event_endpoint(event_id: str):
 # Search endpoints
 @router.post("/events/search", response_model=EventsListResponse)
 async def search_events_endpoint(request: SearchEventsRequest):
-    """Search events using various criteria."""
+    """Search events in the cache."""
     try:
-        results = search_events(request)
-        return results
+        calendar_id = get_calendar_id()
+        
+        events = get_cached_events(
+            calendar_id=calendar_id,
+            start_time=request.time_min,
+            end_time=request.time_max,
+            max_results=request.max_results,
+            query=request.q
+        )
+        
+        # Convert to CalendarEvent objects
+        calendar_events = [CalendarEvent(**event) for event in events]
+        
+        return EventsListResponse(
+            events=calendar_events,
+            next_page_token=None,  # Simplified - no pagination for cache
+            kind="calendar#events"
+        )
     except Exception as e:
         logger.error(f"Failed to search events: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to search events: {str(e)}")
 
 
 @router.get("/events/date-range", response_model=List[CalendarEvent])
-async def get_events_by_date_range_endpoint(
-    start_date: str, 
-    end_date: str, 
-    max_results: int = 100
-):
-    """Get events within a specific date range."""
+async def get_events_by_date_range_endpoint(start_date: str, end_date: str, max_results: int = 100):
+    """Get events within a date range from the cache."""
     try:
-        events = get_events_by_date_range(start_date, end_date, max_results)
-        return events
+        calendar_id = get_calendar_id()
+        
+        events = get_cached_events(
+            calendar_id=calendar_id,
+            start_time=start_date,
+            end_time=end_date,
+            max_results=max_results
+        )
+        
+        return [CalendarEvent(**event) for event in events]
     except Exception as e:
         logger.error(f"Failed to get events by date range: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get events by date range: {str(e)}")
-
-
 # Calendar management endpoints
 @router.get("/calendars", response_model=CalendarListResponse)
 async def get_calendar_list_endpoint():
@@ -258,48 +304,63 @@ async def get_free_busy_endpoint(
 
 # Monitoring endpoints
 @router.post("/monitor/start", response_model=CalendarResponse)
-async def start_calendar_monitoring_endpoint():
-    """Start calendar monitoring in the background."""
+async def start_monitoring_endpoint():
+    """Start calendar caching."""
     try:
-        await start_calendar_monitoring()
+        from app.services.calendar.monitor import start_calendar_cache
+        await start_calendar_cache()
+        
         return CalendarResponse(
             success=True,
-            message="Calendar monitoring started successfully",
-            data={'status': 'monitoring_started'}
+            message="Calendar caching started successfully"
         )
     except Exception as e:
-        logger.error(f"Failed to start calendar monitoring: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to start calendar monitoring: {str(e)}")
+        logger.error(f"Failed to start calendar caching: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to start calendar caching: {str(e)}")
 
 
 @router.post("/monitor/stop", response_model=CalendarResponse)
-async def stop_calendar_monitoring_endpoint():
-    """Stop calendar monitoring."""
+async def stop_monitoring_endpoint():
+    """Stop calendar caching."""
     try:
-        stop_calendar_monitoring()
+        from app.services.calendar.monitor import stop_calendar_cache
+        await stop_calendar_cache()
+        
         return CalendarResponse(
             success=True,
-            message="Calendar monitoring stopped successfully",
-            data={'status': 'monitoring_stopped'}
+            message="Calendar caching stopped successfully"
         )
     except Exception as e:
-        logger.error(f"Failed to stop calendar monitoring: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to stop calendar monitoring: {str(e)}")
+        logger.error(f"Failed to stop calendar caching: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to stop calendar caching: {str(e)}")
 
 
 @router.get("/monitor/status", response_model=Dict[str, Any])
-async def get_monitor_status_endpoint():
-    """Get the current status of calendar monitoring."""
+async def get_monitoring_status_endpoint():
+    """Get calendar caching status."""
     try:
-        status = get_monitor_status()
-        return {
-            'success': True,
-            'message': 'Monitor status retrieved successfully',
-            'data': status
-        }
+        status = get_cache_status()
+        return status
     except Exception as e:
-        logger.error(f"Failed to get monitor status: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get monitor status: {str(e)}")
+        logger.error(f"Failed to get caching status: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get caching status: {str(e)}")
+
+
+@router.get("/cache/stats", response_model=Dict[str, Any])
+async def get_cache_stats_endpoint():
+    """Get calendar cache statistics."""
+    try:
+        stats = get_cache_stats()
+        return stats
+    except Exception as e:
+        logger.error(f"Failed to get cache statistics: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get cache statistics: {str(e)}")
+
+
+@router.post("/webhook/notifications")
+async def handle_push_notifications_endpoint(request: Request):
+    """Handle incoming push notifications (deprecated - now using cache)."""
+    return Response(status_code=200, content="OK")  # Just acknowledge
 
 
 # Webhook endpoint for push notifications  

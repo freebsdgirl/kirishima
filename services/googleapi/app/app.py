@@ -68,25 +68,17 @@ async def lifespan(app: FastAPI):
             # Start monitoring in the background
             gmail_monitor_task = asyncio.create_task(start_email_monitoring())
         
-        # Start Calendar monitoring if enabled
-        if config.get('calendar', {}).get('monitor', {}).get('enabled', False):
-            logger.info("Starting calendar monitoring on startup")
+        # Start Calendar caching if enabled
+        if config.get('calendar', {}).get('cache', {}).get('enabled', False):
+            logger.info("Starting calendar caching on startup")
             
-            # Validate calendar access before starting monitoring
             try:
-                from app.services.calendar.auth import validate_calendar_access, get_calendar_summary
-                calendar_info = validate_calendar_access()
-                calendar_summary = get_calendar_summary()
-                logger.info(f"Calendar validation successful: {calendar_summary}")
-                
-                from app.services.calendar.monitor import start_calendar_monitoring
-                # Start monitoring in the background
-                calendar_monitor_task = asyncio.create_task(start_calendar_monitoring())
+                from app.services.calendar.monitor import start_calendar_cache
+                # Start caching in the background
+                calendar_monitor_task = asyncio.create_task(start_calendar_cache())
                 
             except Exception as e:
-                logger.error(f"Calendar validation failed - monitoring disabled: {e}")
-                logger.error("Please check your calendar configuration in config.json")
-                logger.error("Use GET /calendar/calendars/discover to find available calendars")
+                logger.error(f"Calendar caching startup failed: {e}")
         
         # Start Tasks monitoring if enabled
         if config.get('tasks', {}).get('monitor', {}).get('enabled', False):
@@ -128,10 +120,11 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error(f"Error stopping Gmail monitoring: {e}")
         
-        # Stop Calendar monitoring
+        
+        # Stop Calendar caching
         try:
-            from app.services.calendar.monitor import stop_calendar_monitoring
-            stop_calendar_monitoring()
+            from app.services.calendar.monitor import stop_calendar_cache
+            await stop_calendar_cache()
             if calendar_monitor_task and not calendar_monitor_task.done():
                 calendar_monitor_task.cancel()
                 try:
@@ -139,7 +132,7 @@ async def lifespan(app: FastAPI):
                 except asyncio.CancelledError:
                     pass
         except Exception as e:
-            logger.error(f"Error stopping Calendar monitoring: {e}")
+            logger.error(f"Error stopping Calendar caching: {e}")
         
         # Stop Tasks monitoring
         try:

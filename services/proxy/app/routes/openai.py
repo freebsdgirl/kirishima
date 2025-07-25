@@ -9,7 +9,7 @@ from fastapi import APIRouter
 
 router = APIRouter()
 @router.post("/api/singleturn", response_model=ProxyResponse)
-async def completions(message: Union[ProxyOneShotRequest, SingleTurnRequest]) -> ProxyResponse:
+async def completions(message: Union[SingleTurnRequest, ProxyOneShotRequest]) -> ProxyResponse:
     """
     Handle single-turn language model completion requests.
 

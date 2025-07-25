@@ -1,6 +1,7 @@
 """
-Google Tasks API authentication module.
+Google API authentication module for Tasks service.
 Provides functions to authenticate and get a Google Tasks service instance.
+Uses comprehensive OAuth scopes to maintain compatibility with other Google services.
 """
 
 from shared.log_config import get_logger
@@ -13,12 +14,21 @@ from googleapiclient.discovery import build
 import os
 import json
 
-# Google Tasks API scope
-SCOPES = ['https://www.googleapis.com/auth/tasks']
+# Google API scopes - using comprehensive set to match main OAuth setup
+SCOPES = [
+    'https://mail.google.com/',
+    'https://www.googleapis.com/auth/contacts',
+    'https://www.googleapis.com/auth/calendar',
+    'https://www.googleapis.com/auth/userinfo.profile',
+    'https://www.googleapis.com/auth/userinfo.email',
+    'https://www.googleapis.com/auth/tasks',
+    'openid'
+]
 
 def get_tasks_service():
     """
     Authenticate and return a Google Tasks service instance.
+    Uses comprehensive OAuth scopes to maintain token compatibility with other Google services.
     
     Returns:
         googleapiclient.discovery.Resource: Google Tasks service instance
@@ -40,7 +50,7 @@ def get_tasks_service():
                 logger.info("Refreshing expired Google Tasks credentials")
                 creds.refresh(Request())
             else:
-                logger.info("Starting Google Tasks OAuth flow")
+                logger.info("Starting Google OAuth flow with comprehensive scopes")
                 credentials_path = '/app/config/credentials.json'
                 if not os.path.exists(credentials_path):
                     raise Exception("credentials.json not found. Please set up Google API credentials.")
@@ -55,7 +65,7 @@ def get_tasks_service():
         
         # Build and return the service
         service = build('tasks', 'v1', credentials=creds)
-        logger.info("Google Tasks service authenticated successfully")
+        logger.info("Google Tasks service authenticated successfully (with comprehensive scopes)")
         return service
         
     except Exception as e:
@@ -66,6 +76,7 @@ def get_tasks_service():
 def validate_tasks_access():
     """
     Validate that Google Tasks API access is working.
+    Note: Uses comprehensive OAuth scopes for compatibility with other Google services.
     
     Returns:
         dict: Validation result with success status and message

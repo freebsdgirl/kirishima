@@ -33,6 +33,7 @@ from app.routes.gmail import router as gmail_router
 from app.routes.contacts import router as contacts_router
 from app.routes.calendar import router as calendar_router
 from app.routes.tasks import router as tasks_router
+from app.routes.nlp import router as nlp_router
 
 # Load config
 with open('/app/config/config.json') as f:
@@ -160,6 +161,7 @@ app.include_router(gmail_router, tags=["gmail"], prefix="/gmail")
 app.include_router(contacts_router, tags=["contacts"], prefix="/contacts")
 app.include_router(calendar_router, tags=["calendar"], prefix="/calendar")
 app.include_router(tasks_router, tags=["tasks"], prefix="/tasks")
+app.include_router(nlp_router, tags=["nlp"])
 
 register_list_routes(app)
 

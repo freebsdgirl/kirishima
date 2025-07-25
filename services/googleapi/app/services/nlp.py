@@ -20,6 +20,7 @@ from shared.models.googleapi import (
     SaveDraftRequest,
     CreateEventRequest,
     DeleteEventRequest,
+    ListEventsRequest,
     SearchEmailRequest,
     SearchEventsRequest
 )
@@ -28,7 +29,7 @@ from shared.prompt_loader import load_prompt
 from app.services.gmail.send import send_email, forward_email, save_draft
 from app.services.gmail.search import search_emails, get_email_by_id
 from app.services.calendar.events import create_event, delete_event
-from app.services.calendar.search import search_events, get_upcoming_events
+from app.services.calendar.search import search_events, get_upcoming_events, get_events_by_date_range
 from app.services.contacts.contacts import get_contact_by_email, list_all_contacts
 from app.services.gmail.auth import get_gmail_service
 from app.services.calendar.auth import get_calendar_service
@@ -333,6 +334,32 @@ async def _execute_calendar_action(action: str, params: Dict[str, Any]) -> Dict[
             "deleted": result,
             "event_id": event_id,
             "message": "Event deleted successfully" if result else "Failed to delete event"
+        }
+        
+    elif action == "list_events":
+        start_date = params["start_date"]
+        end_date = params["end_date"]
+        max_results = params.get("max_results", 100)
+        
+        # Convert date-only format to full ISO 8601 datetime format if needed
+        if len(start_date) == 10:  # YYYY-MM-DD format
+            start_date = f"{start_date}T00:00:00Z"
+        if len(end_date) == 10:  # YYYY-MM-DD format
+            end_date = f"{end_date}T23:59:59Z"
+        
+        events = get_events_by_date_range(
+            start_date=start_date,
+            end_date=end_date,
+            max_results=max_results
+        )
+        
+        return {
+            "events": [event.model_dump() for event in events],
+            "count": len(events),
+            "date_range": {
+                "start": start_date,
+                "end": end_date
+            }
         }
         
     else:

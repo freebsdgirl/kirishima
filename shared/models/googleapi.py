@@ -594,6 +594,27 @@ class SearchEventsRequest(BaseModel):
     }
 
 
+class ListEventsRequest(BaseModel):
+    """
+    Request model for listing events in a date range.
+    """
+    start_date: str = Field(..., description="Start date in ISO 8601 format (YYYY-MM-DDTHH:MM:SSZ)")
+    end_date: str = Field(..., description="End date in ISO 8601 format (YYYY-MM-DDTHH:MM:SSZ)")
+    max_results: Optional[int] = Field(100, description="Maximum number of events to return")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "start_date": "2025-07-24T00:00:00Z",
+                    "end_date": "2025-07-31T23:59:59Z",
+                    "max_results": 50
+                }
+            ]
+        }
+    }
+
+
 class CalendarListResponse(BaseModel):
     """
     Response model for listing calendars.

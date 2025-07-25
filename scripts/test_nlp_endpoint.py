@@ -36,6 +36,10 @@ TEST_QUERIES = [
     {
         "name": "Get Upcoming Events Test",
         "query": "what meetings do I have coming up?"
+    },
+    {
+        "name": "List Events Test",
+        "query": "show me all events between December 1st and December 31st 2024"
     }
 ]
 

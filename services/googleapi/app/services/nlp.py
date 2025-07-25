@@ -15,6 +15,8 @@ from shared.models.proxy import SingleTurnRequest
 from shared.models.googleapi import (
     GoogleServiceAction, 
     SendEmailRequest,
+    GetEmailByIdRequest,
+    ForwardEmailRequest,
     SaveDraftRequest,
     CreateEventRequest,
     SearchEmailRequest,
@@ -22,8 +24,8 @@ from shared.models.googleapi import (
 )
 from shared.prompt_loader import load_prompt
 
-from app.services.gmail.send import send_email, save_draft
-from app.services.gmail.search import search_emails, get_unread_emails
+from app.services.gmail.send import send_email, forward_email, save_draft
+from app.services.gmail.search import search_emails, get_email_by_id
 from app.services.calendar.events import create_event
 from app.services.calendar.search import search_events, get_upcoming_events
 from app.services.contacts.contacts import get_contact_by_email, list_all_contacts
@@ -256,17 +258,39 @@ async def _execute_gmail_action(action: str, params: Dict[str, Any]) -> Dict[str
             "message": result.message
         }
         
-    elif action == "get_unread":
+    elif action == "get_email_by_id":
         service = get_gmail_service()
-        result = get_unread_emails(service=service)
+        result = get_email_by_id(
+            service=service, 
+            email_id=params["email_id"],
+            format=params.get("format", "full")
+        )
         
-        # Extract emails from the data field
-        emails_data = result.data.get("emails", []) if result.data else []
+        # Extract email data from the response
+        email_data = result.data.get("email") if result.data else None
         return {
-            "emails": emails_data,
-            "count": len(emails_data),
+            "email": email_data,
             "success": result.success,
             "message": result.message
+        }
+        
+    elif action == "forward_email":
+        # Resolve contact name to email if needed
+        to_email = await resolve_contact_email(params["to"])
+        
+        forward_request = ForwardEmailRequest(
+            thread_id=params["thread_id"],
+            body=params["body"],
+            to=to_email
+        )
+        
+        service = get_gmail_service()
+        result = forward_email(service=service, request=forward_request)
+        return {
+            "email_id": result.data.get("message_id") if result.data else None,
+            "message": result.message,
+            "success": result.success,
+            "resolved_to": to_email
         }
         
     else:

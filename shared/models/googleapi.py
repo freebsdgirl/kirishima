@@ -188,6 +188,29 @@ class EmailSearchByRequest(BaseModel):
         }
     }
 
+
+class GetEmailByIdRequest(BaseModel):
+    """
+    Request model for retrieving an email by its ID.
+    
+    Attributes:
+        email_id (str): The ID of the email to retrieve.
+        format (Optional[str]): The format of the response (full, metadata, minimal, raw).
+    """
+    email_id: str = Field(..., description="Email ID to retrieve")
+    format: Optional[str] = Field("full", description="Response format (full, metadata, minimal, raw)")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "email_id": "1234567890abcdef",
+                    "format": "full"
+                }
+            ]
+        }
+    }
+
 class EmailResponse(BaseModel):
     """
     Response model for email operations representing the result of an email-related action.

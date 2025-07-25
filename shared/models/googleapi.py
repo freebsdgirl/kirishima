@@ -549,6 +549,25 @@ class UpdateEventRequest(BaseModel):
     }
 
 
+class DeleteEventRequest(BaseModel):
+    """
+    Request model for deleting a calendar event.
+    """
+    event_id: str = Field(..., description="Event ID to delete")
+    send_notifications: Optional[bool] = Field(True, description="Whether to send notifications to attendees")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "event_id": "abc123def456",
+                    "send_notifications": True
+                }
+            ]
+        }
+    }
+
+
 class SearchEventsRequest(BaseModel):
     """
     Request model for searching calendar events.

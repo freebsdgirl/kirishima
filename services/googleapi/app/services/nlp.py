@@ -19,6 +19,7 @@ from shared.models.googleapi import (
     ForwardEmailRequest,
     SaveDraftRequest,
     CreateEventRequest,
+    DeleteEventRequest,
     SearchEmailRequest,
     SearchEventsRequest
 )
@@ -26,7 +27,7 @@ from shared.prompt_loader import load_prompt
 
 from app.services.gmail.send import send_email, forward_email, save_draft
 from app.services.gmail.search import search_emails, get_email_by_id
-from app.services.calendar.events import create_event
+from app.services.calendar.events import create_event, delete_event
 from app.services.calendar.search import search_events, get_upcoming_events
 from app.services.contacts.contacts import get_contact_by_email, list_all_contacts
 from app.services.gmail.auth import get_gmail_service
@@ -322,6 +323,16 @@ async def _execute_calendar_action(action: str, params: Dict[str, Any]) -> Dict[
         return {
             "events": [event.model_dump() for event in result.events],
             "count": len(result.events)
+        }
+        
+    elif action == "delete_event":
+        event_id = params["event_id"]
+        send_notifications = params.get("send_notifications", True)
+        result = delete_event(event_id=event_id, send_notifications=send_notifications)
+        return {
+            "deleted": result,
+            "event_id": event_id,
+            "message": "Event deleted successfully" if result else "Failed to delete event"
         }
         
     else:

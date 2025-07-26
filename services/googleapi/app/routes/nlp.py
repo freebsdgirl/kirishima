@@ -1,19 +1,23 @@
 """
-Natural Language Processing Routes for Google API
-
-This module defines the API endpoint for processing natural language queries
-and converting them into structured Google API actions.
-
+This module defines the FastAPI router and endpoint for processing natural language queries
+and executing corresponding Google service actions (such as Gmail, Calendar, Contacts).
 Endpoints:
-    - POST /nlp: Process a natural language query and execute the appropriate Google service action
-
-All endpoints handle exceptions and return appropriate HTTP error responses.
+    - POST /nlp: Accepts a natural language query, parses it using an LLM, maps the intent
+      to a Google service action, executes the action, and returns the result.
+Dependencies:
+    - FastAPI for API routing and exception handling
+    - Shared models for request and response schemas
+    - Service modules for parsing and executing actions
+    - Shared logging configuration
+Typical usage involves sending a POST request with a user's natural language query,
+optionally specifying whether to return slim or human-readable results.
 """
 
 from fastapi import APIRouter, HTTPException, Query
 from shared.models.googleapi import NaturalLanguageRequest, NaturalLanguageResponse
 
-from app.services.nlp import parse_natural_language_query, execute_google_action
+from app.services.nlp.parse_nl_query import parse_natural_language_query
+from app.services.nlp.execute_google_action import execute_google_action
 
 from shared.log_config import get_logger
 logger = get_logger(f"googleapi.{__name__}")

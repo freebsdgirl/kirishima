@@ -1,6 +1,32 @@
 """
-Google Tasks service implementation.
-Provides core functionality for task and task list management.
+This module provides service functions for managing Google Tasks via the Google Tasks API,
+with additional support for Kirishima-specific metadata and recurrence logic.
+Functions:
+    - create_task_list(request: CreateTaskListRequest) -> TasksResponse:
+    - list_task_lists(exclude_stickynotes: bool = True) -> List[TaskListModel]:
+        List all task lists, optionally excluding the stickynotes list.
+    - delete_task_list(task_list_id: str) -> TasksResponse:
+        Delete a task list, except for the stickynotes list.
+    - create_task(request: CreateTaskRequest) -> TasksResponse:
+        Create a new task in a specified or default (stickynotes) task list, with Kirishima metadata.
+    - list_stickynotes_tasks() -> List[TaskModel]:
+        List all tasks in the stickynotes task list, parsing Kirishima metadata.
+    - update_task(task_id: str, request: UpdateTaskRequest, task_list_id: Optional[str] = None) -> TasksResponse:
+        Update an existing task, preserving and updating Kirishima metadata as needed.
+    - complete_task(task_id: str, task_list_id: Optional[str] = None) -> TasksResponse:
+        Complete a task, handling recurrence by updating the due date if an RRULE is present.
+    - delete_task(task_id: str, task_list_id: Optional[str] = None) -> TasksResponse:
+        Delete a task from a specified or default (stickynotes) task list.
+    - get_due_tasks() -> DueTasksResponse:
+        Retrieve all due and overdue tasks from the stickynotes task list, for use by the brain service.
+Dependencies:
+    - shared.log_config.get_logger
+    - shared.models.googleapi (TaskModel, TaskListModel, CreateTaskRequest, UpdateTaskRequest, CreateTaskListRequest, TasksResponse, DueTasksResponse)
+    - .auth.get_tasks_service
+    - .util (get_stickynotes_tasklist_id, create_kirishima_metadata, parse_kirishima_metadata, calculate_next_due_date, is_task_due)
+    - typing
+    - datetime
+All functions handle exceptions and log errors, returning structured response objects.
 """
 
 from shared.log_config import get_logger

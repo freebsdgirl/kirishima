@@ -1,8 +1,21 @@
 """
-Text cleaning utilities for Google API responses.
-
-This module provides functions to clean and format text content for better
-LLM processing, including HTML removal and human-readable formatting.
+This module provides utility functions to format and clean Google API data
+for human-readable output. It includes functions to:
+- Remove HTML tags from text.
+- Format Google Calendar event datetimes into readable strings.
+- Convert lists of Google Calendar events, emails, and contacts into
+    readable summaries suitable for display or messaging.
+Functions:
+        clean_html_from_text(text: str) -> str:
+                Removes HTML tags and cleans up text content.
+        format_datetime_readable(dt_dict: Dict[str, Any]) -> str:
+                Formats a Google Calendar datetime dictionary into a human-readable string.
+        format_events_readable(events: List[Dict[str, Any]]) -> str:
+                Converts a list of Google Calendar event dictionaries into a readable string.
+        format_emails_readable(emails: List[Dict[str, Any]]) -> str:
+                Converts a list of email dictionaries into a readable string.
+        format_contacts_readable(contacts: List[Dict[str, Any]]) -> str:
+                Converts a list of contact dictionaries into a readable string.
 """
 
 import re

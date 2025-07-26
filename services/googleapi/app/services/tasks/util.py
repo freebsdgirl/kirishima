@@ -1,6 +1,18 @@
 """
-Google Tasks utility functions.
-Handles metadata parsing, task list management, and configuration loading.
+Utility functions for handling Google Tasks integration with Kirishima metadata.
+This module provides helper functions for:
+- Loading configuration from a JSON file.
+- Retrieving the 'stickynotes' task list ID from Google Tasks.
+- Embedding and parsing Kirishima-specific metadata (such as due time and recurrence rules) in task notes.
+- Calculating the next due date for recurring tasks using RRULE.
+- Determining if a task is currently due, considering optional due time.
+Functions:
+    get_config() -> Dict[str, Any]:
+    get_stickynotes_tasklist_id(service) -> str:
+    create_kirishima_metadata(due_time: Optional[str] = None, rrule: Optional[str] = None, user_notes: Optional[str] = None) -> str:
+    parse_kirishima_metadata(notes: Optional[str]) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+    calculate_next_due_date(current_due: str, rrule_str: str) -> Optional[str]:
+    is_task_due(task: Dict[str, Any], due_time: Optional[str] = None) -> bool:
 """
 
 from shared.log_config import get_logger

@@ -1,6 +1,14 @@
 """
-Google Tasks monitoring service.
-Monitors stickynotes tasks for due/overdue items and can notify the brain service.
+This module provides a monitoring service for stickynotes tasks, specifically tracking due and overdue items.
+It defines the TasksMonitor class, which periodically checks for tasks that are due or overdue, maintains a set
+of seen due tasks, and can notify other services (such as a brain service) when new tasks become due. The monitoring
+interval is configurable, and the service exposes functions to start, stop, and query the status of the monitor.
+Classes:
+    TasksMonitor: Monitors stickynotes tasks for due/overdue items on a configurable interval.
+Functions:
+    start_tasks_monitoring(): Starts the global tasks monitoring service asynchronously.
+    stop_tasks_monitoring(): Stops the global tasks monitoring service.
+    get_monitor_status(): Returns the current status of the tasks monitor.
 """
 
 from shared.log_config import get_logger

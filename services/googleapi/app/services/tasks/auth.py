@@ -1,7 +1,15 @@
 """
-Google API authentication module for Tasks service.
-Provides functions to authenticate and get a Google Tasks service instance.
-Uses comprehensive OAuth scopes to maintain compatibility with other Google services.
+This module provides authentication and access validation utilities for the Google Tasks API,
+using OAuth2 credentials and a comprehensive set of Google API scopes to ensure compatibility
+with other Google services (Mail, Contacts, Calendar, User Info, Tasks, OpenID).
+Functions:
+    get_tasks_service():
+        Authenticates and returns a Google Tasks service instance using OAuth2 credentials.
+        Handles credential loading, refreshing, and OAuth flow as needed.
+        Returns a googleapiclient.discovery.Resource for interacting with the Google Tasks API.
+    validate_tasks_access():
+        Validates that Google Tasks API access is working by attempting to list task lists.
+        Returns a dictionary indicating success status, a message, and the number of task lists found.
 """
 
 from shared.log_config import get_logger
@@ -12,7 +20,6 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 import os
-import json
 
 # Google API scopes - using comprehensive set to match main OAuth setup
 SCOPES = [

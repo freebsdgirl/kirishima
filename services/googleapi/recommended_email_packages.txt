@@ -1,0 +1,17 @@
+# Optional email processing libraries for enhanced functionality
+# Add these to your services/googleapi/requirements.txt for better email processing
+
+# Email reply parsing - excellent for separating new content from quoted replies
+email-reply-parser==0.5.12
+
+# HTML to text conversion - better formatting preservation than basic regex
+html2text==2024.2.26
+
+# Advanced HTML parsing and cleaning
+beautifulsoup4==4.12.3
+
+# Email parsing library for comprehensive email processing
+mailparser==4.5.0
+
+# Text processing utilities
+python-dateutil==2.9.0

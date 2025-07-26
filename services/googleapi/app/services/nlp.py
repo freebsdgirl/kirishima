@@ -32,6 +32,7 @@ from shared.prompt_loader import load_prompt
 
 from app.services.gmail.send import send_email, forward_email, save_draft
 from app.services.gmail.search import search_emails, get_email_by_id
+from app.services.gmail.email_cleaner import clean_email_for_brain, get_email_summary_stats
 from app.services.calendar.events import create_event, delete_event
 from app.services.calendar.search import search_events, get_upcoming_events, get_events_by_date_range
 from app.services.contacts.contacts import get_contact_by_email, list_all_contacts, search_contacts, create_contact, update_contact, delete_contact
@@ -274,6 +275,24 @@ async def _execute_gmail_action(action: str, params: Dict[str, Any]) -> Dict[str
         
         # Extract email data from the response
         email_data = result.data.get("email") if result.data else None
+        
+        # Clean the email content for better processing
+        if email_data:
+            cleaned_email = clean_email_for_brain(email_data)
+            stats = get_email_summary_stats(cleaned_email)
+            
+            logger.info(f"Retrieved and cleaned email {email_data.get('id', 'unknown')}: "
+                       f"{stats['word_count']} words, is_reply={stats['is_reply']}")
+            
+            # Return both cleaned and original data
+            return {
+                "email": cleaned_email,
+                "email_raw": email_data,  # Keep original for reference
+                "stats": stats,
+                "success": result.success,
+                "message": result.message
+            }
+        
         return {
             "email": email_data,
             "success": result.success,

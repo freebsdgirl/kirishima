@@ -34,6 +34,7 @@ from shared.models.googleapi import ForwardEmailRequest, SaveDraftRequest
 from app.services.gmail.auth import get_gmail_service
 from app.services.gmail.search import get_unread_emails, get_email_by_id
 from app.services.gmail.send import forward_email, save_draft
+from app.services.gmail.email_cleaner import clean_email_for_brain, format_email_for_brain_prompt, get_email_summary_stats
 
 from app.services.gmail.util import get_config
 
@@ -247,32 +248,27 @@ class EmailMonitor:
         Returns:
             MultiTurnRequest dictionary
         """
-        # Extract sender information
-        from_header = email_data.get('from', '')
-        sender_name = self._extract_sender_name(from_header)
-        sender_email = self._extract_sender_email(from_header)
+        # Clean and process the email content for better LLM processing
+        cleaned_email = clean_email_for_brain(email_data)
         
-        # Create user content from email
-        subject = email_data.get('subject', 'No Subject')
-        body_text = email_data.get('body', {}).get('text', '')
+        # Log summary statistics for monitoring
+        stats = get_email_summary_stats(cleaned_email)
+        logger.info(f"Processing email {cleaned_email.get('id', 'unknown')}: "
+                   f"{stats['word_count']} words, is_reply={stats['is_reply']}, "
+                   f"has_html={stats['has_html']}")
         
+        # Format the cleaned email content for the brain prompt
+        formatted_email_content = format_email_for_brain_prompt(cleaned_email)
+        
+        # Load the monitor prompt template
         prompt = load_prompt("googleapi", "gmail", "monitor")
-
-        # Format the email content for the AI
-        email_content = ""  # Initialize before appending
-        email_content += f"From: {from_header}\n"
-        email_content += f"Subject: {subject}\n"
-        if 'cc' in email_data:
-            email_content += f"Cc: {email_data['cc']}\n"
-        email_content += f"Date: {email_data.get('date', '')}\n\n"
-        email_content += f"Content:\n{body_text}"
 
         request = MultiTurnRequest(
             model='email',
             messages=[
                 {
                     'role': 'user',
-                    'content': prompt + email_content
+                    'content': prompt + formatted_email_content
                 }
             ],
             platform='gmail',

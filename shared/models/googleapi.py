@@ -444,6 +444,132 @@ class CreateContactResponse(BaseModel):
     }
 
 
+class SearchContactsRequest(BaseModel):
+    """
+    Request model for searching contacts by various fields.
+    """
+    query: str = Field(..., description="Search query for names, emails, phone numbers, or other fields")
+    max_results: Optional[int] = Field(25, description="Maximum number of contacts to return")
+    
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "query": "john smith",
+                    "max_results": 10
+                },
+                {
+                    "query": "john@example.com",
+                    "max_results": 5
+                }
+            ]
+        }
+    }
+
+
+class UpdateContactRequest(BaseModel):
+    """
+    Request model for updating an existing contact.
+    """
+    contact_identifier: str = Field(..., description="Contact identifier: resource name (people/xxx), exact name, or email address")
+    display_name: Optional[str] = Field(None, description="The contact's display name")
+    given_name: Optional[str] = Field(None, description="The contact's first name")
+    family_name: Optional[str] = Field(None, description="The contact's last name")
+    middle_name: Optional[str] = Field(None, description="The contact's middle name")
+    email_addresses: Optional[List[ContactEmail]] = Field(None, description="The contact's email addresses")
+    phone_numbers: Optional[List[ContactPhoneNumber]] = Field(None, description="The contact's phone numbers")
+    addresses: Optional[List[ContactAddress]] = Field(None, description="The contact's addresses")
+    organizations: Optional[List[Dict[str, Any]]] = Field(None, description="The contact's organizations")
+    notes: Optional[str] = Field(None, description="Notes about the contact")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "contact_identifier": "John Smith",
+                    "display_name": "John Smith Jr.",
+                    "email_addresses": [
+                        {
+                            "value": "john.smith@example.com",
+                            "type": "work"
+                        }
+                    ],
+                    "phone_numbers": [
+                        {
+                            "value": "+1234567890",
+                            "type": "mobile"
+                        }
+                    ]
+                },
+                {
+                    "contact_identifier": "john@example.com",
+                    "display_name": "John Smith"
+                }
+            ]
+        }
+    }
+
+
+class DeleteContactRequest(BaseModel):
+    """
+    Request model for deleting a contact.
+    """
+    contact_identifier: str = Field(..., description="Contact identifier: resource name (people/xxx), exact name, or email address")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "contact_identifier": "John Smith"
+                },
+                {
+                    "contact_identifier": "john@example.com"
+                },
+                {
+                    "contact_identifier": "people/c12345"
+                }
+            ]
+        }
+    }
+
+
+class ContactResponse(BaseModel):
+    """
+    Response model for contact operations.
+    """
+    success: bool = Field(..., description="Whether the operation was successful")
+    message: str = Field(..., description="Response message")
+    contact: Optional[GoogleContact] = Field(None, description="The contact data (for single contact operations)")
+    contacts: Optional[List[GoogleContact]] = Field(None, description="List of contacts (for search/list operations)")
+    resource_name: Optional[str] = Field(None, description="The resource name of the affected contact")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "success": True,
+                    "message": "Contact updated successfully",
+                    "contact": {
+                        "resource_name": "people/c12345",
+                        "names": [{"display_name": "John Smith"}]
+                    },
+                    "resource_name": "people/c12345"
+                },
+                {
+                    "success": True,
+                    "message": "Found 3 contacts matching query",
+                    "contacts": [
+                        {
+                            "resource_name": "people/c12345",
+                            "names": [{"display_name": "John Smith"}]
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+
+
 # Google Calendar Models
 class CalendarEvent(BaseModel):
     """

@@ -22,8 +22,8 @@ TEST_QUERIES = [
         "query": "send sektie@gmail.com an email with subject 'Test Subject' and body 'This is a test email.'"
     },
     {
-        "name": "Get Contact Test", 
-        "query": "what is joanne newman's email address?"
+        "name": "Search Contacts Test", 
+        "query": "find contacts named john smith"
     },
     {
         "name": "Create Calendar Event Test",
@@ -40,6 +40,10 @@ TEST_QUERIES = [
     {
         "name": "List Events Test",
         "query": "show me all events between December 1st and December 31st 2024"
+    },
+    {
+        "name": "Create Contact Test",
+        "query": "create a new contact for Jane Doe with email jane@example.com"
     }
 ]
 

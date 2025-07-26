@@ -22,7 +22,11 @@ from shared.models.googleapi import (
     DeleteEventRequest,
     ListEventsRequest,
     SearchEmailRequest,
-    SearchEventsRequest
+    SearchEventsRequest,
+    SearchContactsRequest,
+    CreateContactRequest,
+    UpdateContactRequest,
+    DeleteContactRequest
 )
 from shared.prompt_loader import load_prompt
 
@@ -30,7 +34,7 @@ from app.services.gmail.send import send_email, forward_email, save_draft
 from app.services.gmail.search import search_emails, get_email_by_id
 from app.services.calendar.events import create_event, delete_event
 from app.services.calendar.search import search_events, get_upcoming_events, get_events_by_date_range
-from app.services.contacts.contacts import get_contact_by_email, list_all_contacts
+from app.services.contacts.contacts import get_contact_by_email, list_all_contacts, search_contacts, create_contact, update_contact, delete_contact
 from app.services.gmail.auth import get_gmail_service
 from app.services.calendar.auth import get_calendar_service
 
@@ -377,23 +381,108 @@ async def _execute_contacts_action(action: str, params: Dict[str, Any]) -> Dict[
             "message": "Contact found"
         }
         
-    elif action == "get_contact_email":
-        # This action is for looking up someone's email by name
-        try:
-            email = await resolve_contact_email(params["name"])
-            return {
-                "name": params["name"],
-                "email": email,
-                "message": f"Found email for {params['name']}: {email}"
-            }
-        except HTTPException as e:
-            raise e
-        
     elif action == "list_contacts":
         result = list_all_contacts()
         return {
             "contacts": [contact.model_dump() for contact in result.contacts],
             "count": len(result.contacts)
+        }
+        
+    elif action == "search_contacts":
+        search_request = SearchContactsRequest(
+            query=params["query"],
+            max_results=params.get("max_results", 25)
+        )
+        result = search_contacts(search_request)
+        return {
+            "success": result.success,
+            "message": result.message,
+            "contacts": [contact.model_dump() for contact in result.contacts] if result.contacts else [],
+            "count": len(result.contacts) if result.contacts else 0
+        }
+        
+    elif action == "create_contact":
+        # Build the CreateContactRequest from params
+        email_addresses = []
+        if params.get("email_addresses"):
+            for email_data in params["email_addresses"]:
+                email_addresses.append({
+                    "value": email_data.get("value"),
+                    "type": email_data.get("type", "other")
+                })
+        
+        phone_numbers = []
+        if params.get("phone_numbers"):
+            for phone_data in params["phone_numbers"]:
+                phone_numbers.append({
+                    "value": phone_data.get("value"),
+                    "type": phone_data.get("type", "other")
+                })
+        
+        create_request = CreateContactRequest(
+            display_name=params.get("display_name"),
+            given_name=params.get("given_name"),
+            family_name=params.get("family_name"),
+            middle_name=params.get("middle_name"),
+            email_addresses=email_addresses if email_addresses else None,
+            phone_numbers=phone_numbers if phone_numbers else None,
+            notes=params.get("notes")
+        )
+        
+        result = create_contact(create_request)
+        return {
+            "success": result.success,
+            "message": result.message,
+            "contact": result.contact.model_dump() if result.contact else None,
+            "resource_name": result.resource_name
+        }
+        
+    elif action == "update_contact":
+        # Build the UpdateContactRequest from params
+        email_addresses = []
+        if params.get("email_addresses"):
+            for email_data in params["email_addresses"]:
+                email_addresses.append({
+                    "value": email_data.get("value"),
+                    "type": email_data.get("type", "other")
+                })
+        
+        phone_numbers = []
+        if params.get("phone_numbers"):
+            for phone_data in params["phone_numbers"]:
+                phone_numbers.append({
+                    "value": phone_data.get("value"),
+                    "type": phone_data.get("type", "other")
+                })
+        
+        update_request = UpdateContactRequest(
+            contact_identifier=params["contact_identifier"],
+            display_name=params.get("display_name"),
+            given_name=params.get("given_name"),
+            family_name=params.get("family_name"),
+            middle_name=params.get("middle_name"),
+            email_addresses=email_addresses if email_addresses else None,
+            phone_numbers=phone_numbers if phone_numbers else None,
+            notes=params.get("notes")
+        )
+        
+        result = update_contact(update_request)
+        return {
+            "success": result.success,
+            "message": result.message,
+            "contact": result.contact.model_dump() if result.contact else None,
+            "resource_name": result.resource_name
+        }
+        
+    elif action == "delete_contact":
+        delete_request = DeleteContactRequest(
+            contact_identifier=params["contact_identifier"]
+        )
+        result = delete_contact(delete_request)
+        return {
+            "success": result.success,
+            "message": result.message,
+            "resource_name": result.resource_name
         }
         
     else:

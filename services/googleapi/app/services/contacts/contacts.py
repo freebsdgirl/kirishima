@@ -20,7 +20,7 @@ from app.services.contacts.database import (
     clear_contacts_cache, get_cache_stats, cache_contact
 )
 from app.services.gmail.util import get_config
-from shared.models.googleapi import GoogleContact, ContactsListResponse, RefreshCacheResponse, CreateContactRequest, CreateContactResponse
+from shared.models.googleapi import GoogleContact, ContactsListResponse, RefreshCacheResponse, CreateContactRequest, CreateContactResponse, SearchContactsRequest, UpdateContactRequest, DeleteContactRequest, ContactResponse
 
 from typing import Optional, List, Dict, Any
 from datetime import datetime
@@ -391,5 +391,340 @@ def create_contact(contact_request: CreateContactRequest) -> CreateContactRespon
             success=False,
             message=f"Failed to create contact: {str(e)}",
             contact=None,
+            resource_name=None
+        )
+
+
+def resolve_contact_identifier(contact_identifier: str) -> str:
+    """
+    Resolve a contact identifier (name, email, or resource name) to a resource name.
+    
+    Args:
+        contact_identifier: Contact identifier (resource name, exact name, or email)
+        
+    Returns:
+        str: Resource name (people/xxx)
+        
+    Raises:
+        ValueError: If contact cannot be found
+    """
+    # If it's already a resource name, return as-is
+    if contact_identifier.startswith('people/'):
+        return contact_identifier
+    
+    # Try to find contact by exact name or email
+    try:
+        all_contacts = list_all_contacts()
+        
+        for contact in all_contacts.contacts:
+            # Check email addresses
+            if contact.email_addresses:
+                for email in contact.email_addresses:
+                    if email.value.lower() == contact_identifier.lower():
+                        return contact.resource_name
+            
+            # Check exact name matches
+            if contact.names:
+                for name in contact.names:
+                    # Check display name
+                    if name.display_name and name.display_name.lower() == contact_identifier.lower():
+                        return contact.resource_name
+                    # Check full name (given + family)
+                    if name.given_name and name.family_name:
+                        full_name = f"{name.given_name} {name.family_name}"
+                        if full_name.lower() == contact_identifier.lower():
+                            return contact.resource_name
+        
+        raise ValueError(f"Contact not found: {contact_identifier}")
+        
+    except Exception as e:
+        logger.error(f"Error resolving contact identifier '{contact_identifier}': {e}")
+        raise ValueError(f"Could not resolve contact: {contact_identifier}")
+
+
+def search_contacts(search_request: SearchContactsRequest) -> ContactResponse:
+    """
+    Search contacts by query string (name, email, phone, etc.).
+    Uses both Google's searchContacts API and local fuzzy matching.
+    
+    Args:
+        search_request: The search parameters
+        
+    Returns:
+        ContactResponse: Search results
+    """
+    try:
+        logger.info(f"Searching contacts with query: {search_request.query}")
+        
+        # Get People API service
+        service = get_people_service()
+        
+        contacts = []
+        
+        # First, try Google's searchContacts API
+        try:
+            result = service.people().searchContacts(
+                query=search_request.query,
+                pageSize=search_request.max_results,
+                readMask='names,emailAddresses,phoneNumbers,addresses,organizations,biographies,photos,metadata'
+            ).execute()
+            
+            if 'results' in result:
+                for search_result in result['results']:
+                    if 'person' in search_result:
+                        contact = _convert_contact_data(search_result['person'])
+                        contacts.append(contact)
+        except Exception as google_api_error:
+            logger.warning(f"Google searchContacts API failed: {google_api_error}")
+        
+        # If we didn't find enough results, also do local fuzzy matching
+        if len(contacts) < search_request.max_results:
+            try:
+                all_contacts = list_all_contacts()
+                query_lower = search_request.query.lower()
+                
+                # Search through all contacts for partial matches
+                for contact in all_contacts.contacts:
+                    # Skip if we already have this contact from the API search
+                    if any(c.resource_name == contact.resource_name for c in contacts):
+                        continue
+                    
+                    # Check names
+                    name_match = False
+                    if contact.names:
+                        for name in contact.names:
+                            if (name.display_name and query_lower in name.display_name.lower()) or \
+                               (name.given_name and query_lower in name.given_name.lower()) or \
+                               (name.family_name and query_lower in name.family_name.lower()) or \
+                               (name.given_name and name.family_name and 
+                                query_lower in f"{name.given_name} {name.family_name}".lower()):
+                                name_match = True
+                                break
+                    
+                    # Check email addresses
+                    email_match = False
+                    if contact.email_addresses:
+                        for email in contact.email_addresses:
+                            if query_lower in email.value.lower():
+                                email_match = True
+                                break
+                    
+                    # Check phone numbers
+                    phone_match = False
+                    if contact.phone_numbers:
+                        for phone in contact.phone_numbers:
+                            if query_lower in phone.value:
+                                phone_match = True
+                                break
+                    
+                    # If any field matches, add to results
+                    if name_match or email_match or phone_match:
+                        contacts.append(contact)
+                        if len(contacts) >= search_request.max_results:
+                            break
+                            
+            except Exception as local_search_error:
+                logger.warning(f"Local contact search failed: {local_search_error}")
+        
+        logger.info(f"Found {len(contacts)} contacts matching query")
+        
+        return ContactResponse(
+            success=True,
+            message=f"Found {len(contacts)} contacts matching query",
+            contacts=contacts
+        )
+        
+    except Exception as e:
+        logger.error(f"Error searching contacts: {e}")
+        return ContactResponse(
+            success=False,
+            message=f"Failed to search contacts: {str(e)}",
+            contacts=[]
+        )
+
+
+def update_contact(update_request: UpdateContactRequest) -> ContactResponse:
+    """
+    Update an existing contact using the Google People API.
+    
+    Args:
+        update_request: The contact data to update
+        
+    Returns:
+        ContactResponse: Status and updated contact data
+    """
+    try:
+        logger.info(f"Updating contact: {update_request.contact_identifier}")
+        
+        # Resolve the contact identifier to a resource name
+        resource_name = resolve_contact_identifier(update_request.contact_identifier)
+        
+        # Get People API service
+        service = get_people_service()
+        
+        # First, get the current contact to merge with updates
+        current_contact = service.people().get(
+            resourceName=resource_name,
+            personFields='names,emailAddresses,phoneNumbers,addresses,organizations,biographies,photos,metadata'
+        ).execute()
+        
+        # Build the update data
+        contact_body = {}
+        
+        # Update names if provided
+        if any([update_request.display_name, update_request.given_name, 
+                update_request.family_name, update_request.middle_name]):
+            names = [{}]
+            if update_request.display_name:
+                names[0]['displayName'] = update_request.display_name
+            if update_request.given_name:
+                names[0]['givenName'] = update_request.given_name
+            if update_request.family_name:
+                names[0]['familyName'] = update_request.family_name
+            if update_request.middle_name:
+                names[0]['middleName'] = update_request.middle_name
+            contact_body['names'] = names
+        
+        # Update email addresses if provided
+        if update_request.email_addresses is not None:
+            email_addresses = []
+            for email in update_request.email_addresses:
+                email_data = {'value': email.value}
+                if email.type:
+                    email_data['type'] = email.type
+                email_addresses.append(email_data)
+            contact_body['emailAddresses'] = email_addresses
+        
+        # Update phone numbers if provided
+        if update_request.phone_numbers is not None:
+            phone_numbers = []
+            for phone in update_request.phone_numbers:
+                phone_data = {'value': phone.value}
+                if phone.type:
+                    phone_data['type'] = phone.type
+                phone_numbers.append(phone_data)
+            contact_body['phoneNumbers'] = phone_numbers
+        
+        # Update addresses if provided
+        if update_request.addresses is not None:
+            addresses = []
+            for address in update_request.addresses:
+                address_data = {}
+                if address.formatted_value:
+                    address_data['formattedValue'] = address.formatted_value
+                if address.street_address:
+                    address_data['streetAddress'] = address.street_address
+                if address.city:
+                    address_data['city'] = address.city
+                if address.region:
+                    address_data['region'] = address.region
+                if address.postal_code:
+                    address_data['postalCode'] = address.postal_code
+                if address.country:
+                    address_data['country'] = address.country
+                if address.type:
+                    address_data['type'] = address.type
+                addresses.append(address_data)
+            contact_body['addresses'] = addresses
+        
+        # Update organizations if provided
+        if update_request.organizations is not None:
+            contact_body['organizations'] = update_request.organizations
+        
+        # Update notes if provided
+        if update_request.notes is not None:
+            contact_body['biographies'] = [{'value': update_request.notes, 'contentType': 'TEXT_PLAIN'}]
+        
+        # Add etag for safe updates
+        contact_body['etag'] = current_contact.get('etag')
+        
+        # Build the update fields list (excluding etag)
+        update_fields = [field for field in contact_body.keys() if field != 'etag']
+        
+        # Update the contact via People API
+        result = service.people().updateContact(
+            resourceName=resource_name,
+            body=contact_body,
+            updatePersonFields=','.join(update_fields)
+        ).execute()
+        
+        # Convert the result to our GoogleContact model
+        updated_contact = _convert_contact_data(result)
+        
+        # Update cache
+        cache_contact(result)
+        
+        logger.info(f"Successfully updated contact: {resource_name}")
+        
+        return ContactResponse(
+            success=True,
+            message="Contact updated successfully",
+            contact=updated_contact,
+            resource_name=resource_name
+        )
+        
+    except ValueError as ve:
+        logger.error(f"Contact resolution error: {ve}")
+        return ContactResponse(
+            success=False,
+            message=str(ve),
+            contact=None,
+            resource_name=None
+        )
+    except Exception as e:
+        logger.error(f"Error updating contact: {e}")
+        return ContactResponse(
+            success=False,
+            message=f"Failed to update contact: {str(e)}",
+            contact=None,
+            resource_name=None
+        )
+
+
+def delete_contact(delete_request: DeleteContactRequest) -> ContactResponse:
+    """
+    Delete a contact using the Google People API.
+    
+    Args:
+        delete_request: The contact deletion request
+        
+    Returns:
+        ContactResponse: Status of the deletion
+    """
+    try:
+        logger.info(f"Deleting contact: {delete_request.contact_identifier}")
+        
+        # Resolve the contact identifier to a resource name
+        resource_name = resolve_contact_identifier(delete_request.contact_identifier)
+        
+        # Get People API service
+        service = get_people_service()
+        
+        # Delete the contact via People API
+        service.people().deleteContact(resourceName=resource_name).execute()
+        
+        # Remove from cache if it exists
+        # Note: We could implement cache removal, but for now just log success
+        
+        logger.info(f"Successfully deleted contact: {resource_name}")
+        
+        return ContactResponse(
+            success=True,
+            message="Contact deleted successfully",
+            resource_name=resource_name
+        )
+        
+    except ValueError as ve:
+        logger.error(f"Contact resolution error: {ve}")
+        return ContactResponse(
+            success=False,
+            message=str(ve),
+            resource_name=None
+        )
+    except Exception as e:
+        logger.error(f"Error deleting contact: {e}")
+        return ContactResponse(
+            success=False,
+            message=f"Failed to delete contact: {str(e)}",
             resource_name=None
         )

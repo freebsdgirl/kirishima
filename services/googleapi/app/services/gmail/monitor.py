@@ -249,13 +249,14 @@ class EmailMonitor:
             MultiTurnRequest dictionary
         """
         # Clean and process the email content for better LLM processing
-        cleaned_email = clean_email_for_brain(email_data)
+        # Pass the Gmail service for thread context retrieval
+        cleaned_email = clean_email_for_brain(email_data, gmail_service=self.service)
         
         # Log summary statistics for monitoring
         stats = get_email_summary_stats(cleaned_email)
         logger.info(f"Processing email {cleaned_email.get('id', 'unknown')}: "
                    f"{stats['word_count']} words, is_reply={stats['is_reply']}, "
-                   f"has_html={stats['has_html']}")
+                   f"has_html={stats['has_html']}, has_thread_context={cleaned_email.get('has_thread_context', False)}")
         
         # Format the cleaned email content for the brain prompt
         formatted_email_content = format_email_for_brain_prompt(cleaned_email)

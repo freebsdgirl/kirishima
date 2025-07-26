@@ -33,6 +33,7 @@ from shared.prompt_loader import load_prompt
 from app.services.gmail.send import send_email, forward_email, save_draft
 from app.services.gmail.search import search_emails, get_email_by_id
 from app.services.gmail.email_cleaner import clean_email_for_brain, get_email_summary_stats
+from app.services.text_formatter import clean_html_from_text, format_events_readable, format_emails_readable, format_contacts_readable
 from app.services.calendar.events import create_event, delete_event
 from app.services.calendar.search import search_events, get_upcoming_events, get_events_by_date_range
 from app.services.contacts.contacts import get_contact_by_email, list_all_contacts, search_contacts, create_contact, update_contact, delete_contact
@@ -182,12 +183,14 @@ async def resolve_contact_email(contact_identifier: str) -> str:
     )
 
 
-async def execute_google_action(action: GoogleServiceAction) -> Dict[str, Any]:
+async def execute_google_action(action: GoogleServiceAction, slim: bool = True, readable: bool = False) -> Dict[str, Any]:
     """
     Execute a parsed Google service action.
     
     Args:
         action: The parsed action to execute
+        slim: If True, return only essential data to reduce token usage
+        readable: If True, return human-readable text instead of JSON
         
     Returns:
         Dict containing the result of the action
@@ -201,11 +204,11 @@ async def execute_google_action(action: GoogleServiceAction) -> Dict[str, Any]:
     
     try:
         if service == "gmail":
-            return await _execute_gmail_action(action_name, params)
+            return await _execute_gmail_action(action_name, params, slim=slim, readable=readable)
         elif service == "calendar":
-            return await _execute_calendar_action(action_name, params)
+            return await _execute_calendar_action(action_name, params, slim=slim, readable=readable)
         elif service == "contacts":
-            return await _execute_contacts_action(action_name, params)
+            return await _execute_contacts_action(action_name, params, readable=readable)
         else:
             raise HTTPException(
                 status_code=400,
@@ -222,7 +225,7 @@ async def execute_google_action(action: GoogleServiceAction) -> Dict[str, Any]:
         )
 
 
-async def _execute_gmail_action(action: str, params: Dict[str, Any]) -> Dict[str, Any]:
+async def _execute_gmail_action(action: str, params: Dict[str, Any], slim: bool = True, readable: bool = False) -> Dict[str, Any]:
     """Execute Gmail-specific actions."""
     if action == "send_email":
         # Resolve contact name to email if needed
@@ -258,12 +261,43 @@ async def _execute_gmail_action(action: str, params: Dict[str, Any]) -> Dict[str
         
         # Extract emails from the data field
         emails_data = result.data.get("emails", []) if result.data else []
-        return {
-            "emails": emails_data,
-            "count": len(emails_data),
-            "success": result.success,
-            "message": result.message
-        }
+        
+        if readable:
+            # Return human-readable format
+            readable_text = format_emails_readable(emails_data)
+            return {
+                "result": readable_text,
+                "count": len(emails_data),
+                "success": result.success,
+                "message": result.message
+            }
+        elif slim and emails_data:
+            # Return only essential fields for each email to reduce token usage
+            slim_emails = []
+            for email in emails_data:
+                slim_email = {
+                    "id": email.get("id"),
+                    "subject": email.get("subject"),
+                    "from": email.get("from"),
+                    "date": email.get("date"),
+                    "snippet": email.get("snippet"),
+                    "is_reply": email.get("is_reply", False)
+                }
+                slim_emails.append(slim_email)
+            
+            return {
+                "emails": slim_emails,
+                "count": len(slim_emails),
+                "success": result.success,
+                "message": result.message
+            }
+        else:
+            return {
+                "emails": emails_data,
+                "count": len(emails_data),
+                "success": result.success,
+                "message": result.message
+            }
         
     elif action == "get_email_by_id":
         service = get_gmail_service()
@@ -278,20 +312,41 @@ async def _execute_gmail_action(action: str, params: Dict[str, Any]) -> Dict[str
         
         # Clean the email content for better processing
         if email_data:
-            cleaned_email = clean_email_for_brain(email_data)
+            # Include thread context for replies (pass Gmail service)
+            cleaned_email = clean_email_for_brain(email_data, gmail_service=service)
             stats = get_email_summary_stats(cleaned_email)
             
             logger.info(f"Retrieved and cleaned email {email_data.get('id', 'unknown')}: "
-                       f"{stats['word_count']} words, is_reply={stats['is_reply']}")
+                       f"{stats['word_count']} words, is_reply={stats['is_reply']}, "
+                       f"has_thread_context={cleaned_email.get('has_thread_context', False)}")
             
-            # Return both cleaned and original data
-            return {
-                "email": cleaned_email,
-                "email_raw": email_data,  # Keep original for reference
-                "stats": stats,
-                "success": result.success,
-                "message": result.message
-            }
+            if slim:
+                # Return only essential data for LLM processing
+                return {
+                    "email": {
+                        "id": cleaned_email.get("id"),
+                        "subject": cleaned_email.get("subject"),
+                        "from": cleaned_email.get("from"),
+                        "to": cleaned_email.get("to"), 
+                        "date": cleaned_email.get("date"),
+                        "body_cleaned": cleaned_email.get("body_cleaned"),
+                        "is_reply": cleaned_email.get("is_reply", False),
+                        "thread_summary": cleaned_email.get("thread_summary"),
+                        "has_thread_context": cleaned_email.get("has_thread_context", False),
+                        "word_count": stats["word_count"]
+                    },
+                    "success": result.success,
+                    "message": result.message
+                }
+            else:
+                # Return both cleaned and original data
+                return {
+                    "email": cleaned_email,
+                    "email_raw": email_data,  # Keep original for reference
+                    "stats": stats,
+                    "success": result.success,
+                    "message": result.message
+                }
         
         return {
             "email": email_data,
@@ -322,7 +377,7 @@ async def _execute_gmail_action(action: str, params: Dict[str, Any]) -> Dict[str
         raise HTTPException(status_code=400, detail=f"Unknown Gmail action: {action}")
 
 
-async def _execute_calendar_action(action: str, params: Dict[str, Any]) -> Dict[str, Any]:
+async def _execute_calendar_action(action: str, params: Dict[str, Any], slim: bool = True, readable: bool = False) -> Dict[str, Any]:
     """Execute Calendar-specific actions."""
     if action == "create_event":
         create_request = CreateEventRequest(**params)
@@ -334,20 +389,116 @@ async def _execute_calendar_action(action: str, params: Dict[str, Any]) -> Dict[
         }
         
     elif action == "search_events":
-        search_request = SearchEventsRequest(**params)
+        # Map start_date/end_date parameters to time_min/time_max for SearchEventsRequest
+        mapped_params = {}
+        
+        if "start_date" in params:
+            # Convert YYYY-MM-DD to ISO 8601 format with timezone
+            start_date = params["start_date"]
+            if "T" not in start_date:
+                start_date += "T00:00:00Z"
+            mapped_params["time_min"] = start_date
+            
+        if "end_date" in params:
+            # Convert YYYY-MM-DD to ISO 8601 format with timezone
+            end_date = params["end_date"]
+            if "T" not in end_date:
+                end_date += "T23:59:59Z"
+            mapped_params["time_max"] = end_date
+            
+        # Copy other parameters
+        for key, value in params.items():
+            if key not in ["start_date", "end_date"]:
+                mapped_params[key] = value
+        
+        search_request = SearchEventsRequest(**mapped_params)
         result = search_events(request=search_request)
-        return {
-            "events": [event.model_dump() for event in result.events],
-            "count": len(result.events)
-        }
+        
+        # Convert events to dictionaries for processing
+        events_list = [event.model_dump() for event in result.events]
+        
+        if readable:
+            # Return human-readable format
+            readable_text = format_events_readable(events_list)
+            return {
+                "result": readable_text,
+                "count": len(events_list)
+            }
+        elif slim:
+            # Return only essential event fields
+            slim_events = []
+            for event_dict in events_list:
+                # Clean HTML from description
+                description = event_dict.get("description")
+                if description:
+                    description = clean_html_from_text(description)
+                
+                slim_event = {
+                    "id": event_dict.get("id"),
+                    "summary": event_dict.get("summary"),
+                    "start": event_dict.get("start"),
+                    "end": event_dict.get("end"),
+                    "location": event_dict.get("location"),
+                    "description": description,
+                    "status": event_dict.get("status"),
+                    "attendees": event_dict.get("attendees", [])
+                }
+                slim_events.append(slim_event)
+            
+            return {
+                "events": slim_events,
+                "count": len(slim_events)
+            }
+        else:
+            return {
+                "events": events_list,
+                "count": len(events_list)
+            }
         
     elif action == "get_upcoming":
         max_results = params.get("max_results", 10)
         result = get_upcoming_events(max_results)
-        return {
-            "events": [event.model_dump() for event in result.events],
-            "count": len(result.events)
-        }
+        
+        # Convert events to dictionaries for processing
+        events_list = [event.model_dump() for event in result.events]
+        
+        if readable:
+            # Return human-readable format
+            readable_text = format_events_readable(events_list)
+            return {
+                "result": readable_text,
+                "count": len(events_list)
+            }
+        elif slim:
+            # Return only essential event fields
+            slim_events = []
+            for event_dict in events_list:
+                # Clean HTML from description
+                description = event_dict.get("description")
+                if description:
+                    description = clean_html_from_text(description)
+                
+                slim_event = {
+                    "id": event_dict.get("id"),
+                    "summary": event_dict.get("summary"),
+                    "start": event_dict.get("start"),
+                    "end": event_dict.get("end"),
+                    "location": event_dict.get("location"),
+                    "description": description,
+                    "status": event_dict.get("status"),
+                    "attendees": event_dict.get("attendees", [])
+                }
+                slim_events.append(slim_event)
+            
+            return {
+                "events": slim_events,
+                "count": len(slim_events)
+            }
+        else:
+            return {
+                "events": events_list,
+                "count": len(events_list)
+            }
         
     elif action == "delete_event":
         event_id = params["event_id"]
@@ -389,7 +540,7 @@ async def _execute_calendar_action(action: str, params: Dict[str, Any]) -> Dict[
         raise HTTPException(status_code=400, detail=f"Unknown Calendar action: {action}")
 
 
-async def _execute_contacts_action(action: str, params: Dict[str, Any]) -> Dict[str, Any]:
+async def _execute_contacts_action(action: str, params: Dict[str, Any], readable: bool = False) -> Dict[str, Any]:
     """Execute Contacts-specific actions."""
     if action == "get_contact":
         contact = get_contact_by_email(params["email"])
@@ -413,12 +564,24 @@ async def _execute_contacts_action(action: str, params: Dict[str, Any]) -> Dict[
             max_results=params.get("max_results", 25)
         )
         result = search_contacts(search_request)
-        return {
-            "success": result.success,
-            "message": result.message,
-            "contacts": [contact.model_dump() for contact in result.contacts] if result.contacts else [],
-            "count": len(result.contacts) if result.contacts else 0
-        }
+        
+        if readable:
+            # Return human-readable format
+            contacts_data = [contact.model_dump() for contact in result.contacts] if result.contacts else []
+            readable_text = format_contacts_readable(contacts_data)
+            return {
+                "result": readable_text,
+                "count": len(result.contacts) if result.contacts else 0,
+                "success": result.success,
+                "message": result.message
+            }
+        else:
+            return {
+                "success": result.success,
+                "message": result.message,
+                "contacts": [contact.model_dump() for contact in result.contacts] if result.contacts else [],
+                "count": len(result.contacts) if result.contacts else 0
+            }
         
     elif action == "create_contact":
         # Build the CreateContactRequest from params

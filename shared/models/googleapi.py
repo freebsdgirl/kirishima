@@ -298,6 +298,7 @@ class GoogleContact(BaseModel):
     addresses: Optional[List[ContactAddress]] = Field(None, description="The contact's addresses")
     organizations: Optional[List[Dict[str, Any]]] = Field(None, description="The contact's organizations")
     birthdays: Optional[List[Dict[str, Any]]] = Field(None, description="The contact's birthdays")
+    biographies: Optional[List[Dict[str, Any]]] = Field(None, description="The contact's biographies/notes")
     photos: Optional[List[Dict[str, Any]]] = Field(None, description="The contact's photos")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Contact metadata")
     created_time: Optional[str] = Field(None, description="When the contact was created")

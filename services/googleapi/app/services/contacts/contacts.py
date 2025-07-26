@@ -93,6 +93,7 @@ def _convert_contact_data(contact_data: Dict[str, Any]) -> GoogleContact:
         addresses=addresses if addresses else None,
         organizations=contact_data.get('organizations'),
         birthdays=contact_data.get('birthdays'),
+        biographies=contact_data.get('biographies'),
         photos=contact_data.get('photos'),
         metadata=metadata,
         created_time=created_time,
@@ -126,7 +127,7 @@ def refresh_contacts_cache() -> RefreshCacheResponse:
                 'pageSize': 1000,  # Max page size
                 'personFields': ','.join([
                     'names', 'emailAddresses', 'phoneNumbers', 'addresses',
-                    'organizations', 'birthdays', 'photos', 'metadata'
+                    'organizations', 'birthdays', 'biographies', 'photos', 'metadata'
                 ])
             }
             
@@ -517,8 +518,17 @@ def search_contacts(search_request: SearchContactsRequest) -> ContactResponse:
                                 phone_match = True
                                 break
                     
+                    # Check biographies/notes
+                    biography_match = False
+                    if contact.biographies:
+                        for biography in contact.biographies:
+                            if isinstance(biography, dict) and 'value' in biography:
+                                if query_lower in biography['value'].lower():
+                                    biography_match = True
+                                    break
+                    
                     # If any field matches, add to results
-                    if name_match or email_match or phone_match:
+                    if name_match or email_match or phone_match or biography_match:
                         contacts.append(contact)
                         if len(contacts) >= search_request.max_results:
                             break

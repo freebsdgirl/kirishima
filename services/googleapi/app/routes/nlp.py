@@ -10,7 +10,7 @@ Endpoints:
 All endpoints handle exceptions and return appropriate HTTP error responses.
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from shared.models.googleapi import NaturalLanguageRequest, NaturalLanguageResponse
 
 from app.services.nlp import parse_natural_language_query, execute_google_action
@@ -22,7 +22,11 @@ router = APIRouter()
 
 
 @router.post("/nlp", response_model=NaturalLanguageResponse)
-async def process_natural_language_query(request: NaturalLanguageRequest):
+async def process_natural_language_query(
+    request: NaturalLanguageRequest,
+    slim: bool = Query(default=True, description="Return only essential data to reduce token usage"),
+    readable: bool = Query(default=False, description="Return human-readable text instead of JSON")
+):
     """
     Process a natural language query and execute the appropriate Google service action.
     
@@ -34,6 +38,8 @@ async def process_natural_language_query(request: NaturalLanguageRequest):
     
     Args:
         request: Natural language request containing the user's query
+        slim: If True (default), returns only essential data. If False, includes full raw data.
+        readable: If True, returns human-readable text instead of JSON for better token efficiency.
         
     Returns:
         NaturalLanguageResponse: Result of processing and executing the query
@@ -49,7 +55,7 @@ async def process_natural_language_query(request: NaturalLanguageRequest):
         logger.info(f"Parsed action: {parsed_action.service}.{parsed_action.action}")
         
         # Step 2: Execute the parsed action
-        result = await execute_google_action(parsed_action)
+        result = await execute_google_action(parsed_action, slim=slim, readable=readable)
         logger.info(f"Action executed successfully")
         
         # Step 3: Return success response

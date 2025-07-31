@@ -1,0 +1,40 @@
+{
+  "memory_search": {
+    "description": "Search for relevant memories based on keywords, categories, or context",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "query": {"type": "string", "description": "Search query or keywords"},
+        "limit": {"type": "integer", "description": "Maximum number of results", "default": 10}
+      },
+      "required": ["query"]
+    },
+    "returns": {
+      "type": "object",
+      "properties": {
+        "memories": {"type": "array", "items": {"type": "object"}},
+        "count": {"type": "integer"}
+      }
+    },
+    "persistent": false
+  },
+  "add_stickynote": {
+    "description": "Create a persistent, context-aware reminder",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "content": {"type": "string", "description": "The reminder content"},
+        "priority": {"type": "string", "enum": ["low", "medium", "high"], "default": "medium"}
+      },
+      "required": ["content"]
+    },
+    "returns": {
+      "type": "object",
+      "properties": {
+        "note_id": {"type": "string"},
+        "status": {"type": "string"}
+      }
+    },
+    "persistent": true
+  }
+}

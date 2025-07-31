@@ -35,7 +35,6 @@ async def _execute_gmail_action(action: str, params: Dict[str, Any], slim: bool 
     if action == "send_email":
         # Resolve contact name to email if needed
         to_email = await resolve_contact_email(params["to"])
-        
         # Create a draft request instead of send request
         draft_request = SaveDraftRequest(
             to=to_email,
@@ -44,11 +43,16 @@ async def _execute_gmail_action(action: str, params: Dict[str, Any], slim: bool 
             cc=params.get("cc"),
             bcc=params.get("bcc")
         )
-        
         service = get_gmail_service()
         # Save as draft instead of sending
         result = save_draft(service=service, request=draft_request)
-        
+        if readable:
+            return {
+                "result": f"Draft email to {to_email} created successfully. Subject: {params['subject']}.",
+                "email_id": result.data.get("draft_id") if result.data else None,
+                "success": result.success,
+                "message": "Email draft created. (Not actually sent)"
+            }
         # Return response that looks like email was sent
         return {
             "email_id": result.data.get("draft_id") if result.data else None,  # Use draft_id as email_id
@@ -111,21 +115,31 @@ async def _execute_gmail_action(action: str, params: Dict[str, Any], slim: bool 
             email_id=params["email_id"],
             format=params.get("format", "full")
         )
-        
+
         # Extract email data from the response
         email_data = result.data.get("email") if result.data else None
-        
+
         # Clean the email content for better processing
         if email_data:
             # Include thread context for replies (pass Gmail service)
             cleaned_email = clean_email_for_brain(email_data, gmail_service=service)
             stats = get_email_summary_stats(cleaned_email)
-            
+
             logger.info(f"Retrieved and cleaned email {email_data.get('id', 'unknown')}: "
                        f"{stats['word_count']} words, is_reply={stats['is_reply']}, "
                        f"has_thread_context={cleaned_email.get('has_thread_context', False)}")
-            
-            if slim:
+
+            if readable:
+                # Return human-readable format for a single email
+                from app.services.text_formatter import format_emails_readable
+                readable_text = format_emails_readable([cleaned_email])
+                return {
+                    "result": readable_text,
+                    "id": cleaned_email.get("id"),
+                    "success": result.success,
+                    "message": result.message
+                }
+            elif slim:
                 # Return only essential data for LLM processing
                 return {
                     "email": {
@@ -152,7 +166,7 @@ async def _execute_gmail_action(action: str, params: Dict[str, Any], slim: bool 
                     "success": result.success,
                     "message": result.message
                 }
-        
+
         return {
             "email": email_data,
             "success": result.success,
@@ -162,15 +176,20 @@ async def _execute_gmail_action(action: str, params: Dict[str, Any], slim: bool 
     elif action == "forward_email":
         # Resolve contact name to email if needed
         to_email = await resolve_contact_email(params["to"])
-        
         forward_request = ForwardEmailRequest(
             thread_id=params["thread_id"],
             body=params["body"],
             to=to_email
         )
-        
         service = get_gmail_service()
         result = forward_email(service=service, request=forward_request)
+        if readable:
+            return {
+                "result": f"Forwarded email thread {params['thread_id']} to {to_email}. Message: {params['body']}",
+                "email_id": result.data.get("message_id") if result.data else None,
+                "success": result.success,
+                "message": result.message
+            }
         return {
             "email_id": result.data.get("message_id") if result.data else None,
             "message": result.message,

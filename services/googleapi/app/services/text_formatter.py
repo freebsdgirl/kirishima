@@ -1,3 +1,5 @@
+import pytz
+from dateutil import parser as date_parser
 """
 This module provides utility functions to format and clean Google API data
 for human-readable output. It includes functions to:
@@ -99,7 +101,7 @@ def format_events_readable(events: List[Dict[str, Any]]) -> str:
     
     for i, event in enumerate(events, 1):
         lines = [f"{i}. {event.get('summary', 'Untitled Event')}"]
-        
+
         # Add time info
         start = event.get('start')
         end = event.get('end')
@@ -119,14 +121,9 @@ def format_events_readable(events: List[Dict[str, Any]]) -> str:
                     lines.append(f"   Time: {start_str} to {end_str}")
             else:
                 lines.append(f"   Time: {start_str}")
-        
-        # Add location if present
-        location = event.get('location')
-        if location:
-            # Clean location of HTML
-            location = clean_html_from_text(location)
-            lines.append(f"   Location: {location}")
-        
+
+        # Location intentionally omitted from readable output
+
         # Add description if present (cleaned and truncated)
         description = event.get('description')
         if description:
@@ -135,18 +132,22 @@ def format_events_readable(events: List[Dict[str, Any]]) -> str:
             if len(description) > 200:
                 description = description[:200] + "..."
             lines.append(f"   Details: {description}")
-        
+
         # Add status if not confirmed
         status = event.get('status')
         if status and status != 'confirmed':
             lines.append(f"   Status: {status}")
-        
+
         readable_events.append('\n'.join(lines))
     
     return '\n\n'.join(readable_events)
 
 
 def format_emails_readable(emails: List[Dict[str, Any]]) -> str:
+    # Post-filter by local date range if present in the first email dict
+    if emails and isinstance(emails[0], dict) and 'local_date_range' in emails[0]:
+        local_date_range = emails[0]['local_date_range']
+        emails = filter_emails_by_local_date(emails, local_date_range)
     """
     Convert emails to human-readable format.
     
@@ -163,33 +164,65 @@ def format_emails_readable(emails: List[Dict[str, Any]]) -> str:
     
     for i, email in enumerate(emails, 1):
         lines = [f"{i}. {email.get('subject', 'No Subject')}"]
-        
+
+        # Add email ID
+        email_id = email.get('id')
+        if email_id:
+            lines.append(f"   ID: {email_id}")
+
         # Add sender and date
         from_addr = email.get('from', 'Unknown sender')
         date = email.get('date', 'Unknown date')
         lines.append(f"   From: {from_addr}")
         lines.append(f"   Date: {date}")
-        
+
         # Add snippet or cleaned body
         content = email.get('body_cleaned') or email.get('snippet', '')
         if content:
-            # Truncate long content
-            if len(content) > 150:
-                content = content[:150] + "..."
-            lines.append(f"   Content: {content}")
-        
+            # For get_email_by_id, show the full cleaned body (do not truncate)
+            if len(emails) == 1 and email.get('body_cleaned'):
+                lines.append(f"   Content: {content}")
+            else:
+                # Truncate long content for search_emails
+                if len(content) > 150:
+                    content = content[:150] + "..."
+                lines.append(f"   Content: {content}")
+
         # Add reply indicator
         if email.get('is_reply'):
             lines.append("   [This is a reply]")
-        
+
         # Add thread summary if present
         thread_summary = email.get('thread_summary')
         if thread_summary:
             lines.append(f"   Thread context: {thread_summary}")
-        
+
         readable_emails.append('\n'.join(lines))
     
     return '\n\n'.join(readable_emails)
+
+
+def filter_emails_by_local_date(emails: List[Dict[str, Any]], local_date_range: dict) -> List[Dict[str, Any]]:
+    """
+    Filter emails to only those whose date (in local time) falls within the given local_date_range.
+    local_date_range should be a dict with 'start', 'end', and 'timezone' keys.
+    """
+    tz = pytz.timezone(local_date_range.get('timezone', 'UTC'))
+    start = date_parser.parse(local_date_range['start']).astimezone(tz)
+    end = date_parser.parse(local_date_range['end']).astimezone(tz)
+    filtered = []
+    for email in emails:
+        date_str = email.get('date')
+        if not date_str:
+            continue
+        try:
+            dt = date_parser.parse(date_str)
+            dt_local = dt.astimezone(tz)
+            if start <= dt_local < end:
+                filtered.append(email)
+        except Exception:
+            continue
+    return filtered
 
 
 def format_contacts_readable(contacts: List[Dict[str, Any]]) -> str:

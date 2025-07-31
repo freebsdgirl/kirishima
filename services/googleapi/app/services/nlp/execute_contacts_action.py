@@ -38,6 +38,14 @@ async def _execute_contacts_action(action: str, params: Dict[str, Any], readable
         contact = get_contact_by_email(params["email"])
         if not contact:
             raise HTTPException(status_code=404, detail="Contact not found")
+        if readable:
+            from app.services.text_formatter import format_contacts_readable
+            readable_text = format_contacts_readable([contact.model_dump()])
+            return {
+                "result": readable_text,
+                "success": True,
+                "message": "Contact found"
+            }
         return {
             "contact": contact.model_dump(),
             "message": "Contact found"
@@ -45,6 +53,15 @@ async def _execute_contacts_action(action: str, params: Dict[str, Any], readable
         
     elif action == "list_contacts":
         result = list_all_contacts()
+        if readable:
+            from app.services.text_formatter import format_contacts_readable
+            readable_text = format_contacts_readable([contact.model_dump() for contact in result.contacts])
+            return {
+                "result": readable_text,
+                "count": len(result.contacts),
+                "success": True,
+                "message": "Contacts listed"
+            }
         return {
             "contacts": [contact.model_dump() for contact in result.contacts],
             "count": len(result.contacts)
@@ -84,7 +101,6 @@ async def _execute_contacts_action(action: str, params: Dict[str, Any], readable
                     "value": email_data.get("value"),
                     "type": email_data.get("type", "other")
                 })
-        
         phone_numbers = []
         if params.get("phone_numbers"):
             for phone_data in params["phone_numbers"]:
@@ -92,7 +108,6 @@ async def _execute_contacts_action(action: str, params: Dict[str, Any], readable
                     "value": phone_data.get("value"),
                     "type": phone_data.get("type", "other")
                 })
-        
         create_request = CreateContactRequest(
             display_name=params.get("display_name"),
             given_name=params.get("given_name"),
@@ -102,8 +117,14 @@ async def _execute_contacts_action(action: str, params: Dict[str, Any], readable
             phone_numbers=phone_numbers if phone_numbers else None,
             notes=params.get("notes")
         )
-        
         result = create_contact(create_request)
+        if readable:
+            return {
+                "result": f"Contact '{params.get('display_name', params.get('given_name', ''))}' created successfully.",
+                "success": result.success,
+                "message": result.message,
+                "resource_name": result.resource_name
+            }
         return {
             "success": result.success,
             "message": result.message,
@@ -120,7 +141,6 @@ async def _execute_contacts_action(action: str, params: Dict[str, Any], readable
                     "value": email_data.get("value"),
                     "type": email_data.get("type", "other")
                 })
-        
         phone_numbers = []
         if params.get("phone_numbers"):
             for phone_data in params["phone_numbers"]:
@@ -128,7 +148,6 @@ async def _execute_contacts_action(action: str, params: Dict[str, Any], readable
                     "value": phone_data.get("value"),
                     "type": phone_data.get("type", "other")
                 })
-        
         update_request = UpdateContactRequest(
             contact_identifier=params["contact_identifier"],
             display_name=params.get("display_name"),
@@ -139,8 +158,14 @@ async def _execute_contacts_action(action: str, params: Dict[str, Any], readable
             phone_numbers=phone_numbers if phone_numbers else None,
             notes=params.get("notes")
         )
-        
         result = update_contact(update_request)
+        if readable:
+            return {
+                "result": f"Contact '{params.get('contact_identifier', '')}' updated successfully.",
+                "success": result.success,
+                "message": result.message,
+                "resource_name": result.resource_name
+            }
         return {
             "success": result.success,
             "message": result.message,
@@ -153,6 +178,13 @@ async def _execute_contacts_action(action: str, params: Dict[str, Any], readable
             contact_identifier=params["contact_identifier"]
         )
         result = delete_contact(delete_request)
+        if readable:
+            return {
+                "result": f"Contact '{params.get('contact_identifier', '')}' deleted successfully.",
+                "success": result.success,
+                "message": result.message,
+                "resource_name": result.resource_name
+            }
         return {
             "success": result.success,
             "message": result.message,

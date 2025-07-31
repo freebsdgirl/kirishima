@@ -42,6 +42,13 @@ async def _execute_calendar_action(action: str, params: Dict[str, Any], slim: bo
     if action == "create_event":
         create_request = CreateEventRequest(**params)
         result = create_event(request=create_request)
+        if readable:
+            return {
+                "result": f"Event '{params.get('summary', 'Untitled Event')}' created from {params.get('start_datetime')} to {params.get('end_datetime')}.",
+                "event_id": result.get("event_id"),
+                "success": True,
+                "message": "Event created successfully."
+            }
         return {
             "event_id": result.get("event_id"),
             "message": "Event created successfully",
@@ -164,6 +171,13 @@ async def _execute_calendar_action(action: str, params: Dict[str, Any], slim: bo
         event_id = params["event_id"]
         send_notifications = params.get("send_notifications", True)
         result = delete_event(event_id=event_id, send_notifications=send_notifications)
+        if readable:
+            return {
+                "result": f"Event {event_id} deleted successfully." if result else f"Failed to delete event {event_id}.",
+                "event_id": event_id,
+                "success": result,
+                "message": "Event deleted successfully" if result else "Failed to delete event"
+            }
         return {
             "deleted": result,
             "event_id": event_id,
@@ -174,27 +188,40 @@ async def _execute_calendar_action(action: str, params: Dict[str, Any], slim: bo
         start_date = params["start_date"]
         end_date = params["end_date"]
         max_results = params.get("max_results", 100)
-        
+
         # Convert date-only format to full ISO 8601 datetime format if needed
         if len(start_date) == 10:  # YYYY-MM-DD format
             start_date = f"{start_date}T00:00:00Z"
         if len(end_date) == 10:  # YYYY-MM-DD format
             end_date = f"{end_date}T23:59:59Z"
-        
+
         events = get_events_by_date_range(
             start_date=start_date,
             end_date=end_date,
             max_results=max_results
         )
-        
-        return {
-            "events": [event.model_dump() for event in events],
-            "count": len(events),
-            "date_range": {
-                "start": start_date,
-                "end": end_date
+        events_list = [event.model_dump() for event in events]
+
+        if readable:
+            # Return human-readable format
+            readable_text = format_events_readable(events_list)
+            return {
+                "result": readable_text,
+                "count": len(events_list),
+                "date_range": {
+                    "start": start_date,
+                    "end": end_date
+                }
             }
-        }
+        else:
+            return {
+                "events": events_list,
+                "count": len(events_list),
+                "date_range": {
+                    "start": start_date,
+                    "end": end_date
+                }
+            }
         
     else:
         raise HTTPException(status_code=400, detail=f"Unknown Calendar action: {action}")

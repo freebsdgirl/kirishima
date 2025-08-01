@@ -1,6 +1,7 @@
 {
   "memory_search": {
     "description": "Search for relevant memories based on keywords, categories, or context",
+    "depends_on": [],
     "parameters": {
       "type": "object",
       "properties": {
@@ -18,21 +19,34 @@
     },
     "persistent": false
   },
-  "add_stickynote": {
-    "description": "Create a persistent, context-aware reminder",
+  "github_issue": {
+    "description": "Manage GitHub issues - create, view, comment, close, list issues and comments",
+    "depends_on": [],
     "parameters": {
       "type": "object",
       "properties": {
-        "content": {"type": "string", "description": "The reminder content"},
-        "priority": {"type": "string", "enum": ["low", "medium", "high"], "default": "medium"}
+        "action": {
+          "type": "string", 
+          "enum": ["create", "list", "view", "comment", "close", "list_comments"],
+          "description": "The action to perform on GitHub issues"
+        },
+        "issue_id": {"type": "string", "description": "Issue ID for view, comment, close, list_comments actions"},
+        "title": {"type": "string", "description": "Issue title for create action"},
+        "body": {"type": "string", "description": "Issue body content for create action"},
+        "assignees": {"type": "array", "items": {"type": "string"}, "description": "List of usernames to assign"},
+        "labels": {"type": "array", "items": {"type": "string"}, "description": "List of labels to apply"},
+        "options": {"type": "object", "description": "Additional GitHub API options"},
+        "comment_body": {"type": "string", "description": "Comment content for comment action"}
       },
-      "required": ["content"]
+      "required": ["action"]
     },
     "returns": {
       "type": "object",
       "properties": {
-        "note_id": {"type": "string"},
-        "status": {"type": "string"}
+        "number": {"type": "integer"},
+        "title": {"type": "string"},
+        "html_url": {"type": "string"},
+        "body": {"type": "string"}
       }
     },
     "persistent": true

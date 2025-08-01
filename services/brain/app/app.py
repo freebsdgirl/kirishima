@@ -1,5 +1,5 @@
 """
-This module initializes and configfrom app.message.multiturn import router as message_multiturn_routertAPI application for the "brain" service.
+This module initializes and configures the FastAPI application for the "brain" service.
 
 It includes the following functionalities:
 - Middleware setup:

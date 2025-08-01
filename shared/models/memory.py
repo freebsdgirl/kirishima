@@ -20,6 +20,23 @@ from datetime import datetime
 
 
 class MemorySearch(BaseModel):
+    """
+    Model for searching memory entries with optional filters.
+    Attributes:
+        text (str): Text to search in memory.
+        component (Optional[str]): Filter results by component name.
+        mode (Optional[str]): Filter results by mode.
+        priority (Optional[float]): Filter by priority (range 0-1).
+        limit (Optional[int]): Maximum number of results to return.
+    Example:
+        MemorySearch(
+            text="What is the weather like today?",
+            component="weather",
+            mode="query",
+            priority=0.8,
+            limit=5
+        )
+    """
     text: str                           = Field(..., description="Text to search in memory")
     component: Optional[str]            = Field(None, description="Filter by component")
     mode: Optional[str]                 = Field(None, description="Filter by mode")

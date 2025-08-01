@@ -250,6 +250,15 @@ async def mcp_github_issue(request: MCPToolRequest):
     return await execute_tool_with_dependencies("github_issue", request.parameters)
 
 
+@router.post("/manage_prompt", response_model=MCPToolResponse)
+async def mcp_manage_prompt(request: MCPToolRequest):
+    """
+    MCP endpoint for agent's system prompt management.
+    Internal use only - not available to external clients like Copilot.
+    """
+    return await execute_tool_with_dependencies("manage_prompt", request.parameters)
+
+
 @router.post("/execute", response_model=MCPToolResponse)
 async def execute_tool(request: MCPToolRequest):
     """

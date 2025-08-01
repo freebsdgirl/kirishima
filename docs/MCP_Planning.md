@@ -66,38 +66,42 @@
 - ✅ **Service layer structure** - Created `app/services/mcp/` with proper separation
 - ✅ **JSON-based tool registry** - Moved tool definitions to `mcp_tools.json`
 
-### Phase 2: Tool Dependency Resolution (Priority 2)
-- 🔄 **Add dependency field to tool registry** - Extend `mcp_tools.json` with `depends_on` arrays
-- 🔄 **Implement dependency resolver** - Create service to calculate execution order
-- 🔄 **Update tool execution logic** - Auto-execute dependencies before main tool
-- 🔄 **Test dependency chains** - Validate complex dependency scenarios
+### Phase 2: Tool Dependency Resolution
+- ✅ **Add dependency field to tool registry** - Extended `mcp_tools.json` with `depends_on` arrays
+- ✅ **Implement dependency resolver** - Created service to calculate execution order
+- ✅ **Update tool execution logic** - Auto-execute dependencies before main tool
+- ✅ **Test dependency chains** - Validated complex dependency scenarios
 
-### Phase 3: Client Authentication & Identification (Priority 1) 
-- 🔄 **Create client registry** - Add `.kirishima/mcp_clients.json` with UUID mapping
-- 🔄 **Add authentication middleware** - Validate `X-MCP-Client-ID` header
-- 🔄 **Implement request logging** - Log all tool usage with client attribution
-- 🔄 **Add model-specific tool filtering** - Filter available tools by client model type
+### Phase 3: URL-Based Client Authentication & Identification
+- ✅ **URL-based client endpoints** - Implemented `/mcp/` (internal) and `/mcp/copilot/` (external)
+- ✅ **Client registry system** - Added `mcp_clients.json` with tool filtering by client type
+- ✅ **Tool access control** - Copilot gets curated safe tools, internal gets full access
+- ✅ **Zero-config authentication** - No headers required, URL path determines permissions
 
-### Phase 4: Input Validation & Error Handling (Priority 3)
-- 🔄 **Create validation middleware** - Add FastAPI dependency for request validation
-- 🔄 **Standardize error responses** - Consistent error format across all endpoints
-- 🔄 **Add timeout handling** - Prevent hanging tool executions
-- 🔄 **Implement retry logic** - Handle transient service failures
+### Phase 4: Core Tool Implementation
+- ✅ **Memory tool** - Full CRUD operations (search, create, update, delete, list, get)
+- ✅ **GitHub issue tool** - Issue management with create, view, comment, close, list operations
+- ✅ **Manage prompt tool** - Agent system prompt management (internal only)
+- 🔄 **Additional tool migration** - Gradually expose more existing tools via MCP
 
-### Phase 5: Model-Specific Behavior (Priority 4)
-- 🔄 **Add model behavior configs** - Define tool preferences per model type
-- 🔄 **Implement orchestration transparency** - Add system message injection for Claude
-- 🔄 **Create model-specific prompting** - Adjust instructions based on client model
-- 🔄 **Test cross-model compatibility** - Validate behavior with GPT-4.1, Claude, Mistral
+### Phase 5: Input Validation & Error Handling
+- ✅ **Standardize error responses** - Consistent MCPToolResponse format across all endpoints
+- ✅ **Add timeout handling** - HTTP client timeouts prevent hanging tool executions
+- ✅ **Implement comprehensive logging** - Custom logging module integration throughout
+- 🔄 **Create validation middleware** - Add FastAPI dependency for enhanced request validation
 
-### Phase 6: Intent-Based Orchestration (Separate Initiative)
+### Phase 6: Production Integration & Monitoring
+- 🔄 **Integrate with Kirishima** - Replace tools.json usage with MCP calls in brain service
+- 🔄 **Test with Copilot** - Validate external agent integration in production
+- 🔄 **Performance optimization** - Add caching, connection pooling as needed
+- 🔄 **Documentation & monitoring** - OpenAPI docs, health checks, usage analytics
+
+### Phase 7: Intent-Based Orchestration (Future Initiative)
 - 🔄 **Design intent detection system** - Replace brainlets with intent-based orchestration
 - 🔄 **Create intent resolver service** - Analyze user input and determine required tools
 - 🔄 **Implement pre/post execution hooks** - Maintain brainlet-like functionality
 - 🔄 **Add context injection logic** - Transparent orchestration for different models
 - 🔄 **Migrate existing brainlets** - Convert memory_search, divoom to intent-driven
-
-### Phase 7: Production Integration
 - 🔄 **Integrate with Kirishima** - Replace tools.json usage with MCP calls
 - 🔄 **Test with Copilot** - Validate external agent integration
 - 🔄 **Performance optimization** - Add caching, connection pooling as needed

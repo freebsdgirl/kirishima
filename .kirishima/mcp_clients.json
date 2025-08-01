@@ -7,7 +7,7 @@
   "copilot": {
     "description": "GitHub Copilot - curated safe tools with generous permissions",
     "allowed_tools": ["memory", "github_issue"],
-    "restricted_tools": ["system_admin", "docker_control", "service_restart"]
+    "restricted_tools": ["manage_prompt", "system_admin", "docker_control", "service_restart"]
   },
   "external": {
     "description": "Generic external clients - minimal safe tools",

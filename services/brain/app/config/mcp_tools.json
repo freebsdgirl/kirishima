@@ -105,5 +105,46 @@
       }
     },
     "persistent": true
+  },
+  "manage_prompt": {
+    "description": "Manage agent's system prompts - add, delete, or list prompt entries (internal use only)",
+    "depends_on": [],
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": ["add", "delete", "list"],
+          "description": "Action to perform: add, delete, or list"
+        },
+        "prompt_id": {
+          "type": "string",
+          "description": "ID of the prompt to delete (required for delete action)"
+        },
+        "prompt_text": {
+          "type": "string",
+          "description": "Text content of the prompt (required for add action)"
+        },
+        "reasoning": {
+          "type": "string",
+          "description": "Reasoning for the prompt change (required for add action)"
+        }
+      },
+      "required": ["action"]
+    },
+    "returns": {
+      "type": "object",
+      "properties": {
+        "status": {"type": "string"},
+        "action": {"type": "string"},
+        "id": {"type": "string"},
+        "prompts": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Array of compact prompt strings in format: id|prompt_text"
+        }
+      }
+    },
+    "persistent": true
   }
 }

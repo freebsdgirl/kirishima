@@ -19,7 +19,8 @@ async def execute_tool_with_dependencies(tool_name: str, parameters: dict, tool_
     module_mapping = {
         "github_issue": "github_issue",
         "memory": "memory",
-        "manage_prompt": "manage_prompt"
+        "manage_prompt": "manage_prompt",
+        "email": "email"
     }
     
     # Get the module name

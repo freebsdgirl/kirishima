@@ -146,5 +146,49 @@
       }
     },
     "persistent": true
+  },
+  "email": {
+    "description": "Create email drafts via Gmail (creates drafts for safety, never sends directly)",
+    "depends_on": [],
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": ["send"],
+          "description": "The action to perform (only 'send' supported, creates draft for safety)"
+        },
+        "to": {
+          "type": "string",
+          "description": "Recipient email address"
+        },
+        "subject": {
+          "type": "string",
+          "description": "Email subject line"
+        },
+        "content": {
+          "type": "string",
+          "description": "Email body content"
+        },
+        "from_email": {
+          "type": "string",
+          "description": "Sender email address (optional)"
+        },
+        "cc": {
+          "type": "string",
+          "description": "CC recipient email address (optional)"
+        }
+      },
+      "required": ["action", "to", "subject", "content"]
+    },
+    "returns": {
+      "type": "object",
+      "properties": {
+        "status": {"type": "string"},
+        "message": {"type": "string"},
+        "draft_id": {"type": "string"}
+      }
+    },
+    "persistent": true
   }
 }

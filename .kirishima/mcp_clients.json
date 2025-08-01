@@ -6,7 +6,7 @@
   },
   "copilot": {
     "description": "GitHub Copilot - curated safe tools with generous permissions",
-    "allowed_tools": ["memory", "github_issue"],
+    "allowed_tools": ["memory", "github_issue", "email"],
     "restricted_tools": ["manage_prompt", "system_admin", "docker_control", "service_restart"]
   },
   "external": {

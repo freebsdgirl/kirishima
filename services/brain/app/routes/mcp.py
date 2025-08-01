@@ -259,6 +259,15 @@ async def mcp_manage_prompt(request: MCPToolRequest):
     return await execute_tool_with_dependencies("manage_prompt", request.parameters)
 
 
+@router.post("/email", response_model=MCPToolResponse)
+async def mcp_email(request: MCPToolRequest):
+    """
+    MCP endpoint for email operations.
+    Supports draft, send, search, and list actions.
+    """
+    return await execute_tool_with_dependencies("email", request.parameters)
+
+
 @router.post("/execute", response_model=MCPToolResponse)
 async def execute_tool(request: MCPToolRequest):
     """

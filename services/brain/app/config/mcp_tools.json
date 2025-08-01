@@ -1,20 +1,75 @@
 {
-  "memory_search": {
-    "description": "Search for relevant memories based on keywords, categories, or context",
+  "memory": {
+    "description": "Comprehensive memory management - search, create, update, delete, list memories",
     "depends_on": [],
     "parameters": {
       "type": "object",
       "properties": {
-        "query": {"type": "string", "description": "Search query or keywords"},
-        "limit": {"type": "integer", "description": "Maximum number of results", "default": 10}
+        "action": {
+          "type": "string",
+          "enum": ["search", "create", "update", "delete", "list", "get"],
+          "description": "The action to perform: search, create, update, delete, list, or get"
+        },
+        "keywords": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Keywords to search for (search action)"
+        },
+        "category": {
+          "type": "string",
+          "description": "Category filter for search or category for new memory"
+        },
+        "topic_id": {
+          "type": "string",
+          "description": "Topic ID filter for search or topic assignment"
+        },
+        "memory_id": {
+          "type": "string",
+          "description": "Memory ID for get, update, or delete actions"
+        },
+        "memory": {
+          "type": "string",
+          "description": "Memory text content for create or update actions"
+        },
+        "min_keywords": {
+          "type": "integer",
+          "description": "Minimum matching keywords for search (default: 2)",
+          "default": 2
+        },
+        "created_after": {
+          "type": "string",
+          "description": "ISO timestamp - return memories created after this time"
+        },
+        "created_before": {
+          "type": "string",
+          "description": "ISO timestamp - return memories created before this time"
+        },
+        "limit": {
+          "type": "integer",
+          "description": "Maximum number of results for list/search (default: 10)",
+          "default": 10
+        },
+        "offset": {
+          "type": "integer",
+          "description": "Offset for pagination in list action (default: 0)",
+          "default": 0
+        }
       },
-      "required": ["query"]
+      "required": ["action"]
     },
     "returns": {
       "type": "object",
       "properties": {
-        "memories": {"type": "array", "items": {"type": "object"}},
-        "count": {"type": "integer"}
+        "status": {"type": "string"},
+        "memories": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Array of compact memory strings in format: id|timestamp|memory_text"
+        },
+        "count": {
+          "type": "integer", 
+          "description": "Number of memories returned"
+        }
       }
     },
     "persistent": false

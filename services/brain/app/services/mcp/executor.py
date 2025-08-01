@@ -2,23 +2,23 @@
 Tool execution service with dependency resolution.
 """
 
-import logging
 from typing import Dict, Any, List
 from shared.models.mcp import MCPToolResponse
 from app.services.mcp.dependencies import resolve_dependencies, DependencyError
 from app.services.mcp.registry import is_tool_available
 
-logger = logging.getLogger(__name__)
+from shared.log_config import get_logger
+logger = get_logger(f"brain.{__name__}")
 
 
-async def execute_tool_with_dependencies(tool_name: str, parameters: dict, tool_registry: dict) -> MCPToolResponse:
+async def execute_tool_with_dependencies(tool_name: str, parameters: dict, tool_registry: dict = None) -> MCPToolResponse:
     """Execute a tool with automatic dependency resolution."""
     logger.info(f"Executing tool: {tool_name}")
     
     # Map tool names to module names (in case they differ)
     module_mapping = {
         "github_issue": "github_issue",
-        "memory_search": "memory_search"
+        "memory": "memory"
     }
     
     # Get the module name
@@ -28,7 +28,10 @@ async def execute_tool_with_dependencies(tool_name: str, parameters: dict, tool_
         # Dynamic import based on tool name
         module_path = f"app.services.mcp.{module_name}"
         module = __import__(module_path, fromlist=[module_name])
-        tool_function = getattr(module, module_name)
+        
+        # For memory tool, the function is named 'memory', for others it matches the tool name
+        function_name = "memory" if tool_name == "memory" else tool_name
+        tool_function = getattr(module, function_name)
         
         # Call the async function
         return await tool_function(parameters)

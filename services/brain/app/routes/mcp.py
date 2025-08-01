@@ -6,10 +6,8 @@ to discover and call Brain's tools in a standardized way.
 
 Key endpoints:
 - GET /mcp/tools - Dynamic tool discovery
-- POST /mcp/memory_search - Ephemeral memory search
-- POST /mcp/add_stickynote - Persistent stickynote creation
-- POST /mcp/get_personality_context - Personality context retrieval
-- POST /mcp/create_github_issue - GitHub issue creation (with dependencies)
+- POST /mcp/memory - Comprehensive memory management (search, create, update, delete, list, get)
+- POST /mcp/github_issue - GitHub issue management (create, view, comment, close, list)
 - POST /mcp/execute - Generic tool execution with dependency resolution
 - GET /mcp/validate - Dependency validation
 """
@@ -135,37 +133,21 @@ async def get_tools():
     return MCPToolsResponse(tools=tools)
 
 
-@router.post("/memory_search", response_model=MCPToolResponse)
-async def mcp_memory_search(request: MCPToolRequest):
+@router.post("/memory", response_model=MCPToolResponse)
+async def mcp_memory(request: MCPToolRequest):
     """
-    MCP endpoint for memory search. Calls the existing memory_search brainlet.
-    This is an ephemeral tool - results are not logged to ledger.
+    MCP endpoint for comprehensive memory management.
+    Supports search, create, update, delete, list, and get operations.
     """
-    return await execute_tool_with_dependencies("memory_search", request.parameters)
+    return await execute_tool_with_dependencies("memory", request.parameters)
 
 
-@router.post("/add_stickynote", response_model=MCPToolResponse)
-async def mcp_add_stickynote(request: MCPToolRequest):
+@router.post("/github_issue", response_model=MCPToolResponse)
+async def mcp_github_issue(request: MCPToolRequest):
     """
-    MCP endpoint for adding sticky notes. This is a persistent tool.
+    MCP endpoint for GitHub issue management.
     """
-    return await execute_tool_with_dependencies("add_stickynote", request.parameters)
-
-
-@router.post("/get_personality_context", response_model=MCPToolResponse)
-async def mcp_get_personality_context(request: MCPToolRequest):
-    """
-    MCP endpoint for retrieving personality context. Ephemeral tool.
-    """
-    return await execute_tool_with_dependencies("get_personality_context", request.parameters)
-
-
-@router.post("/create_github_issue", response_model=MCPToolResponse)
-async def mcp_create_github_issue(request: MCPToolRequest):
-    """
-    MCP endpoint for creating GitHub issues. Depends on personality context.
-    """
-    return await execute_tool_with_dependencies("create_github_issue", request.parameters)
+    return await execute_tool_with_dependencies("github_issue", request.parameters)
 
 
 @router.post("/execute", response_model=MCPToolResponse)

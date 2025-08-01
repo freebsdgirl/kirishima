@@ -14,7 +14,13 @@ Key endpoints:
 
 from fastapi import APIRouter, HTTPException
 from shared.models.mcp import MCPToolsResponse, MCPToolRequest, MCPToolResponse
-from app.services.mcp.registry import get_available_tools, is_tool_available, _load_tool_registry
+from app.services.mcp.registry import (
+    get_available_tools, 
+    get_available_tools_for_client,
+    is_tool_available, 
+    is_tool_available_for_client,
+    _load_tool_registry
+)
 from app.services.mcp.executor import execute_tool_with_dependencies
 from app.services.mcp.dependencies import validate_all_dependencies
 
@@ -104,6 +110,90 @@ async def mcp_handler(request: dict):
         }
 
 
+@router.post("/copilot/")
+async def mcp_copilot_handler(request: dict):
+    """
+    MCP protocol handler for GitHub Copilot with filtered tools.
+    Same protocol as main MCP endpoint but with restricted tool access.
+    """
+    method = request.get("method")
+    params = request.get("params", {})
+    request_id = request.get("id")
+    
+    if method == "initialize":
+        return {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "result": {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {
+                    "tools": {}
+                },
+                "serverInfo": {
+                    "name": "kirishima-brain-copilot",
+                    "version": "1.0.0"
+                }
+            }
+        }
+    
+    elif method == "tools/list":
+        tools = get_available_tools_for_client("copilot")
+        return {
+            "jsonrpc": "2.0", 
+            "id": request_id,
+            "result": {
+                "tools": [
+                    {
+                        "name": tool.name,
+                        "description": tool.description,
+                        "inputSchema": tool.parameters
+                    } for tool in tools
+                ]
+            }
+        }
+    
+    elif method == "tools/call":
+        tool_name = params.get("name")
+        arguments = params.get("arguments", {})
+        
+        if not is_tool_available_for_client(tool_name, "copilot"):
+            return {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "error": {
+                    "code": -32601,
+                    "message": f"Tool '{tool_name}' not found or not authorized for Copilot"
+                }
+            }
+        
+        tool_registry = _load_tool_registry()
+        result = await execute_tool_with_dependencies(tool_name, arguments, tool_registry)
+        
+        return {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "result": {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": str(result.result) if result.success else result.error
+                    }
+                ],
+                "isError": not result.success
+            }
+        }
+    
+    else:
+        return {
+            "jsonrpc": "2.0",
+            "id": request_id, 
+            "error": {
+                "code": -32601,
+                "message": f"Method '{method}' not found"
+            }
+        }
+
+
 @router.get("/")
 async def mcp_server_info():
     """MCP server information endpoint."""
@@ -130,6 +220,16 @@ async def get_tools():
     This allows agents to discover what tools are available at runtime.
     """
     tools = get_available_tools()
+    return MCPToolsResponse(tools=tools)
+
+
+@router.get("/copilot/tools", response_model=MCPToolsResponse)
+async def get_copilot_tools():
+    """
+    Return the list of tools available to GitHub Copilot.
+    Filtered subset of tools safe for external agent use.
+    """
+    tools = get_available_tools_for_client("copilot")
     return MCPToolsResponse(tools=tools)
 
 

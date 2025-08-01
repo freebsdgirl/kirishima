@@ -1,0 +1,17 @@
+{
+  "internal": {
+    "description": "Internal Kirishima requests - full tool access",
+    "allowed_tools": ["*"],
+    "restricted_tools": []
+  },
+  "copilot": {
+    "description": "GitHub Copilot - curated safe tools with generous permissions",
+    "allowed_tools": ["memory", "github_issue"],
+    "restricted_tools": ["system_admin", "docker_control", "service_restart"]
+  },
+  "external": {
+    "description": "Generic external clients - minimal safe tools",
+    "allowed_tools": ["memory"],
+    "restricted_tools": ["github_issue", "system_admin", "docker_control"]
+  }
+}

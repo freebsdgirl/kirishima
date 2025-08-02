@@ -364,13 +364,18 @@ def complete_task(task_id: str, task_list_id: Optional[str] = None) -> TasksResp
             next_due = calculate_next_due_date(current_due, rrule)
             
             if next_due:
-                # Update due date
+                # Update due date while preserving metadata
                 next_due_datetime = f"{next_due}T00:00:00.000Z"
+                
+                # Recreate metadata with updated due time if needed
+                preserved_notes = create_kirishima_metadata(due_time, rrule, user_notes)
                 
                 task_body = {
                     'id': task_id,  # Include task ID in body
+                    'title': current_task.get('title', ''),  # Preserve title
                     'due': next_due_datetime,
-                    'status': 'needsAction'  # Reset to needsAction
+                    'status': 'needsAction',  # Reset to needsAction
+                    'notes': preserved_notes  # Preserve Kirishima metadata
                 }
                 
                 result = service.tasks().update(

@@ -286,6 +286,24 @@ async def mcp_contacts(request: MCPToolRequest):
     return await execute_tool_with_dependencies("contacts", request.parameters)
 
 
+@router.post("/stickynotes", response_model=MCPToolResponse)
+async def mcp_stickynotes(request: MCPToolRequest):
+    """
+    MCP endpoint for stickynotes operations (default task list).
+    Supports list, create, update, complete, and delete actions.
+    """
+    return await execute_tool_with_dependencies("stickynotes", request.parameters)
+
+
+@router.post("/lists", response_model=MCPToolResponse)
+async def mcp_lists(request: MCPToolRequest):
+    """
+    MCP endpoint for task list management operations.
+    Supports list_task_lists, create_task_list, delete_task_list, list_tasks, create_task, and delete_task actions.
+    """
+    return await execute_tool_with_dependencies("lists", request.parameters)
+
+
 @router.post("/execute", response_model=MCPToolResponse)
 async def execute_tool(request: MCPToolRequest):
     """

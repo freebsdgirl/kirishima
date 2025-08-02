@@ -365,5 +365,111 @@
       }
     },
     "persistent": true
+  },
+  "stickynotes": {
+    "description": "Default task list operations - create, list, update, complete, and delete tasks with recurring support via Google Tasks",
+    "depends_on": [],
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": ["list", "create", "update", "complete", "delete"],
+          "description": "The action to perform: list, create, update, complete, or delete"
+        },
+        "task_id": {
+          "type": "string",
+          "description": "Task ID (required for update, complete, delete actions)"
+        },
+        "title": {
+          "type": "string",
+          "description": "Task title (required for create, optional for update)"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Task notes/description (optional for create/update)"
+        },
+        "due": {
+          "type": "string",
+          "description": "Due date/time in YYYY-MM-DD or YYYY-MM-DD HH:MM format (optional for create/update)"
+        },
+        "rrule": {
+          "type": "string",
+          "description": "RFC 5545 RRULE for recurring tasks, e.g. 'FREQ=DAILY;INTERVAL=1' (optional for create/update)"
+        }
+      },
+      "required": ["action"]
+    },
+    "returns": {
+      "type": "object",
+      "properties": {
+        "status": {"type": "string"},
+        "message": {"type": "string"},
+        "count": {"type": "integer"},
+        "task_id": {"type": "string"},
+        "tasks": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Array of formatted task strings with ID, title, status, due date, and notes"
+        }
+      }
+    },
+    "persistent": true
+  },
+  "lists": {
+    "description": "Task list management - create, delete task lists and manage tasks within specific lists",
+    "depends_on": [],
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": ["list_task_lists", "create_task_list", "delete_task_list", "list_tasks", "create_task", "delete_task"],
+          "description": "The action to perform on task lists or tasks within lists"
+        },
+        "task_list_id": {
+          "type": "string",
+          "description": "Task list ID (required for delete_task_list, list_tasks, create_task, delete_task actions)"
+        },
+        "task_id": {
+          "type": "string",
+          "description": "Task ID (required for delete_task action)"
+        },
+        "title": {
+          "type": "string",
+          "description": "Title for task list (create_task_list) or task (create_task)"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Task notes/description (optional for create_task)"
+        },
+        "due": {
+          "type": "string",
+          "description": "Due date in YYYY-MM-DD format (optional for create_task)"
+        }
+      },
+      "required": ["action"]
+    },
+    "returns": {
+      "type": "object",
+      "properties": {
+        "status": {"type": "string"},
+        "message": {"type": "string"},
+        "count": {"type": "integer"},
+        "task_list_id": {"type": "string"},
+        "task_id": {"type": "string"},
+        "task_lists": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Array of formatted task list strings with ID, title, and updated date"
+        },
+        "tasks": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Array of formatted task strings with ID, title, status, and due date"
+        }
+      }
+    },
+    "persistent": true
   }
 }

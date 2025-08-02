@@ -357,31 +357,4 @@ async def get_cache_stats_endpoint():
         raise HTTPException(status_code=500, detail=f"Failed to get cache statistics: {str(e)}")
 
 
-@router.post("/webhook/notifications")
-async def handle_push_notifications_endpoint(request: Request):
-    """Handle incoming push notifications (deprecated - now using cache)."""
-    return Response(status_code=200, content="OK")  # Just acknowledge
 
-
-# Webhook endpoint for push notifications  
-@router.post("/webhook/notifications")
-async def handle_calendar_notification_endpoint(request: Request):
-    """Handle incoming calendar push notifications."""
-    try:
-        # Extract headers
-        headers = dict(request.headers)
-        
-        # Get request body (usually empty for calendar notifications)
-        body = await request.body()
-        body_str = body.decode('utf-8') if body else ""
-        
-        # Process the notification
-        result = await handle_calendar_notification(headers, body_str)
-        
-        # Return success response to Google
-        return Response(status_code=200, content="OK")
-        
-    except Exception as e:
-        logger.error(f"Failed to handle calendar notification: {e}")
-        # Return success to avoid Google retrying
-        return Response(status_code=200, content="OK")

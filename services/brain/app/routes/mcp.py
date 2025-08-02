@@ -268,6 +268,15 @@ async def mcp_email(request: MCPToolRequest):
     return await execute_tool_with_dependencies("email", request.parameters)
 
 
+@router.post("/calendar", response_model=MCPToolResponse)
+async def mcp_calendar(request: MCPToolRequest):
+    """
+    MCP endpoint for calendar operations.
+    Supports create_event, search_events, get_upcoming, delete_event, and list_events actions.
+    """
+    return await execute_tool_with_dependencies("calendar", request.parameters)
+
+
 @router.post("/execute", response_model=MCPToolResponse)
 async def execute_tool(request: MCPToolRequest):
     """

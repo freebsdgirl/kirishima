@@ -162,17 +162,6 @@ async def get_today_events_endpoint():
         raise HTTPException(status_code=500, detail=f"Failed to get today's events: {str(e)}")
 
 
-@router.get("/events/{event_id}", response_model=CalendarEvent)
-async def get_event_endpoint(event_id: str):
-    """Get a specific event by ID."""
-    try:
-        event = get_event(event_id)
-        return event
-    except Exception as e:
-        logger.error(f"Failed to get event {event_id}: {e}")
-        raise HTTPException(status_code=404, detail=f"Event not found: {str(e)}")
-
-
 # Search endpoints
 @router.post("/events/search", response_model=EventsListResponse)
 async def search_events_endpoint(request: SearchEventsRequest):
@@ -218,6 +207,17 @@ async def get_events_by_date_range_endpoint(start_date: str, end_date: str, max_
     except Exception as e:
         logger.error(f"Failed to get events by date range: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get events by date range: {str(e)}")
+
+
+@router.get("/events/{event_id}", response_model=CalendarEvent)
+async def get_event_endpoint(event_id: str):
+    """Get a specific event by ID."""
+    try:
+        event = get_event(event_id)
+        return event
+    except Exception as e:
+        logger.error(f"Failed to get event {event_id}: {e}")
+        raise HTTPException(status_code=404, detail=f"Event not found: {str(e)}")
 # Calendar management endpoints
 @router.get("/calendars", response_model=CalendarListResponse)
 async def get_calendar_list_endpoint():

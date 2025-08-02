@@ -20,7 +20,7 @@ def _load_tool_registry() -> Dict[str, Any]:
 def _load_client_registry() -> Dict[str, Any]:
     """Load client configuration from JSON file."""
     try:
-        with open('/app/config/mcp_clients.json', 'r') as f:
+        with open('/app/app/config/mcp_clients.json', 'r') as f:
             return json.load(f)
     except FileNotFoundError:
         # Fallback to default internal-only access

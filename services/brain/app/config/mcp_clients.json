@@ -1,0 +1,28 @@
+{
+  "internal": {
+    "allowed_tools": ["*"],
+    "restricted_tools": []
+  },
+  "copilot": {
+    "allowed_tools": [
+      "lists",
+      "stickynotes", 
+      "github_issue"
+    ],
+    "restricted_tools": []
+  },
+  "external": {
+    "allowed_tools": [
+      "memory",
+      "calendar", 
+      "contacts"
+    ],
+    "restricted_tools": [
+      "github_issue",
+      "manage_prompt",
+      "stickynotes",
+      "lists",
+      "email"
+    ]
+  }
+}

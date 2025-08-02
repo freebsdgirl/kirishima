@@ -21,7 +21,8 @@ async def execute_tool_with_dependencies(tool_name: str, parameters: dict, tool_
         "memory": "memory",
         "manage_prompt": "manage_prompt",
         "email": "email",
-        "calendar": "calendar"
+        "calendar": "calendar",
+        "contacts": "contacts"
     }
     
     # Get the module name

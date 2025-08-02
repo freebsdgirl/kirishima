@@ -17,14 +17,27 @@ All endpoints handle exceptions and return appropriate HTTP error responses.
 from fastapi import APIRouter, HTTPException, status
 from typing import Optional
 
-from shared.models.googleapi import GoogleContact, ContactsListResponse, RefreshCacheResponse, CreateContactRequest, CreateContactResponse
+from shared.models.googleapi import (
+    GoogleContact, 
+    ContactsListResponse, 
+    RefreshCacheResponse, 
+    CreateContactRequest, 
+    CreateContactResponse,
+    SearchContactsRequest,
+    ContactResponse,
+    UpdateContactRequest,
+    DeleteContactRequest
+)
 from app.services.contacts.contacts import (
     get_admin_contact,
     get_contact_by_email,
     list_all_contacts,
     refresh_contacts_cache,
     get_contacts_cache_status,
-    create_contact
+    create_contact,
+    search_contacts,
+    update_contact,
+    delete_contact
 )
 
 from shared.log_config import get_logger
@@ -234,4 +247,114 @@ async def create_contact_endpoint(request: CreateContactRequest):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create contact: {str(e)}"
+        )
+
+
+@router.post("/search", response_model=ContactResponse)
+async def search_contacts_endpoint(request: SearchContactsRequest):
+    """
+    Search contacts by query string.
+    
+    Args:
+        request: The search request with query and max_results
+        
+    Returns:
+        ContactResponse: Search results
+        
+    Raises:
+        HTTPException: 400 for validation errors, 500 for other errors
+    """
+    try:
+        logger.info(f"Searching contacts with query: {request.query}")
+        
+        response = search_contacts(request)
+        
+        logger.info(f"Search completed: {response.message}")
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error searching contacts: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to search contacts: {str(e)}"
+        )
+
+
+@router.put("/update", response_model=ContactResponse)
+async def update_contact_endpoint(request: UpdateContactRequest):
+    """
+    Update an existing contact.
+    
+    Args:
+        request: The update request with contact identifier and fields to update
+        
+    Returns:
+        ContactResponse: Update results
+        
+    Raises:
+        HTTPException: 404 if contact not found, 400 for validation errors, 500 for other errors
+    """
+    try:
+        logger.info(f"Updating contact: {request.contact_identifier}")
+        
+        response = update_contact(request)
+        
+        if not response.success:
+            if "not found" in response.message.lower():
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=response.message
+                )
+        
+        logger.info(f"Update completed: {response.message}")
+        return response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating contact: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update contact: {str(e)}"
+        )
+
+
+@router.delete("/delete/{contact_identifier}", response_model=ContactResponse)
+async def delete_contact_endpoint(contact_identifier: str):
+    """
+    Delete a contact by identifier.
+    
+    Args:
+        contact_identifier: The contact identifier (email, name, or contact ID)
+        
+    Returns:
+        ContactResponse: Delete results
+        
+    Raises:
+        HTTPException: 404 if contact not found, 400 for validation errors, 500 for other errors
+    """
+    try:
+        logger.info(f"Deleting contact: {contact_identifier}")
+        
+        # Create the delete request object
+        request = DeleteContactRequest(contact_identifier=contact_identifier)
+        response = delete_contact(request)
+        
+        if not response.success:
+            if "not found" in response.message.lower():
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=response.message
+                )
+        
+        logger.info(f"Delete completed: {response.message}")
+        return response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting contact: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete contact: {str(e)}"
         )

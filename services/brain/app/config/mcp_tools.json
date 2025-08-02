@@ -277,5 +277,93 @@
       }
     },
     "persistent": true
+  },
+  "contacts": {
+    "description": "Manage Google Contacts - get, list, search, create, update, and delete contacts",
+    "depends_on": [],
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": ["get_contact", "list_contacts", "search_contacts", "create_contact", "update_contact", "delete_contact"],
+          "description": "The contacts action to perform"
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address or contact identifier (required for get_contact)"
+        },
+        "query": {
+          "type": "string", 
+          "description": "Search query for matching contacts (required for search_contacts)"
+        },
+        "max_results": {
+          "type": "integer",
+          "default": 25,
+          "description": "Maximum number of results to return (optional for search_contacts)"
+        },
+        "contact_identifier": {
+          "type": "string",
+          "description": "Contact identifier - email, name, or ID (required for update_contact, delete_contact)"
+        },
+        "display_name": {
+          "type": "string",
+          "description": "Full display name for the contact (optional for create/update)"
+        },
+        "given_name": {
+          "type": "string", 
+          "description": "First/given name (optional for create/update)"
+        },
+        "family_name": {
+          "type": "string",
+          "description": "Last/family name (optional for create/update)"
+        },
+        "middle_name": {
+          "type": "string",
+          "description": "Middle name (optional for create/update)"
+        },
+        "email_addresses": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "value": {"type": "string", "description": "Email address"},
+              "type": {"type": "string", "enum": ["work", "home", "other"], "default": "other"}
+            },
+            "required": ["value"]
+          },
+          "description": "Array of email addresses (optional for create/update)"
+        },
+        "phone_numbers": {
+          "type": "array", 
+          "items": {
+            "type": "object",
+            "properties": {
+              "value": {"type": "string", "description": "Phone number"},
+              "type": {"type": "string", "enum": ["work", "home", "mobile", "other"], "default": "other"}
+            },
+            "required": ["value"]
+          },
+          "description": "Array of phone numbers (optional for create/update)"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Notes or biography for the contact (optional for create/update)"
+        }
+      },
+      "required": ["action"]
+    },
+    "returns": {
+      "type": "object",
+      "properties": {
+        "status": {"type": "string"},
+        "message": {"type": "string"},
+        "count": {"type": "integer"},
+        "contact_info": {"type": "string"},
+        "contacts_info": {"type": "string"},
+        "resource_name": {"type": "string"}
+      }
+    },
+    "persistent": true
   }
 }

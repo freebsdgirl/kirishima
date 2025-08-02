@@ -277,6 +277,15 @@ async def mcp_calendar(request: MCPToolRequest):
     return await execute_tool_with_dependencies("calendar", request.parameters)
 
 
+@router.post("/contacts", response_model=MCPToolResponse)
+async def mcp_contacts(request: MCPToolRequest):
+    """
+    MCP endpoint for contacts operations.
+    Supports get_contact, list_contacts, search_contacts, create_contact, update_contact, and delete_contact actions.
+    """
+    return await execute_tool_with_dependencies("contacts", request.parameters)
+
+
 @router.post("/execute", response_model=MCPToolResponse)
 async def execute_tool(request: MCPToolRequest):
     """

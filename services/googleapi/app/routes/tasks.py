@@ -16,7 +16,7 @@ from shared.models.googleapi import (
 
 from app.services.tasks.tasks import (
     create_task_list, list_task_lists, delete_task_list,
-    create_task, list_stickynotes_tasks, update_task, 
+    create_task, list_stickynotes_tasks, list_tasks_in_list, update_task, 
     complete_task, delete_task, get_due_tasks
 )
 from app.services.tasks.auth import validate_tasks_access
@@ -52,6 +52,12 @@ async def add_task_to_list(task_list_id: str, request: CreateTaskRequest):
     """Add a task to a specific task list."""
     request.task_list_id = task_list_id
     return create_task(request)
+
+
+@router.get("/tasklists/{task_list_id}/tasks", response_model=List[TaskModel])
+async def list_tasks_in_task_list(task_list_id: str):
+    """List all tasks in a specific task list."""
+    return list_tasks_in_list(task_list_id)
 
 
 @router.delete("/tasklists/{task_list_id}/tasks/{task_id}", response_model=TasksResponse)

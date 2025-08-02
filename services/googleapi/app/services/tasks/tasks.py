@@ -263,6 +263,52 @@ def list_stickynotes_tasks() -> List[TaskModel]:
         return []
 
 
+def list_tasks_in_list(task_list_id: str) -> List[TaskModel]:
+    """
+    List all tasks in a specific task list.
+    
+    Args:
+        task_list_id (str): ID of the task list
+    
+    Returns:
+        List[TaskModel]: List of tasks with parsed metadata
+    """
+    try:
+        service = get_tasks_service()
+        
+        result = service.tasks().list(
+            tasklist=task_list_id,
+            showCompleted=True,
+            showHidden=True
+        ).execute()
+        
+        tasks = result.get('items', [])
+        task_models = []
+        
+        for task in tasks:
+            # Parse Kirishima metadata
+            user_notes, due_time, rrule = parse_kirishima_metadata(task.get('notes'))
+            
+            task_model = TaskModel(
+                id=task['id'],
+                title=task['title'],
+                notes=user_notes,
+                status=task.get('status', 'needsAction'),
+                due=task.get('due'),
+                completed=task.get('completed'),
+                updated=task.get('updated'),
+                kirishima_due_time=due_time,
+                kirishima_rrule=rrule
+            )
+            task_models.append(task_model)
+        
+        return task_models
+        
+    except Exception as e:
+        logger.error(f"Failed to list tasks in list {task_list_id}: {e}")
+        return []
+
+
 def update_task(task_id: str, request: UpdateTaskRequest, task_list_id: Optional[str] = None) -> TasksResponse:
     """
     Update an existing task.

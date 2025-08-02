@@ -1,14 +1,14 @@
 """
-MCP lists tool - Task list management operations via Google Tasks API.
+MCP lists tool - Simple list management operations via Google Tasks API.
 
-This module provides task list management functionality via the MCP (Model Context Protocol) service.
-It supports the following operations on Google Tasks lists:
-- list_task_lists: List all available task lists (excluding stickynotes)
-- create_task_list: Create a new task list
-- delete_task_list: Delete a task list (cannot delete stickynotes)
-- list_tasks: List tasks in a specific task list
-- create_task: Create a task in a specific task list
-- delete_task: Delete a task from a specific task list
+This module provides simple list management functionality via the MCP (Model Context Protocol) service.
+It supports the following operations using Google Tasks as a convenient CRUD interface:
+- list_lists: List all available lists (excluding stickynotes)
+- create_list: Create a new list
+- delete_list: Delete a list (cannot delete stickynotes)  
+- list_items: List items in a specific list
+- add_item: Add an item to a specific list
+- remove_item: Remove an item from a specific list
 
 Each operation communicates with the googleapi service and returns a standardized
 MCPToolResponse with user-friendly messages and token-efficient formatted strings.
@@ -26,89 +26,66 @@ logger = get_logger(f"brain.{__name__}")
 GOOGLEAPI_BASE_URL = os.getenv("GOOGLEAPI_BASE_URL", "http://googleapi:4215")
 
 
-def format_task_list_info(task_list: Dict[str, Any]) -> str:
+def format_list_info(task_list: Dict[str, Any]) -> str:
     """
-    Format task list information into a compact, token-efficient string.
+    Format list information into a compact string.
     
     Args:
         task_list: Task list data from Google Tasks API
         
     Returns:
-        str: Formatted task list string
+        str: Formatted string as "id|title"
     """
     list_id = task_list.get('id', 'N/A')
     title = task_list.get('title', 'Untitled')
-    updated = task_list.get('updated', '')
-    
-    # Format update time
-    if updated:
-        updated_str = updated[:10] if len(updated) > 10 else updated
-        return f"ID: {list_id} | Title: {title} | Updated: {updated_str}"
-    else:
-        return f"ID: {list_id} | Title: {title}"
+    return f"{list_id}|{title}"
 
 
-def format_task_info(task: Dict[str, Any]) -> str:
+def format_item_info(item: Dict[str, Any]) -> str:
     """
-    Format task information into a compact, token-efficient string.
+    Format item information into a compact string.
     
     Args:
-        task: Task data from Google Tasks API
+        item: Item data from Google Tasks API
         
     Returns:
-        str: Formatted task string
+        str: Formatted string as "id|title"
     """
-    task_id = task.get('id', 'N/A')
-    title = task.get('title', 'Untitled')
-    status = task.get('status', 'needsAction')
-    due_date = task.get('due', '')
-    notes = task.get('notes', '')
-    
-    # Build formatted string
-    parts = [f"ID: {task_id}", f"Title: {title}", f"Status: {status}"]
-    
-    if due_date:
-        due_str = due_date[:10] if len(due_date) > 10 else due_date
-        parts.append(f"Due: {due_str}")
-    
-    if notes and len(notes) > 0:
-        # Truncate notes if too long
-        notes_truncated = notes[:100] + "..." if len(notes) > 100 else notes
-        parts.append(f"Notes: {notes_truncated}")
-    
-    return " | ".join(parts)
+    item_id = item.get('id', 'N/A')
+    title = item.get('title', 'Untitled')
+    return f"{item_id}|{title}"
 
 
 async def lists(parameters: Dict[str, Any]) -> MCPToolResponse:
     """
-    Task lists operations via MCP.
-    Supports task list management and operations on tasks within specific lists.
+    List management operations via MCP.
+    Supports simple list management using Google Tasks API as a convenient CRUD interface.
     
     Actions:
-    - list_task_lists: List all available task lists (excluding stickynotes)
-    - create_task_list: Create a new task list (requires title)
-    - delete_task_list: Delete a task list (requires task_list_id, cannot delete stickynotes)
-    - list_tasks: List tasks in a specific task list (requires task_list_id)
-    - create_task: Create task in specific task list (requires task_list_id, title)
-    - delete_task: Delete task from specific task list (requires task_list_id, task_id)
+    - list_lists: List all available lists (excluding stickynotes)
+    - create_list: Create a new list (requires title)
+    - delete_list: Delete a list (requires list_id, cannot delete stickynotes)
+    - list_items: List items in a specific list (requires list_id)
+    - add_item: Add item to specific list (requires list_id, title)
+    - remove_item: Remove item from specific list (requires list_id, item_id)
     """
     try:
         action = parameters.get("action")
         if not action:
             return MCPToolResponse(success=False, result={}, error="Action is required")
         
-        if action == "list_task_lists":
-            return await _lists_list_task_lists(parameters)
-        elif action == "create_task_list":
-            return await _lists_create_task_list(parameters)
-        elif action == "delete_task_list":
-            return await _lists_delete_task_list(parameters)
-        elif action == "list_tasks":
-            return await _lists_list_tasks(parameters)
-        elif action == "create_task":
-            return await _lists_create_task(parameters)
-        elif action == "delete_task":
-            return await _lists_delete_task(parameters)
+        if action == "list_lists":
+            return await _lists_list_lists(parameters)
+        elif action == "create_list":
+            return await _lists_create_list(parameters)
+        elif action == "delete_list":
+            return await _lists_delete_list(parameters)
+        elif action == "list_items":
+            return await _lists_list_items(parameters)
+        elif action == "add_item":
+            return await _lists_add_item(parameters)
+        elif action == "remove_item":
+            return await _lists_remove_item(parameters)
         else:
             return MCPToolResponse(
                 success=False,
@@ -125,8 +102,8 @@ async def lists(parameters: Dict[str, Any]) -> MCPToolResponse:
         )
 
 
-async def _lists_list_task_lists(parameters: Dict[str, Any]) -> MCPToolResponse:
-    """List all available task lists (excluding stickynotes)."""
+async def _lists_list_lists(parameters: Dict[str, Any]) -> MCPToolResponse:
+    """List all available lists (excluding stickynotes)."""
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get(f"{GOOGLEAPI_BASE_URL}/tasks/tasklists")
@@ -137,45 +114,41 @@ async def _lists_list_task_lists(parameters: Dict[str, Any]) -> MCPToolResponse:
             if not task_lists:
                 return MCPToolResponse(
                     success=True,
-                    result={"message": "No task lists found", "count": 0},
+                    result=[],
                     error=None
                 )
             
-            # Format task lists as compact strings
-            list_strings = [format_task_list_info(task_list) for task_list in task_lists]
+            # Format lists as compact strings
+            list_strings = [format_list_info(task_list) for task_list in task_lists]
             
             return MCPToolResponse(
                 success=True,
-                result={
-                    "message": f"Found {len(task_lists)} task list(s)",
-                    "count": len(task_lists),
-                    "task_lists": list_strings
-                },
+                result=list_strings,
                 error=None
             )
     
     except httpx.HTTPStatusError as e:
-        logger.error(f"HTTP error listing task lists: {e}")
+        logger.error(f"HTTP error listing lists: {e}")
         return MCPToolResponse(
             success=False,
             result={},
-            error=f"Failed to list task lists: {e.response.text}"
+            error=f"Failed to list lists: {e.response.text}"
         )
     except Exception as e:
-        logger.error(f"Error listing task lists: {e}")
+        logger.error(f"Error listing lists: {e}")
         return MCPToolResponse(
             success=False,
             result={},
-            error=f"Failed to list task lists: {str(e)}"
+            error=f"Failed to list lists: {str(e)}"
         )
 
 
-async def _lists_create_task_list(parameters: Dict[str, Any]) -> MCPToolResponse:
-    """Create a new task list."""
+async def _lists_create_list(parameters: Dict[str, Any]) -> MCPToolResponse:
+    """Create a new list."""
     try:
         title = parameters.get("title")
         if not title:
-            return MCPToolResponse(success=False, result={}, error="Title is required for create_task_list action")
+            return MCPToolResponse(success=False, result={}, error="Title is required for create_list action")
         
         payload = {"title": title}
         
@@ -186,47 +159,44 @@ async def _lists_create_task_list(parameters: Dict[str, Any]) -> MCPToolResponse
             result = response.json()
             
             if result.get("success"):
-                task_list_id = result.get("data", {}).get("task_list_id")
+                list_id = result.get("data", {}).get("task_list_id")
                 return MCPToolResponse(
                     success=True,
-                    result={
-                        "message": f"Successfully created task list: {title}",
-                        "task_list_id": task_list_id
-                    },
+                    result=f"{list_id}|{title}",
                     error=None
                 )
             else:
                 return MCPToolResponse(
                     success=False,
                     result={},
-                    error=result.get("message", "Failed to create task list")
+                    error=result.get("message", "Failed to create list")
                 )
     
     except httpx.HTTPStatusError as e:
-        logger.error(f"HTTP error creating task list: {e}")
+        logger.error(f"HTTP error creating list: {e}")
         return MCPToolResponse(
             success=False,
             result={},
-            error=f"Failed to create task list: {e.response.text}"
+            error=f"Failed to create list: {e.response.text}"
         )
     except Exception as e:
-        logger.error(f"Error creating task list: {e}")
+        logger.error(f"Error creating list: {e}")
         return MCPToolResponse(
             success=False,
             result={},
-            error=f"Failed to create task list: {str(e)}"
+            error=f"Failed to create list: {str(e)}"
         )
 
 
-async def _lists_delete_task_list(parameters: Dict[str, Any]) -> MCPToolResponse:
-    """Delete a task list (cannot delete stickynotes)."""
+async def _lists_delete_list(parameters: Dict[str, Any]) -> MCPToolResponse:
+    """Delete a list (cannot delete stickynotes)."""
     try:
-        task_list_id = parameters.get("task_list_id")
-        if not task_list_id:
-            return MCPToolResponse(success=False, result={}, error="task_list_id is required for delete_task_list action")
+        list_id = parameters.get("list_id")
+        if not list_id:
+            return MCPToolResponse(success=False, result={}, error="list_id is required for delete_list action")
         
         async with httpx.AsyncClient() as client:
-            response = await client.delete(f"{GOOGLEAPI_BASE_URL}/tasks/tasklists/{task_list_id}")
+            response = await client.delete(f"{GOOGLEAPI_BASE_URL}/tasks/tasklists/{list_id}")
             response.raise_for_status()
             
             result = response.json()
@@ -234,162 +204,141 @@ async def _lists_delete_task_list(parameters: Dict[str, Any]) -> MCPToolResponse
             if result.get("success"):
                 return MCPToolResponse(
                     success=True,
-                    result={"message": f"Successfully deleted task list: {task_list_id}"},
+                    result=f"deleted|{list_id}",
                     error=None
                 )
             else:
                 return MCPToolResponse(
                     success=False,
                     result={},
-                    error=result.get("message", "Failed to delete task list")
+                    error=result.get("message", "Failed to delete list")
                 )
     
     except httpx.HTTPStatusError as e:
-        logger.error(f"HTTP error deleting task list: {e}")
+        logger.error(f"HTTP error deleting list: {e}")
         return MCPToolResponse(
             success=False,
             result={},
-            error=f"Failed to delete task list: {e.response.text}"
+            error=f"Failed to delete list: {e.response.text}"
         )
     except Exception as e:
-        logger.error(f"Error deleting task list: {e}")
+        logger.error(f"Error deleting list: {e}")
         return MCPToolResponse(
             success=False,
             result={},
-            error=f"Failed to delete task list: {str(e)}"
+            error=f"Failed to delete list: {str(e)}"
         )
 
 
-async def _lists_list_tasks(parameters: Dict[str, Any]) -> MCPToolResponse:
-    """List tasks in a specific task list."""
+async def _lists_list_items(parameters: Dict[str, Any]) -> MCPToolResponse:
+    """List items in a specific list."""
     try:
-        task_list_id = parameters.get("task_list_id")
-        if not task_list_id:
-            return MCPToolResponse(success=False, result={}, error="task_list_id is required for list_tasks action")
+        list_id = parameters.get("list_id")
+        if not list_id:
+            return MCPToolResponse(success=False, result={}, error="list_id is required for list_items action")
         
         async with httpx.AsyncClient() as client:
-            response = await client.get(f"{GOOGLEAPI_BASE_URL}/tasks/tasklists/{task_list_id}/tasks")
+            response = await client.get(f"{GOOGLEAPI_BASE_URL}/tasks/tasklists/{list_id}/tasks")
             response.raise_for_status()
             
-            result = response.json()
+            # This endpoint returns List[TaskModel] directly, not the standard format
+            items = response.json()
             
-            if result.get("success"):
-                tasks = result.get("data", [])
-                
-                if not tasks:
-                    return MCPToolResponse(
-                        success=True,
-                        result={"message": "No tasks found in this task list", "count": 0},
-                        error=None
-                    )
-                
-                # Format tasks as compact strings
-                task_strings = [format_task_info(task) for task in tasks]
-                
+            if not items:
                 return MCPToolResponse(
                     success=True,
-                    result={
-                        "message": f"Found {len(tasks)} task(s) in task list",
-                        "count": len(tasks),
-                        "tasks": task_strings
-                    },
+                    result=[],
                     error=None
                 )
-            else:
-                return MCPToolResponse(
-                    success=False,
-                    result={},
-                    error=result.get("message", "Failed to list tasks")
-                )
+            
+            # Format items as compact strings  
+            item_strings = [format_item_info(item) for item in items]
+            
+            return MCPToolResponse(
+                success=True,
+                result=item_strings,
+                error=None
+            )
     
     except httpx.HTTPStatusError as e:
-        logger.error(f"HTTP error listing tasks: {e}")
+        logger.error(f"HTTP error listing items: {e}")
         return MCPToolResponse(
             success=False,
             result={},
-            error=f"Failed to list tasks: {e.response.text}"
+            error=f"Failed to list items: {e.response.text}"
         )
     except Exception as e:
-        logger.error(f"Error listing tasks: {e}")
+        logger.error(f"Error listing items: {e}")
         return MCPToolResponse(
             success=False,
             result={},
-            error=f"Failed to list tasks: {str(e)}"
+            error=f"Failed to list items: {str(e)}"
         )
 
 
-async def _lists_create_task(parameters: Dict[str, Any]) -> MCPToolResponse:
-    """Create a task in a specific task list."""
+async def _lists_add_item(parameters: Dict[str, Any]) -> MCPToolResponse:
+    """Add an item to a specific list."""
     try:
-        task_list_id = parameters.get("task_list_id")
+        list_id = parameters.get("list_id")
         title = parameters.get("title")
         
-        if not task_list_id:
-            return MCPToolResponse(success=False, result={}, error="task_list_id is required for create_task action")
+        if not list_id:
+            return MCPToolResponse(success=False, result={}, error="list_id is required for add_item action")
         if not title:
-            return MCPToolResponse(success=False, result={}, error="title is required for create_task action")
+            return MCPToolResponse(success=False, result={}, error="title is required for add_item action")
         
-        # Build request payload
+        # Build request payload (simplified for lists - just title)
         payload = {"title": title}
         
-        # Optional fields
-        if parameters.get("notes"):
-            payload["notes"] = parameters["notes"]
-        if parameters.get("due"):
-            payload["due"] = parameters["due"]
-        
         async with httpx.AsyncClient() as client:
-            response = await client.post(f"{GOOGLEAPI_BASE_URL}/tasks/tasklists/{task_list_id}/tasks", json=payload)
+            response = await client.post(f"{GOOGLEAPI_BASE_URL}/tasks/tasklists/{list_id}/tasks", json=payload)
             response.raise_for_status()
             
             result = response.json()
             
             if result.get("success"):
-                task_id = result.get("data", {}).get("task_id")
+                item_id = result.get("data", {}).get("task_id")
                 return MCPToolResponse(
                     success=True,
-                    result={
-                        "message": f"Successfully created task: {title}",
-                        "task_id": task_id
-                    },
+                    result=f"{item_id}|{title}",
                     error=None
                 )
             else:
                 return MCPToolResponse(
                     success=False,
                     result={},
-                    error=result.get("message", "Failed to create task")
+                    error=result.get("message", "Failed to add item")
                 )
     
     except httpx.HTTPStatusError as e:
-        logger.error(f"HTTP error creating task: {e}")
+        logger.error(f"HTTP error adding item: {e}")
         return MCPToolResponse(
             success=False,
             result={},
-            error=f"Failed to create task: {e.response.text}"
+            error=f"Failed to add item: {e.response.text}"
         )
     except Exception as e:
-        logger.error(f"Error creating task: {e}")
+        logger.error(f"Error adding item: {e}")
         return MCPToolResponse(
             success=False,
             result={},
-            error=f"Failed to create task: {str(e)}"
+            error=f"Failed to add item: {str(e)}"
         )
 
 
-async def _lists_delete_task(parameters: Dict[str, Any]) -> MCPToolResponse:
-    """Delete a task from a specific task list."""
+async def _lists_remove_item(parameters: Dict[str, Any]) -> MCPToolResponse:
+    """Remove an item from a specific list."""
     try:
-        task_list_id = parameters.get("task_list_id")
-        task_id = parameters.get("task_id")
+        list_id = parameters.get("list_id")
+        item_id = parameters.get("item_id")
         
-        if not task_list_id:
-            return MCPToolResponse(success=False, result={}, error="task_list_id is required for delete_task action")
-        if not task_id:
-            return MCPToolResponse(success=False, result={}, error="task_id is required for delete_task action")
+        if not list_id:
+            return MCPToolResponse(success=False, result={}, error="list_id is required for remove_item action")
+        if not item_id:
+            return MCPToolResponse(success=False, result={}, error="item_id is required for remove_item action")
         
         async with httpx.AsyncClient() as client:
-            response = await client.delete(f"{GOOGLEAPI_BASE_URL}/tasks/tasklists/{task_list_id}/tasks/{task_id}")
+            response = await client.delete(f"{GOOGLEAPI_BASE_URL}/tasks/tasklists/{list_id}/tasks/{item_id}")
             response.raise_for_status()
             
             result = response.json()
@@ -397,27 +346,27 @@ async def _lists_delete_task(parameters: Dict[str, Any]) -> MCPToolResponse:
             if result.get("success"):
                 return MCPToolResponse(
                     success=True,
-                    result={"message": f"Successfully deleted task: {task_id}"},
+                    result=f"removed|{item_id}",
                     error=None
                 )
             else:
                 return MCPToolResponse(
                     success=False,
                     result={},
-                    error=result.get("message", "Failed to delete task")
+                    error=result.get("message", "Failed to remove item")
                 )
     
     except httpx.HTTPStatusError as e:
-        logger.error(f"HTTP error deleting task: {e}")
+        logger.error(f"HTTP error removing item: {e}")
         return MCPToolResponse(
             success=False,
             result={},
-            error=f"Failed to delete task: {e.response.text}"
+            error=f"Failed to remove item: {e.response.text}"
         )
     except Exception as e:
-        logger.error(f"Error deleting task: {e}")
+        logger.error(f"Error removing item: {e}")
         return MCPToolResponse(
             success=False,
             result={},
-            error=f"Failed to delete task: {str(e)}"
+            error=f"Failed to remove item: {str(e)}"
         )

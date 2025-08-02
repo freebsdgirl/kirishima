@@ -417,58 +417,35 @@
     "persistent": true
   },
   "lists": {
-    "description": "Task list management - create, delete task lists and manage tasks within specific lists",
+    "description": "Simple list management - create, delete lists and manage items within specific lists",
     "depends_on": [],
     "parameters": {
       "type": "object",
       "properties": {
         "action": {
           "type": "string",
-          "enum": ["list_task_lists", "create_task_list", "delete_task_list", "list_tasks", "create_task", "delete_task"],
-          "description": "The action to perform on task lists or tasks within lists"
+          "enum": ["list_lists", "create_list", "delete_list", "list_items", "add_item", "remove_item"],
+          "description": "The action to perform on lists or items within lists"
         },
-        "task_list_id": {
+        "list_id": {
           "type": "string",
-          "description": "Task list ID (required for delete_task_list, list_tasks, create_task, delete_task actions)"
+          "description": "List ID (required for delete_list, list_items, add_item, remove_item actions)"
         },
-        "task_id": {
+        "item_id": {
           "type": "string",
-          "description": "Task ID (required for delete_task action)"
+          "description": "Item ID (required for remove_item action)"
         },
         "title": {
           "type": "string",
-          "description": "Title for task list (create_task_list) or task (create_task)"
-        },
-        "notes": {
-          "type": "string",
-          "description": "Task notes/description (optional for create_task)"
-        },
-        "due": {
-          "type": "string",
-          "description": "Due date in YYYY-MM-DD format (optional for create_task)"
+          "description": "Title for list (create_list) or item (add_item)"
         }
       },
       "required": ["action"]
     },
     "returns": {
-      "type": "object",
-      "properties": {
-        "status": {"type": "string"},
-        "message": {"type": "string"},
-        "count": {"type": "integer"},
-        "task_list_id": {"type": "string"},
-        "task_id": {"type": "string"},
-        "task_lists": {
-          "type": "array",
-          "items": {"type": "string"},
-          "description": "Array of formatted task list strings with ID, title, and updated date"
-        },
-        "tasks": {
-          "type": "array",
-          "items": {"type": "string"},
-          "description": "Array of formatted task strings with ID, title, status, and due date"
-        }
-      }
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Array of strings in format 'id|title' or single string for create/delete operations"
     },
     "persistent": true
   }

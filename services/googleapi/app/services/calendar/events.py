@@ -66,6 +66,10 @@ def create_event(request: CreateEventRequest) -> Dict[str, Any]:
         if request.attendees:
             event['attendees'] = [{'email': email} for email in request.attendees]
         
+        # Add reminders if specified
+        if request.reminders:
+            event['reminders'] = request.reminders
+        
         # Create the event
         created_event = service.events().insert(
             calendarId=calendar_id,
@@ -132,6 +136,10 @@ def update_event(request: UpdateEventRequest) -> Dict[str, Any]:
         # Update attendees if specified
         if request.attendees is not None:
             existing_event['attendees'] = [{'email': email} for email in request.attendees]
+        
+        # Update reminders if specified
+        if request.reminders is not None:
+            existing_event['reminders'] = request.reminders
         
         # Update the event
         updated_event = service.events().update(

@@ -592,6 +592,7 @@ class CalendarEvent(BaseModel):
     recurring_event_id: Optional[str] = Field(None, description="ID of recurring event (if applicable)")
     transparency: Optional[str] = Field(None, description="Event transparency (opaque, transparent)")
     visibility: Optional[str] = Field(None, description="Event visibility (default, public, private, confidential)")
+    reminders: Optional[Dict[str, Any]] = Field(None, description="Event reminders configuration")
 
     model_config = {
         "json_schema_extra": {
@@ -625,6 +626,18 @@ class CreateEventRequest(BaseModel):
     send_notifications: Optional[bool] = Field(True, description="Whether to send notifications to attendees")
     transparency: Optional[str] = Field("opaque", description="Event transparency (opaque, transparent)")
     visibility: Optional[str] = Field("default", description="Event visibility (default, public, private, confidential)")
+    reminders: Optional[Dict[str, Any]] = Field(
+        {
+            "useDefault": False,
+            "overrides": [
+                {
+                    "method": "popup",
+                    "minutes": 30
+                }
+            ]
+        },
+        description="Event reminders configuration"
+    )
 
     model_config = {
         "json_schema_extra": {
@@ -659,6 +672,7 @@ class UpdateEventRequest(BaseModel):
     send_notifications: Optional[bool] = Field(True, description="Whether to send notifications to attendees")
     transparency: Optional[str] = Field(None, description="Event transparency (opaque, transparent)")
     visibility: Optional[str] = Field(None, description="Event visibility (default, public, private, confidential)")
+    reminders: Optional[Dict[str, Any]] = Field(None, description="Event reminders configuration")
 
     model_config = {
         "json_schema_extra": {

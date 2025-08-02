@@ -17,11 +17,8 @@ Modules imported:
 """
 
 from shared.log_config import get_logger
-logger = get_logger(f"googleapi.{__name__}")
-
 from shared.docs_exporter import router as docs_router
 from shared.routes import router as routes_router, register_list_routes
-
 from shared.models.middleware import CacheRequestBodyMiddleware
 
 from fastapi import FastAPI
@@ -34,6 +31,18 @@ from app.routes.contacts import router as contacts_router
 from app.routes.calendar import router as calendar_router
 from app.routes.tasks import router as tasks_router
 from app.routes.nlp import router as nlp_router
+from app.routes.notifications import router as notifications_router
+
+# Import services for startup/shutdown
+from app.services.contacts.database import init_contacts_db
+from app.services.calendar.notifications import init_notifications_table
+from app.services.contacts.contacts import refresh_contacts_cache
+from app.services.gmail.monitor import start_email_monitoring, stop_email_monitoring
+from app.services.calendar.monitor import start_calendar_monitoring, stop_calendar_monitoring
+from app.services.tasks.auth import validate_tasks_access
+from app.services.tasks.monitor import start_tasks_monitoring, stop_tasks_monitoring
+
+logger = get_logger(f"googleapi.{__name__}")
 
 # Load config
 with open('/app/config/config.json') as f:
@@ -49,37 +58,35 @@ async def lifespan(app: FastAPI):
     try:
         config = _config
         
-        # Initialize contacts database
+        # Initialize databases
         logger.info("Initializing contacts database")
-        from app.services.contacts.database import init_contacts_db
         init_contacts_db()
+        
+        logger.info("Initializing notifications table")
+        init_notifications_table()
         
         # Refresh contacts cache on startup if enabled
         if config.get('contacts', {}).get('cache_on_startup', True):
             logger.info("Refreshing contacts cache on startup")
-            from app.services.contacts.contacts import refresh_contacts_cache
             # Run cache refresh in background to avoid blocking startup
-            import asyncio
             asyncio.create_task(asyncio.to_thread(refresh_contacts_cache))
         
         # Start Gmail monitoring if enabled
         if config.get('gmail', {}).get('monitor', {}).get('enabled', False):
             logger.info("Starting email monitoring on startup")
-            from app.services.gmail.monitor import start_email_monitoring
             # Start monitoring in the background
             gmail_monitor_task = asyncio.create_task(start_email_monitoring())
         
-        # Start Calendar caching if enabled
-        if config.get('calendar', {}).get('cache', {}).get('enabled', False):
-            logger.info("Starting calendar caching on startup")
+        # Start Calendar monitoring if enabled
+        if config.get('calendar', {}).get('monitor', {}).get('enabled', False):
+            logger.info("Starting calendar monitoring on startup")
             
             try:
-                from app.services.calendar.monitor import start_calendar_cache
-                # Start caching in the background
-                calendar_monitor_task = asyncio.create_task(start_calendar_cache())
+                # Start monitoring in the background
+                calendar_monitor_task = asyncio.create_task(start_calendar_monitoring())
                 
             except Exception as e:
-                logger.error(f"Calendar caching startup failed: {e}")
+                logger.error(f"Calendar monitoring startup failed: {e}")
         
         # Start Tasks monitoring if enabled
         if config.get('tasks', {}).get('monitor', {}).get('enabled', False):
@@ -87,11 +94,9 @@ async def lifespan(app: FastAPI):
             
             # Validate tasks access before starting monitoring
             try:
-                from app.services.tasks.auth import validate_tasks_access
                 tasks_info = validate_tasks_access()
                 logger.info(f"Tasks validation successful: {tasks_info['message']}")
                 
-                from app.services.tasks.monitor import start_tasks_monitoring
                 # Start monitoring in the background
                 tasks_monitor_task = asyncio.create_task(start_tasks_monitoring())
                 
@@ -110,7 +115,6 @@ async def lifespan(app: FastAPI):
         
         # Stop Gmail monitoring
         try:
-            from app.services.gmail.monitor import stop_email_monitoring
             stop_email_monitoring()
             if gmail_monitor_task and not gmail_monitor_task.done():
                 gmail_monitor_task.cancel()
@@ -122,10 +126,9 @@ async def lifespan(app: FastAPI):
             logger.error(f"Error stopping Gmail monitoring: {e}")
         
         
-        # Stop Calendar caching
+        # Stop Calendar monitoring
         try:
-            from app.services.calendar.monitor import stop_calendar_cache
-            await stop_calendar_cache()
+            await stop_calendar_monitoring()
             if calendar_monitor_task and not calendar_monitor_task.done():
                 calendar_monitor_task.cancel()
                 try:
@@ -133,11 +136,10 @@ async def lifespan(app: FastAPI):
                 except asyncio.CancelledError:
                     pass
         except Exception as e:
-            logger.error(f"Error stopping Calendar caching: {e}")
+            logger.error(f"Error stopping Calendar monitoring: {e}")
         
         # Stop Tasks monitoring
         try:
-            from app.services.tasks.monitor import stop_tasks_monitoring
             stop_tasks_monitoring()
             if tasks_monitor_task and not tasks_monitor_task.done():
                 tasks_monitor_task.cancel()
@@ -162,6 +164,7 @@ app.include_router(contacts_router, tags=["contacts"], prefix="/contacts")
 app.include_router(calendar_router, tags=["calendar"], prefix="/calendar")
 app.include_router(tasks_router, tags=["tasks"], prefix="/tasks")
 app.include_router(nlp_router, tags=["nlp"])
+app.include_router(notifications_router, tags=["notifications"], prefix="/calendar")
 
 register_list_routes(app)
 

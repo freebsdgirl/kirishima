@@ -226,7 +226,7 @@ def get_upcoming_events(max_results: int = 10, days_ahead: int = 7) -> EventsLis
         
         events = [CalendarEvent(**event) for event in events_data]
         
-        logger.info(f"Retrieved {len(events)} upcoming events")
+        logger.info(f"Retrieved {len(events)} upcoming events from cache")
         
         return EventsListResponse(events=events)
         

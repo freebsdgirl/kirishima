@@ -36,6 +36,7 @@ from app.routes.notifications import router as notifications_router
 # Import services for startup/shutdown
 from app.services.contacts.database import init_contacts_db
 from app.services.calendar.notifications import init_notifications_table
+from app.services.calendar.cache import init_cache_db
 from app.services.contacts.contacts import refresh_contacts_cache
 from app.services.gmail.monitor import start_email_monitoring, stop_email_monitoring
 from app.services.calendar.monitor import start_calendar_monitoring, stop_calendar_monitoring
@@ -61,6 +62,9 @@ async def lifespan(app: FastAPI):
         # Initialize databases
         logger.info("Initializing contacts database")
         init_contacts_db()
+        
+        logger.info("Initializing calendar cache database")
+        init_cache_db()
         
         logger.info("Initializing notifications table")
         init_notifications_table()

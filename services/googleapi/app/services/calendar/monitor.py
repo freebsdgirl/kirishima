@@ -1,12 +1,12 @@
 """
-Calendar reminder monitoring utilities.
+Calendar monitoring utilities.
 
-This module provides functions for background monitoring of upcoming calendar
-events and creating notifications when events are approaching their start time.
+This module provides functions for background monitoring of calendar events,
+caching them locally, and detecting changes (new, updated, deleted events).
 
 Functions:
-    start_calendar_monitoring(): Start background calendar reminder monitoring
-    stop_calendar_monitoring(): Stop background calendar reminder monitoring  
+    start_calendar_monitoring(): Start background calendar monitoring
+    stop_calendar_monitoring(): Stop background calendar monitoring  
     get_monitor_status(): Get current monitoring status
 """
 
@@ -14,10 +14,11 @@ from shared.log_config import get_logger
 logger = get_logger(f"googleapi.{__name__}")
 
 from app.services.calendar.auth import get_calendar_service, get_calendar_id
+from app.services.calendar.cache import init_cache_db, cache_events, get_cached_events
 from app.services.gmail.util import get_config
 import asyncio
 from datetime import datetime, timezone, timedelta
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 
 # Global monitoring state
@@ -26,7 +27,7 @@ _monitoring_task = None
 
 async def start_calendar_monitoring():
     """
-    Start monitoring upcoming calendar events for reminders.
+    Start monitoring calendar events and caching them locally.
     """
     global _monitoring_task
     
@@ -42,9 +43,12 @@ async def start_calendar_monitoring():
         return
     
     try:
-        # Start reminder monitoring
-        logger.info("Starting calendar reminder monitoring")
-        _monitoring_task = asyncio.create_task(_check_upcoming_events())
+        # Initialize cache database
+        init_cache_db()
+        
+        # Start monitoring
+        logger.info("Starting calendar monitoring")
+        _monitoring_task = asyncio.create_task(_monitor_calendar_events())
             
     except Exception as e:
         logger.error(f"Failed to start calendar monitoring: {e}")
@@ -66,156 +70,119 @@ async def stop_calendar_monitoring():
         logger.info("Calendar monitoring stopped")
 
 
-async def _check_upcoming_events():
+async def _monitor_calendar_events():
     """
-    Check for upcoming calendar events and create notifications.
+    Monitor calendar events and cache them locally.
     """
     config = get_config()
     calendar_config = config.get('calendar', {}).get('monitor', {})
     poll_interval = calendar_config.get('poll_interval', 300)  # 5 minutes default
-    notification_minutes = calendar_config.get('notification_minutes', 30)  # 30 minutes default
     
-    logger.info(f"Calendar reminder monitoring started - checking every {poll_interval}s for events in next {notification_minutes} minutes")
+    logger.info(f"Calendar monitoring started - polling every {poll_interval}s")
     
     while True:
         try:
-            await _process_upcoming_events(notification_minutes)
+            await _sync_calendar_events()
             await asyncio.sleep(poll_interval)
             
         except asyncio.CancelledError:
-            logger.info("Calendar reminder monitoring cancelled")
+            logger.info("Calendar monitoring cancelled")
             break
         except Exception as e:
-            logger.error(f"Error in calendar reminder monitoring: {e}")
+            logger.error(f"Error in calendar monitoring: {e}")
             await asyncio.sleep(30)  # Short retry delay
 
 
-async def _process_upcoming_events(notification_minutes: int):
+async def _sync_calendar_events():
     """
-    Process upcoming events and create notifications for events starting soon.
+    Sync calendar events from Google Calendar API to local cache.
     """
     try:
         service = get_calendar_service()
         calendar_id = get_calendar_id()
         
-        # Calculate time window for upcoming events
+        # Get events from the past week to next month
         now = datetime.now(timezone.utc)
-        time_min = now.isoformat()
-        time_max = (now + timedelta(minutes=notification_minutes)).isoformat()
+        time_min = (now - timedelta(days=7)).isoformat()
+        time_max = (now + timedelta(days=30)).isoformat()
         
-        logger.debug(f"Checking for events between {time_min} and {time_max}")
+        logger.debug(f"Syncing events from {time_min} to {time_max}")
         
+        # Fetch events from Google Calendar
         events_result = service.events().list(
             calendarId=calendar_id,
             timeMin=time_min,
             timeMax=time_max,
             singleEvents=True,
-            orderBy='startTime'
+            orderBy='startTime',
+            maxResults=2500  # High limit to get all events
         ).execute()
         
         events = events_result.get('items', [])
         
-        if events:
-            logger.info(f"Found {len(events)} upcoming events in next {notification_minutes} minutes")
-            await _create_event_reminders(events, notification_minutes)
-        else:
-            logger.debug("No upcoming events found")
-            
+        logger.info(f"Fetched {len(events)} events from Google Calendar")
+        
+        # Get currently cached events for comparison
+        cached_events = get_cached_events(
+            calendar_id=calendar_id,
+            start_time=time_min,
+            end_time=time_max
+        )
+        
+        # Detect changes
+        _detect_event_changes(events, cached_events)
+        
+        # Cache the events
+        cache_events(events, calendar_id)
+        
     except Exception as e:
-        logger.error(f"Failed to process upcoming events: {e}")
+        logger.error(f"Failed to sync calendar events: {e}")
 
 
-async def _create_event_reminders(events: list, notification_minutes: int):
+def _detect_event_changes(new_events: List[Dict[str, Any]], cached_events: List[Dict[str, Any]]):
     """
-    Create reminder notifications for upcoming events.
+    Detect changes between new events and cached events.
     """
     try:
-        from app.services.calendar.notifications import cache_notification, get_pending_notifications
+        # Create lookups by event ID
+        new_by_id = {event.get('id'): event for event in new_events}
+        cached_by_id = {event.get('id'): event for event in cached_events}
         
-        now = datetime.now(timezone.utc)
+        # Find new events
+        new_event_ids = set(new_by_id.keys()) - set(cached_by_id.keys())
+        if new_event_ids:
+            logger.info(f"Detected {len(new_event_ids)} new events")
+            for event_id in new_event_ids:
+                event = new_by_id[event_id]
+                logger.debug(f"New event: {event.get('summary', 'No title')} ({event_id})")
         
-        for event in events:
-            # Skip cancelled events
-            if event.get('status') == 'cancelled':
-                continue
-                
-            event_id = event.get('id')
-            event_start = event.get('start', {})
+        # Find deleted events
+        deleted_event_ids = set(cached_by_id.keys()) - set(new_by_id.keys())
+        if deleted_event_ids:
+            logger.info(f"Detected {len(deleted_event_ids)} deleted events")
+            for event_id in deleted_event_ids:
+                event = cached_by_id[event_id]
+                logger.debug(f"Deleted event: {event.get('summary', 'No title')} ({event_id})")
+        
+        # Find updated events
+        updated_events = []
+        for event_id in set(new_by_id.keys()) & set(cached_by_id.keys()):
+            new_event = new_by_id[event_id]
+            cached_event = cached_by_id[event_id]
             
-            # Parse event start time
-            start_time = None
-            if 'dateTime' in event_start:
-                # Handle different timezone formats from Google Calendar API
-                date_time_str = event_start['dateTime']
-                try:
-                    # Try parsing with timezone info first
-                    if date_time_str.endswith('Z'):
-                        start_time = datetime.fromisoformat(date_time_str.replace('Z', '+00:00'))
-                    else:
-                        start_time = datetime.fromisoformat(date_time_str)
-                except ValueError:
-                    # Fallback: try parsing as UTC if no timezone info
-                    try:
-                        start_time = datetime.fromisoformat(date_time_str.replace('Z', '+00:00'))
-                    except ValueError:
-                        logger.warning(f"Could not parse datetime format: {date_time_str}")
-                        continue
-            elif 'date' in event_start:
-                # All-day event
-                try:
-                    start_time = datetime.fromisoformat(event_start['date']).replace(tzinfo=timezone.utc)
-                except ValueError:
-                    logger.warning(f"Could not parse date format: {event_start['date']}")
-                    continue
+            # Compare updated timestamps
+            new_updated = new_event.get('updated')
+            cached_updated = cached_event.get('updated')
             
-            if not start_time:
-                logger.warning(f"Could not parse start time for event {event_id}")
-                continue
+            if new_updated != cached_updated:
+                updated_events.append(event_id)
+                logger.debug(f"Updated event: {new_event.get('summary', 'No title')} ({event_id})")
+        
+        if updated_events:
+            logger.info(f"Detected {len(updated_events)} updated events")
             
-            # Calculate minutes until event starts
-            minutes_until_start = int((start_time - now).total_seconds() / 60)
-            
-            # Only create notification if event is starting within the notification window
-            if 0 <= minutes_until_start <= notification_minutes:
-                # Check if we've already created a notification for this event
-                existing_notifications = get_pending_notifications(
-                    notification_type='calendar_reminder',
-                    source='googleapi_calendar_reminder'
-                )
-                
-                # Check if we already have a notification for this event
-                event_already_notified = any(
-                    n['data'].get('event_id') == event_id 
-                    for n in existing_notifications
-                )
-                
-                if not event_already_notified:
-                    # Create reminder notification
-                    notification_data = {
-                        'type': 'calendar_reminder',
-                        'event_id': event_id,
-                        'summary': event.get('summary', 'No title'),
-                        'start_time': start_time.isoformat(),
-                        'minutes_until_start': minutes_until_start,
-                        'location': event.get('location', ''),
-                        'description': event.get('description', ''),
-                        'html_link': event.get('htmlLink', ''),
-                        'timestamp': now.isoformat(),
-                        'source': 'googleapi_calendar_reminder'
-                    }
-                    
-                    notification_id = cache_notification(
-                        notification_type='calendar_reminder',
-                        source='googleapi_calendar_reminder',
-                        data=notification_data
-                    )
-                    
-                    logger.info(f"Created reminder notification {notification_id} for event '{event.get('summary')}' starting in {minutes_until_start} minutes")
-                else:
-                    logger.debug(f"Event {event_id} already has a pending notification")
-                    
     except Exception as e:
-        logger.error(f"Failed to create event reminders: {e}")
+        logger.error(f"Error detecting event changes: {e}")
 
 
 def get_monitor_status() -> Dict[str, Any]:
@@ -234,7 +201,7 @@ def get_monitor_status() -> Dict[str, Any]:
         'monitoring_active': _monitoring_task is not None and not _monitoring_task.done(),
         'poll_interval': calendar_config.get('poll_interval', 300),
         'notification_minutes': calendar_config.get('notification_minutes', 30),
-        'reminder_enabled': calendar_config.get('enabled', False)
+        'enabled': calendar_config.get('enabled', False)
     }
     
     return status

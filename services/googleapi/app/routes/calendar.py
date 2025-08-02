@@ -10,7 +10,8 @@ Endpoints:
     - PUT /events/{event_id}: Update an existing calendar event
     - DELETE /events/{event_id}: Delete a calendar event
     - GET /events/{event_id}: Get a specific event by ID
-    - GET /events/upcoming: Get upcoming events
+    - GET /events/upcoming: Get upcoming events from local cache
+    - GET /events/upcoming-within-minutes: Get events starting within N minutes
     - GET /events/today: Get today's events
     - POST /events/search: Search events using various criteria
     - GET /events/date-range: Get events within a date range
@@ -114,9 +115,10 @@ async def delete_event_endpoint(event_id: str, send_notifications: bool = True):
 
 @router.get("/events/upcoming", response_model=List[CalendarEvent])
 async def get_upcoming_events_endpoint(max_results: int = 10, days_ahead: int = 7):
-    """Get upcoming events from Google Calendar API."""
+    """Get upcoming events from local cache."""
     try:
-        service = get_calendar_service()
+        from app.services.calendar.cache import get_cached_events
+        
         calendar_id = get_calendar_id()
         
         # Calculate time range
@@ -125,20 +127,44 @@ async def get_upcoming_events_endpoint(max_results: int = 10, days_ahead: int = 
         time_min = now.isoformat()
         time_max = (now + timedelta(days=days_ahead)).isoformat()
         
-        events_result = service.events().list(
-            calendarId=calendar_id,
-            timeMin=time_min,
-            timeMax=time_max,
-            maxResults=max_results,
-            singleEvents=True,
-            orderBy='startTime'
-        ).execute()
+        events_data = get_cached_events(
+            calendar_id=calendar_id,
+            start_time=time_min,
+            end_time=time_max,
+            max_results=max_results
+        )
         
-        events = events_result.get('items', [])
-        return [CalendarEvent(**event) for event in events]
+        events = [CalendarEvent(**event) for event in events_data]
+        return events
     except Exception as e:
         logger.error(f"Failed to get upcoming events: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get upcoming events: {str(e)}")
+
+
+@router.get("/events/upcoming-within-minutes", response_model=List[CalendarEvent])
+async def get_events_within_minutes_endpoint(minutes: Optional[int] = None, calendar_id: Optional[str] = None):
+    """Get events starting within the next N minutes from local cache. 
+    If minutes is not specified, uses notification_minutes from config."""
+    try:
+        from app.services.calendar.cache import get_events_within_minutes
+        from app.services.gmail.util import get_config
+        
+        # Default to config value if not specified
+        if minutes is None:
+            config = get_config()
+            minutes = config.get('calendar', {}).get('monitor', {}).get('notification_minutes', 30)
+        
+        if not calendar_id:
+            calendar_id = get_calendar_id()
+        
+        events_data = get_events_within_minutes(minutes, calendar_id)
+        events = [CalendarEvent(**event) for event in events_data]
+        
+        logger.info(f"Found {len(events)} events starting within {minutes} minutes")
+        return events
+    except Exception as e:
+        logger.error(f"Failed to get events within {minutes if minutes else 'default'} minutes: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get events within minutes: {str(e)}")
 
 
 @router.get("/events/today", response_model=List[CalendarEvent])

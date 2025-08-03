@@ -8,13 +8,6 @@ from various sources (calendar, gmail, etc.).
 from fastapi import APIRouter, HTTPException
 from typing import Dict, Any, List, Optional
 from shared.log_config import get_logger
-from app.services.calendar.notifications import (
-    init_notifications_table,
-    get_pending_notifications,
-    mark_notification_processed,
-    get_notification_stats,
-    delete_processed_notifications
-)
 
 logger = get_logger(f"googleapi.{__name__}")
 
@@ -39,29 +32,18 @@ async def get_notifications_endpoint(
         Dict containing notifications and metadata
     """
     try:
-        # Initialize notifications table if needed
-        init_notifications_table()
-        
-        # Get pending notifications
-        notifications = get_pending_notifications(
-            notification_type=notification_type,
-            source=source
-        )
-        
-        # Mark as processed if requested
-        if mark_processed and notifications:
-            for notification in notifications:
-                mark_notification_processed(notification['id'])
-        
+        # For now, return empty notifications since we removed the caching system
+        # This endpoint will be replaced by the new courier service
         return {
             'success': True,
-            'notifications': notifications,
-            'count': len(notifications),
+            'notifications': [],
+            'count': 0,
             'filters': {
                 'notification_type': notification_type,
                 'source': source,
                 'mark_processed': mark_processed
-            }
+            },
+            'message': 'Notifications system is being replaced by courier service'
         }
         
     except Exception as e:
@@ -78,14 +60,17 @@ async def get_notification_stats_endpoint():
         Dict containing notification statistics
     """
     try:
-        # Initialize notifications table if needed
-        init_notifications_table()
-        
-        stats = get_notification_stats()
-        
+        # For now, return empty stats since we removed the caching system
         return {
             'success': True,
-            'stats': stats
+            'stats': {
+                'total_notifications': 0,
+                'pending_notifications': 0,
+                'processed_notifications': 0,
+                'by_type': {},
+                'by_source': {}
+            },
+            'message': 'Notifications system is being replaced by courier service'
         }
         
     except Exception as e:
@@ -105,11 +90,9 @@ async def mark_notification_processed_endpoint(notification_id: int):
         Dict containing processing status
     """
     try:
-        mark_notification_processed(notification_id)
-        
         return {
             'success': True,
-            'message': f'Notification {notification_id} marked as processed'
+            'message': f'Notification {notification_id} marked as processed (system deprecated)'
         }
         
     except Exception as e:
@@ -129,11 +112,9 @@ async def cleanup_old_notifications_endpoint(older_than_days: int = 7):
         Dict containing cleanup status
     """
     try:
-        delete_processed_notifications(older_than_days)
-        
         return {
             'success': True,
-            'message': f'Cleaned up notifications older than {older_than_days} days'
+            'message': f'Cleanup completed (system deprecated)'
         }
         
     except Exception as e:

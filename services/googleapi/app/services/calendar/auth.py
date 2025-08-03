@@ -9,7 +9,7 @@ Functions:
         Loads OAuth2 credentials from a token file, refreshes them if expired, 
         and returns an authenticated Calendar API service instance.
     get_calendar_id():
-        Retrieves the default calendar ID from configuration or discovers it automatically.
+        Retrieves the configured calendar ID, supporting both direct ID and base64-encoded cid.
 
 Logging:
     Uses a shared logger for error and status reporting.
@@ -76,31 +76,20 @@ def get_calendar_service():
 
 def get_calendar_id():
     """
-    Get the calendar ID from configuration. 
-    This function enforces that only the explicitly configured shared calendar is used.
+    Get the configured calendar ID, supporting both direct ID and base64-encoded cid.
     
     Returns:
         str: Calendar ID to use for operations
         
     Raises:
-        ValueError: If no calendar is configured or if trying to use primary calendar
+        ValueError: If no calendar is configured
     """
     config = get_config()
     calendar_config = config.get('calendar', {})
     
-    # First check if calendar_id is explicitly configured
+    # Check if calendar_id is explicitly configured
     if 'calendar_id' in calendar_config:
         calendar_id = calendar_config['calendar_id']
-        
-        # Prevent using primary calendar unless explicitly intended
-        if calendar_id == 'primary':
-            logger.warning("calendar_id is set to 'primary' - this will use your personal calendar!")
-            logger.warning("For shared calendar operations, use 'calendar_cid' or specify the actual calendar ID")
-            logger.warning("If you really want to use your primary calendar, set 'allow_primary_calendar: true' in config")
-            
-            if not calendar_config.get('allow_primary_calendar', False):
-                raise ValueError("Using primary calendar is not allowed. Configure 'calendar_cid' or 'calendar_id' with a shared calendar ID, or set 'allow_primary_calendar: true' to override.")
-        
         logger.info(f"Using configured calendar ID: {calendar_id}")
         return calendar_id
     
@@ -110,22 +99,17 @@ def get_calendar_id():
             # Decode base64 calendar ID
             calendar_id = base64.b64decode(calendar_config['calendar_cid']).decode('utf-8')
             logger.info(f"Using decoded calendar ID from cid: {calendar_id}")
-            
-            # Validate that the decoded calendar ID looks reasonable (contains @)
-            if '@' not in calendar_id and calendar_id != 'primary':
-                logger.warning(f"Decoded calendar ID '{calendar_id}' doesn't look like an email address. Double-check your calendar_cid.")
-            
             return calendar_id
         except Exception as e:
             logger.error(f"Failed to decode calendar_cid: {e}")
             raise ValueError(f"Invalid calendar_cid in configuration: {e}")
     
-    # No calendar configured - require explicit configuration
+    # No calendar configured
     raise ValueError(
         "No calendar configured! Please add either:\n"
         "  - 'calendar_cid': '<base64_encoded_calendar_id>' (from Google Calendar share URL)\n"
         "  - 'calendar_id': '<actual_calendar_id>'\n"
-        "to your calendar configuration. Use the /calendar/calendars/discover endpoint to find available calendars."
+        "to your calendar configuration."
     )
 
 

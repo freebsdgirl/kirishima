@@ -35,11 +35,8 @@ from app.routes.notifications import router as notifications_router
 
 # Import services for startup/shutdown
 from app.services.contacts.database import init_contacts_db
-from app.services.calendar.notifications import init_notifications_table
-from app.services.calendar.cache import init_cache_db
 from app.services.contacts.contacts import refresh_contacts_cache
 from app.services.gmail.monitor import start_email_monitoring, stop_email_monitoring
-from app.services.calendar.monitor import start_calendar_monitoring, stop_calendar_monitoring
 from app.services.tasks.auth import validate_tasks_access
 from app.services.tasks.monitor import start_tasks_monitoring, stop_tasks_monitoring
 
@@ -54,7 +51,6 @@ async def lifespan(app: FastAPI):
     """Manage application lifespan - startup and shutdown."""
     # Startup
     gmail_monitor_task = None
-    calendar_monitor_task = None
     tasks_monitor_task = None
     try:
         config = _config
@@ -62,12 +58,6 @@ async def lifespan(app: FastAPI):
         # Initialize databases
         logger.info("Initializing contacts database")
         init_contacts_db()
-        
-        logger.info("Initializing calendar cache database")
-        init_cache_db()
-        
-        logger.info("Initializing notifications table")
-        init_notifications_table()
         
         # Refresh contacts cache on startup if enabled
         if config.get('contacts', {}).get('cache_on_startup', True):
@@ -80,17 +70,6 @@ async def lifespan(app: FastAPI):
             logger.info("Starting email monitoring on startup")
             # Start monitoring in the background
             gmail_monitor_task = asyncio.create_task(start_email_monitoring())
-        
-        # Start Calendar monitoring if enabled
-        if config.get('calendar', {}).get('monitor', {}).get('enabled', False):
-            logger.info("Starting calendar monitoring on startup")
-            
-            try:
-                # Start monitoring in the background
-                calendar_monitor_task = asyncio.create_task(start_calendar_monitoring())
-                
-            except Exception as e:
-                logger.error(f"Calendar monitoring startup failed: {e}")
         
         # Start Tasks monitoring if enabled
         if config.get('tasks', {}).get('monitor', {}).get('enabled', False):
@@ -128,19 +107,6 @@ async def lifespan(app: FastAPI):
                     pass
         except Exception as e:
             logger.error(f"Error stopping Gmail monitoring: {e}")
-        
-        
-        # Stop Calendar monitoring
-        try:
-            await stop_calendar_monitoring()
-            if calendar_monitor_task and not calendar_monitor_task.done():
-                calendar_monitor_task.cancel()
-                try:
-                    await calendar_monitor_task
-                except asyncio.CancelledError:
-                    pass
-        except Exception as e:
-            logger.error(f"Error stopping Calendar monitoring: {e}")
         
         # Stop Tasks monitoring
         try:

@@ -1,13 +1,13 @@
 # Google Calendar Integration
 
-This service provides integration with Google Calendar API for event management and reminder notifications.
+This service provides integration with Google Calendar API for event management.
 
 ## Features
 
 - **Event Management**: Create, update, delete, and search calendar events
-- **Reminder Notifications**: Automatic notifications for upcoming events
 - **Calendar Discovery**: Discover and manage shared calendars
 - **Free/Busy Information**: Get availability information for time slots
+- **Simple Queries**: Get upcoming events, today's events, this week's events, and next event
 
 ## Configuration
 
@@ -16,50 +16,15 @@ Add the following configuration to your `config.json`:
 ```json
 {
   "calendar": {
-    "monitor": {
-      "enabled": true,
-      "poll_interval": 300,
-      "notification_minutes": 30
-    },
-    "calendar_id": "primary"
+    "calendar_cid": "base64_encoded_calendar_id_from_share_url"
   }
 }
 ```
 
 ### Configuration Options
 
-- **`enabled`**: Enable/disable calendar reminder monitoring (default: false)
-- **`poll_interval`**: How often to check for upcoming events in seconds (default: 300 = 5 minutes)
-- **`notification_minutes`**: How many minutes before an event to create a notification (default: 30)
-- **`calendar_id`**: The calendar ID to monitor (default: "primary")
-
-## Reminder System
-
-The calendar service now uses a **reminder-based notification system** instead of change detection:
-
-1. **Polling**: Checks for upcoming events every `poll_interval` seconds
-2. **Time Window**: Looks for events starting within the next `notification_minutes` minutes
-3. **Notification Creation**: Creates notifications for events that are approaching their start time
-4. **Duplicate Prevention**: Prevents creating multiple notifications for the same event
-
-### Notification Data Structure
-
-Each reminder notification contains:
-
-```json
-{
-  "type": "calendar_reminder",
-  "event_id": "event_123",
-  "summary": "Team Meeting",
-  "start_time": "2024-01-15T10:00:00Z",
-  "minutes_until_start": 25,
-  "location": "Conference Room A",
-  "description": "Weekly team sync",
-  "html_link": "https://calendar.google.com/...",
-  "timestamp": "2024-01-15T09:35:00Z",
-  "source": "googleapi_calendar_reminder"
-}
-```
+- **`calendar_cid`**: Base64-encoded calendar ID from Google Calendar share URL (for shared calendars)
+- **`calendar_id`**: Direct calendar ID (alternative to calendar_cid)
 
 ## API Endpoints
 
@@ -69,7 +34,9 @@ Each reminder notification contains:
 - `DELETE /calendar/events/{event_id}` - Delete an event
 - `GET /calendar/events/{event_id}` - Get a specific event
 - `GET /calendar/events/upcoming` - Get upcoming events
+- `GET /calendar/events/next-event` - Get the next upcoming event
 - `GET /calendar/events/today` - Get today's events
+- `GET /calendar/events/this-week` - Get events for this week
 - `POST /calendar/events/search` - Search events
 - `GET /calendar/events/date-range` - Get events in date range
 
@@ -78,47 +45,58 @@ Each reminder notification contains:
 - `GET /calendar/calendars/current` - Get current calendar info
 - `GET /calendar/calendars/discover` - Discover shared calendars
 
-### Monitoring
-- `POST /calendar/monitor/start` - Start reminder monitoring
-- `POST /calendar/monitor/stop` - Stop reminder monitoring
-- `GET /calendar/monitor/status` - Get monitoring status
-
-### Notifications
-- `GET /calendar/notifications` - Get pending calendar notifications
-- `GET /calendar/notifications/stats` - Get notification statistics
+### Free/Busy
+- `POST /calendar/freebusy` - Get free/busy information
 
 ## Usage Examples
 
-### Start Reminder Monitoring
+### Get Next Event
 ```bash
-curl -X POST http://localhost:8000/calendar/monitor/start
+curl http://localhost:8000/calendar/events/next-event
 ```
 
-### Get Monitoring Status
+### Get Today's Events
 ```bash
-curl http://localhost:8000/calendar/monitor/status
+curl http://localhost:8000/calendar/events/today
 ```
 
-### Get Pending Notifications
+### Get This Week's Events
 ```bash
-curl http://localhost:8000/calendar/notifications
+curl http://localhost:8000/calendar/events/this-week
 ```
 
-## Integration with Brain Service
-
-The brain service can retrieve calendar reminders by calling:
-
+### Create an Event
+```bash
+curl -X POST http://localhost:8000/calendar/events \
+  -H "Content-Type: application/json" \
+  -d '{
+    "summary": "Team Meeting",
+    "description": "Weekly team sync",
+    "start_datetime": "2024-01-15T10:00:00-07:00",
+    "end_datetime": "2024-01-15T11:00:00-07:00"
+  }'
 ```
-GET /calendar/notifications
+
+### Search Events
+```bash
+curl -X POST http://localhost:8000/calendar/events/search \
+  -H "Content-Type: application/json" \
+  -d '{
+    "q": "meeting",
+    "time_min": "2024-01-15T00:00:00Z",
+    "time_max": "2024-01-22T23:59:59Z"
+  }'
 ```
 
-This endpoint returns pending reminder notifications and optionally marks them as processed. The brain service can then use this information to provide timely reminders to the user about upcoming calendar events.
+## Integration Notes
 
-## Monitoring Behavior
+- **No Caching**: This service directly queries the Google Calendar API for all operations
+- **No Monitoring**: Calendar monitoring has been removed in favor of a future courier service
+- **Shared Calendars**: Supports shared calendars via calendar_cid configuration
+- **Error Handling**: All endpoints include proper error handling and logging
 
-- **Polling Frequency**: Default 5 minutes (configurable)
-- **Notification Window**: Default 30 minutes before event start (configurable)
-- **Duplicate Prevention**: Won't create multiple notifications for the same event
-- **Cancelled Events**: Automatically skips cancelled events
-- **All-Day Events**: Handles both timed and all-day events
-- **Error Handling**: Graceful error recovery with retry logic
+## Future Plans
+
+- Calendar notifications will be handled by a dedicated courier service
+- Push notifications will be implemented through the courier service
+- Real-time event updates will be managed by the courier service

@@ -3,30 +3,28 @@ Calendar API Routes for FastAPI
 
 This module defines the API endpoints for interacting with Google Calendar via Google's API.
 It provides endpoints for creating, updating, deleting, and searching calendar events,
-as well as managing calendar lists and monitoring calendar changes.
+as well as managing calendar lists.
 
 Endpoints:
     - POST /events: Create a new calendar event
     - PUT /events/{event_id}: Update an existing calendar event
     - DELETE /events/{event_id}: Delete a calendar event
     - GET /events/{event_id}: Get a specific event by ID
-    - GET /events/upcoming: Get upcoming events from local cache
-    - GET /events/upcoming-within-minutes: Get events starting within N minutes
+    - GET /events/upcoming: Get upcoming events
     - GET /events/today: Get today's events
+    - GET /events/this-week: Get events for this week
+    - GET /events/next-event: Get the next upcoming event
     - POST /events/search: Search events using various criteria
     - GET /events/date-range: Get events within a date range
     - GET /calendars: Get list of accessible calendars
     - GET /calendars/discover: Discover shared calendars
+    - GET /calendars/current: Get current calendar info
     - POST /freebusy: Get free/busy information
-    - POST /monitor/start: Start calendar monitoring
-    - POST /monitor/stop: Stop calendar monitoring
-    - GET /monitor/status: Get calendar monitoring status
-    - POST /webhook/notifications: Handle incoming push notifications
 
 All endpoints handle exceptions and return appropriate HTTP error responses.
 """
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import Response
 
 from shared.models.googleapi import (
@@ -42,7 +40,6 @@ from shared.models.googleapi import (
 from app.services.calendar.auth import get_calendar_service, get_calendar_id, discover_shared_calendars, validate_calendar_access, get_calendar_summary
 from app.services.calendar.events import create_event, update_event, delete_event, get_event
 from app.services.calendar.search import get_calendar_list, get_free_busy
-from app.services.calendar.monitor import get_monitor_status
 
 from shared.log_config import get_logger
 logger = get_logger(f"googleapi.{__name__}")
@@ -113,12 +110,22 @@ async def delete_event_endpoint(event_id: str, send_notifications: bool = True):
         raise HTTPException(status_code=500, detail=f"Failed to delete event: {str(e)}")
 
 
+@router.get("/events/{event_id}", response_model=CalendarEvent)
+async def get_event_endpoint(event_id: str):
+    """Get a specific event by ID."""
+    try:
+        event = get_event(event_id)
+        return event
+    except Exception as e:
+        logger.error(f"Failed to get event {event_id}: {e}")
+        raise HTTPException(status_code=404, detail=f"Event not found: {str(e)}")
+
+
 @router.get("/events/upcoming", response_model=List[CalendarEvent])
 async def get_upcoming_events_endpoint(max_results: int = 10, days_ahead: int = 7):
-    """Get upcoming events from local cache."""
+    """Get upcoming events from Google Calendar API."""
     try:
-        from app.services.calendar.cache import get_cached_events
-        
+        service = get_calendar_service()
         calendar_id = get_calendar_id()
         
         # Calculate time range
@@ -127,44 +134,49 @@ async def get_upcoming_events_endpoint(max_results: int = 10, days_ahead: int = 
         time_min = now.isoformat()
         time_max = (now + timedelta(days=days_ahead)).isoformat()
         
-        events_data = get_cached_events(
-            calendar_id=calendar_id,
-            start_time=time_min,
-            end_time=time_max,
-            max_results=max_results
-        )
+        events_result = service.events().list(
+            calendarId=calendar_id,
+            timeMin=time_min,
+            timeMax=time_max,
+            maxResults=max_results,
+            singleEvents=True,
+            orderBy='startTime'
+        ).execute()
         
-        events = [CalendarEvent(**event) for event in events_data]
-        return events
+        events = events_result.get('items', [])
+        return [CalendarEvent(**event) for event in events]
     except Exception as e:
         logger.error(f"Failed to get upcoming events: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get upcoming events: {str(e)}")
 
 
-@router.get("/events/upcoming-within-minutes", response_model=List[CalendarEvent])
-async def get_events_within_minutes_endpoint(minutes: Optional[int] = None, calendar_id: Optional[str] = None):
-    """Get events starting within the next N minutes from local cache. 
-    If minutes is not specified, uses notification_minutes from config."""
+@router.get("/events/next-event", response_model=CalendarEvent)
+async def get_next_event_endpoint():
+    """Get the next upcoming event."""
     try:
-        from app.services.calendar.cache import get_events_within_minutes
-        from app.services.gmail.util import get_config
+        service = get_calendar_service()
+        calendar_id = get_calendar_id()
         
-        # Default to config value if not specified
-        if minutes is None:
-            config = get_config()
-            minutes = config.get('calendar', {}).get('monitor', {}).get('notification_minutes', 30)
+        # Get events starting from now
+        now = datetime.now(timezone.utc)
+        time_min = now.isoformat()
         
-        if not calendar_id:
-            calendar_id = get_calendar_id()
+        events_result = service.events().list(
+            calendarId=calendar_id,
+            timeMin=time_min,
+            maxResults=1,
+            singleEvents=True,
+            orderBy='startTime'
+        ).execute()
         
-        events_data = get_events_within_minutes(minutes, calendar_id)
-        events = [CalendarEvent(**event) for event in events_data]
-        
-        logger.info(f"Found {len(events)} events starting within {minutes} minutes")
-        return events
+        events = events_result.get('items', [])
+        if events:
+            return CalendarEvent(**events[0])
+        else:
+            raise HTTPException(status_code=404, detail="No upcoming events found")
     except Exception as e:
-        logger.error(f"Failed to get events within {minutes if minutes else 'default'} minutes: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get events within minutes: {str(e)}")
+        logger.error(f"Failed to get next event: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get next event: {str(e)}")
 
 
 @router.get("/events/today", response_model=List[CalendarEvent])
@@ -193,6 +205,35 @@ async def get_today_events_endpoint():
     except Exception as e:
         logger.error(f"Failed to get today's events: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get today's events: {str(e)}")
+
+
+@router.get("/events/this-week", response_model=List[CalendarEvent])
+async def get_this_week_events_endpoint():
+    """Get events for this week from Google Calendar API."""
+    try:
+        service = get_calendar_service()
+        calendar_id = get_calendar_id()
+        
+        # Calculate this week's date range
+        from datetime import datetime, timezone, timedelta
+        now = datetime.now(timezone.utc)
+        start_of_week = now - timedelta(days=now.weekday())
+        start_of_week = start_of_week.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_of_week = start_of_week + timedelta(days=7)
+        
+        events_result = service.events().list(
+            calendarId=calendar_id,
+            timeMin=start_of_week.isoformat(),
+            timeMax=end_of_week.isoformat(),
+            singleEvents=True,
+            orderBy='startTime'
+        ).execute()
+        
+        events = events_result.get('items', [])
+        return [CalendarEvent(**event) for event in events]
+    except Exception as e:
+        logger.error(f"Failed to get this week's events: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get this week's events: {str(e)}")
 
 
 # Search endpoints
@@ -258,15 +299,6 @@ async def get_events_by_date_range_endpoint(start_date: str, end_date: str, max_
         raise HTTPException(status_code=500, detail=f"Failed to get events by date range: {str(e)}")
 
 
-@router.get("/events/{event_id}", response_model=CalendarEvent)
-async def get_event_endpoint(event_id: str):
-    """Get a specific event by ID."""
-    try:
-        event = get_event(event_id)
-        return event
-    except Exception as e:
-        logger.error(f"Failed to get event {event_id}: {e}")
-        raise HTTPException(status_code=404, detail=f"Event not found: {str(e)}")
 # Calendar management endpoints
 @router.get("/calendars", response_model=CalendarListResponse)
 async def get_calendar_list_endpoint():
@@ -349,51 +381,6 @@ async def get_free_busy_endpoint(
     except Exception as e:
         logger.error(f"Failed to get free/busy information: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get free/busy information: {str(e)}")
-
-
-# Monitoring endpoints
-@router.post("/monitor/start", response_model=CalendarResponse)
-async def start_monitoring_endpoint():
-    """Start calendar reminder monitoring."""
-    try:
-        from app.services.calendar.monitor import start_calendar_monitoring
-        await start_calendar_monitoring()
-        
-        return CalendarResponse(
-            success=True,
-            message="Calendar reminder monitoring started successfully"
-        )
-    except Exception as e:
-        logger.error(f"Failed to start calendar monitoring: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to start calendar monitoring: {str(e)}")
-
-
-@router.post("/monitor/stop", response_model=CalendarResponse)
-async def stop_monitoring_endpoint():
-    """Stop calendar reminder monitoring."""
-    try:
-        from app.services.calendar.monitor import stop_calendar_monitoring
-        stop_calendar_monitoring()
-        
-        return CalendarResponse(
-            success=True,
-            message="Calendar reminder monitoring stopped successfully"
-        )
-    except Exception as e:
-        logger.error(f"Failed to stop calendar monitoring: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to stop calendar monitoring: {str(e)}")
-
-
-@router.get("/monitor/status", response_model=Dict[str, Any])
-async def get_monitoring_status_endpoint():
-    """Get calendar reminder monitoring status."""
-    try:
-        from app.services.calendar.monitor import get_monitor_status
-        status = get_monitor_status()
-        return status
-    except Exception as e:
-        logger.error(f"Failed to get monitoring status: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get monitoring status: {str(e)}")
 
 
 

@@ -53,16 +53,15 @@ def get_calendar_service():
     # Refresh token if expired
     if creds.expired and creds.refresh_token:
         try:
+            logger.info("Refreshing expired Calendar credentials")
             creds.refresh(Request())
-            logger.info("Calendar credentials refreshed successfully")
-            
             # Save refreshed token back to file
             with open(token_path, 'w') as token:
                 token.write(creds.to_json())
-                
+            logger.info("Calendar credentials refreshed successfully")
         except Exception as e:
             logger.error(f"Failed to refresh Calendar credentials: {e}")
-            raise
+            raise Exception(f"Token refresh failed. Re-run OAuth setup: {e}")
     
     # Build Calendar service
     try:

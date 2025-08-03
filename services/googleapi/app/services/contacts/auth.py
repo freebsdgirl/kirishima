@@ -48,10 +48,16 @@ def get_people_service():
     
     # Refresh token if expired
     if creds.expired and creds.refresh_token:
-        creds.refresh(Request())
-        # Save refreshed token
-        with open(token_path, 'w') as token:
-            token.write(creds.to_json())
+        try:
+            logger.info("Refreshing expired Contacts credentials")
+            creds.refresh(Request())
+            # Save refreshed token
+            with open(token_path, 'w') as token:
+                token.write(creds.to_json())
+            logger.info("Contacts credentials refreshed successfully")
+        except Exception as e:
+            logger.error(f"Failed to refresh Contacts credentials: {e}")
+            raise Exception(f"Token refresh failed. Re-run OAuth setup: {e}")
     
     if not creds.valid:
         raise Exception("Invalid credentials. Re-run the OAuth setup script.")

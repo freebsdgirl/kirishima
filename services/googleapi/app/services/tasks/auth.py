@@ -54,8 +54,16 @@ def get_tasks_service():
         # If there are no (valid) credentials available, let the user log in
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
-                logger.info("Refreshing expired Google Tasks credentials")
-                creds.refresh(Request())
+                try:
+                    logger.info("Refreshing expired Google Tasks credentials")
+                    creds.refresh(Request())
+                    # Save the credentials for the next run
+                    with open(token_path, 'w') as token:
+                        token.write(creds.to_json())
+                    logger.info("Tasks credentials refreshed successfully")
+                except Exception as e:
+                    logger.error(f"Failed to refresh Tasks credentials: {e}")
+                    raise Exception(f"Token refresh failed. Re-run OAuth setup: {e}")
             else:
                 logger.info("Starting Google OAuth flow with comprehensive scopes")
                 credentials_path = '/app/config/credentials.json'
@@ -64,11 +72,11 @@ def get_tasks_service():
                 
                 flow = InstalledAppFlow.from_client_secrets_file(credentials_path, SCOPES)
                 creds = flow.run_local_server(port=0)
-            
-            # Save the credentials for the next run
-            os.makedirs(os.path.dirname(token_path), exist_ok=True)
-            with open(token_path, 'w') as token:
-                token.write(creds.to_json())
+                
+                # Save the credentials for the next run
+                os.makedirs(os.path.dirname(token_path), exist_ok=True)
+                with open(token_path, 'w') as token:
+                    token.write(creds.to_json())
         
         # Build and return the service
         service = build('tasks', 'v1', credentials=creds)

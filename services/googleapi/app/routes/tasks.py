@@ -11,7 +11,7 @@ from typing import List
 
 from shared.models.googleapi import (
     TaskModel, TaskListModel, CreateTaskRequest, UpdateTaskRequest,
-    CreateTaskListRequest, TasksResponse, DueTasksResponse
+    CreateTaskListRequest, ApiResponse, DueTasksResponse
 )
 
 from app.services.tasks.tasks import (
@@ -27,7 +27,7 @@ router = APIRouter()
 
 # Task Lists Management
 
-@router.post("/tasklists", response_model=TasksResponse)
+@router.post("/tasklists", response_model=ApiResponse)
 async def create_new_task_list(request: CreateTaskListRequest):
     """Create a new task list."""
     return create_task_list(request)
@@ -39,7 +39,7 @@ async def get_task_lists():
     return list_task_lists(exclude_stickynotes=True)
 
 
-@router.delete("/tasklists/{task_list_id}", response_model=TasksResponse)
+@router.delete("/tasklists/{task_list_id}", response_model=ApiResponse)
 async def remove_task_list(task_list_id: str):
     """Delete a task list (cannot delete stickynotes)."""
     return delete_task_list(task_list_id)
@@ -47,7 +47,7 @@ async def remove_task_list(task_list_id: str):
 
 # Task Management in Lists
 
-@router.post("/tasklists/{task_list_id}/tasks", response_model=TasksResponse)
+@router.post("/tasklists/{task_list_id}/tasks", response_model=ApiResponse)
 async def add_task_to_list(task_list_id: str, request: CreateTaskRequest):
     """Add a task to a specific task list."""
     request.task_list_id = task_list_id
@@ -60,7 +60,7 @@ async def list_tasks_in_task_list(task_list_id: str):
     return list_tasks_in_list(task_list_id)
 
 
-@router.delete("/tasklists/{task_list_id}/tasks/{task_id}", response_model=TasksResponse)
+@router.delete("/tasklists/{task_list_id}/tasks/{task_id}", response_model=ApiResponse)
 async def remove_task_from_list(task_list_id: str, task_id: str):
     """Remove a task from a specific task list."""
     return delete_task(task_id, task_list_id)
@@ -74,25 +74,25 @@ async def get_stickynotes_tasks():
     return list_stickynotes_tasks()
 
 
-@router.post("/stickynotes", response_model=TasksResponse)
+@router.post("/stickynotes", response_model=ApiResponse)
 async def create_stickynote_task(request: CreateTaskRequest):
     """Create a new task in the stickynotes task list."""
     return create_task(request)
 
 
-@router.put("/stickynotes/{task_id}", response_model=TasksResponse)
+@router.put("/stickynotes/{task_id}", response_model=ApiResponse)
 async def update_stickynote_task(task_id: str, request: UpdateTaskRequest):
     """Update a task in the stickynotes task list."""
     return update_task(task_id, request)
 
 
-@router.post("/stickynotes/{task_id}/complete", response_model=TasksResponse)
+@router.post("/stickynotes/{task_id}/complete", response_model=ApiResponse)
 async def complete_stickynote_task(task_id: str):
     """Complete a task in the stickynotes task list (handles recurrence)."""
     return complete_task(task_id)
 
 
-@router.delete("/stickynotes/{task_id}", response_model=TasksResponse)
+@router.delete("/stickynotes/{task_id}", response_model=ApiResponse)
 async def delete_stickynote_task(task_id: str):
     """Delete a task from the stickynotes task list."""
     return delete_task(task_id)

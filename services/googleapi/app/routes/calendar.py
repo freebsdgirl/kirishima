@@ -31,7 +31,7 @@ from shared.models.googleapi import (
     CreateEventRequest,
     UpdateEventRequest,
     SearchEventsRequest,
-    CalendarResponse,
+    ApiResponse,
     CalendarEvent,  
     EventsListResponse,
     CalendarListResponse
@@ -51,12 +51,12 @@ router = APIRouter()
 
 
 # Event management endpoints
-@router.post("/events", response_model=CalendarResponse)
+@router.post("/events", response_model=ApiResponse)
 async def create_event_endpoint(request: CreateEventRequest):
     """Create a new calendar event."""
     try:
         event = create_event(request)
-        return CalendarResponse(
+        return ApiResponse(
             success=True,
             message="Event created successfully",
             data={
@@ -70,7 +70,7 @@ async def create_event_endpoint(request: CreateEventRequest):
         raise HTTPException(status_code=500, detail=f"Failed to create event: {str(e)}")
 
 
-@router.put("/events/{event_id}", response_model=CalendarResponse)
+@router.put("/events/{event_id}", response_model=ApiResponse)
 async def update_event_endpoint(event_id: str, request: UpdateEventRequest):
     """Update an existing calendar event."""
     try:
@@ -78,7 +78,7 @@ async def update_event_endpoint(event_id: str, request: UpdateEventRequest):
         request.event_id = event_id
         
         event = update_event(request)
-        return CalendarResponse(
+        return ApiResponse(
             success=True,
             message="Event updated successfully",
             data={
@@ -92,13 +92,13 @@ async def update_event_endpoint(event_id: str, request: UpdateEventRequest):
         raise HTTPException(status_code=500, detail=f"Failed to update event: {str(e)}")
 
 
-@router.delete("/events/{event_id}", response_model=CalendarResponse)
+@router.delete("/events/{event_id}", response_model=ApiResponse)
 async def delete_event_endpoint(event_id: str, send_notifications: bool = True):
     """Delete a calendar event."""
     try:
         success = delete_event(event_id, send_notifications)
         if success:
-            return CalendarResponse(
+            return ApiResponse(
                 success=True,
                 message="Event deleted successfully",
                 data={'event_id': event_id}

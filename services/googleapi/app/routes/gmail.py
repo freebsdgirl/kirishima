@@ -29,7 +29,7 @@ from shared.models.googleapi import (
     SaveDraftRequest,
     SearchEmailRequest,
     EmailSearchByRequest,
-    EmailResponse
+    ApiResponse
 )
 
 from app.services.gmail.auth import get_gmail_service
@@ -44,7 +44,7 @@ router = APIRouter()
 
 
 # Email sending endpoints
-@router.post("/send", response_model=EmailResponse)
+@router.post("/send", response_model=ApiResponse)
 async def send_email_endpoint(request: SendEmailRequest):
     """Send a new email."""
     try:
@@ -56,7 +56,7 @@ async def send_email_endpoint(request: SendEmailRequest):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
-@router.post("/reply", response_model=EmailResponse)
+@router.post("/reply", response_model=ApiResponse)
 async def reply_to_email_endpoint(request: ReplyEmailRequest):
     """Reply to an email thread."""
     try:
@@ -68,7 +68,7 @@ async def reply_to_email_endpoint(request: ReplyEmailRequest):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
-@router.post("/forward", response_model=EmailResponse)
+@router.post("/forward", response_model=ApiResponse)
 async def forward_email_endpoint(request: ForwardEmailRequest):
     """Forward an email to recipients."""
     try:
@@ -80,7 +80,7 @@ async def forward_email_endpoint(request: ForwardEmailRequest):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
-@router.post("/draft", response_model=EmailResponse)
+@router.post("/draft", response_model=ApiResponse)
 async def save_draft_endpoint(request: SaveDraftRequest):
     """Save an email as a draft for later review and sending."""
     try:
@@ -92,7 +92,7 @@ async def save_draft_endpoint(request: SaveDraftRequest):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
-@router.get("/drafts", response_model=EmailResponse)
+@router.get("/drafts", response_model=ApiResponse)
 async def get_drafts_endpoint(max_results: int = 10):
     """Get list of draft emails for review."""
     try:
@@ -105,7 +105,7 @@ async def get_drafts_endpoint(max_results: int = 10):
 
 
 # Email search endpoints
-@router.post("/search", response_model=EmailResponse)
+@router.post("/search", response_model=ApiResponse)
 async def search_emails_endpoint(request: SearchEmailRequest):
     """Search emails using Gmail query syntax."""
     try:
@@ -117,7 +117,7 @@ async def search_emails_endpoint(request: SearchEmailRequest):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
-@router.get("/unread", response_model=EmailResponse)
+@router.get("/unread", response_model=ApiResponse)
 async def get_unread_emails_endpoint(max_results: int = 10):
     """Get unread emails."""
     try:
@@ -129,7 +129,7 @@ async def get_unread_emails_endpoint(max_results: int = 10):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
-@router.get("/recent", response_model=EmailResponse)
+@router.get("/recent", response_model=ApiResponse)
 async def get_recent_emails_endpoint(max_results: int = 10):
     """Get recent emails."""
     try:
@@ -141,7 +141,7 @@ async def get_recent_emails_endpoint(max_results: int = 10):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
-@router.post("/search/sender", response_model=EmailResponse)
+@router.post("/search/sender", response_model=ApiResponse)
 async def search_by_sender_endpoint(request: EmailSearchByRequest):
     """Search emails by sender."""
     try:
@@ -153,7 +153,7 @@ async def search_by_sender_endpoint(request: EmailSearchByRequest):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
-@router.post("/search/subject", response_model=EmailResponse)
+@router.post("/search/subject", response_model=ApiResponse)
 async def search_by_subject_endpoint(request: EmailSearchByRequest):
     """Search emails by subject."""
     try:
@@ -165,7 +165,7 @@ async def search_by_subject_endpoint(request: EmailSearchByRequest):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
-@router.get("/email/{email_id}", response_model=EmailResponse)
+@router.get("/email/{email_id}", response_model=ApiResponse)
 async def get_email_by_id_endpoint(email_id: str):
     """Get a specific email by ID."""
     try:
@@ -178,13 +178,13 @@ async def get_email_by_id_endpoint(email_id: str):
 
 
 # Email monitoring endpoints
-@router.post("/monitor/start", response_model=EmailResponse)
+@router.post("/monitor/start", response_model=ApiResponse)
 async def start_monitoring_endpoint(background_tasks: BackgroundTasks):
     """Start email monitoring."""
     try:
         background_tasks.add_task(start_email_monitoring)
         
-        return EmailResponse(
+        return ApiResponse(
             success=True,
             message="Email monitoring started"
         )
@@ -194,13 +194,13 @@ async def start_monitoring_endpoint(background_tasks: BackgroundTasks):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
-@router.post("/monitor/stop", response_model=EmailResponse)
+@router.post("/monitor/stop", response_model=ApiResponse)
 async def stop_monitoring_endpoint():
     """Stop email monitoring."""
     try:
         stop_email_monitoring()
         
-        return EmailResponse(
+        return ApiResponse(
             success=True,
             message="Email monitoring stopped"
         )
@@ -210,13 +210,13 @@ async def stop_monitoring_endpoint():
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
-@router.get("/monitor/status", response_model=EmailResponse)
+@router.get("/monitor/status", response_model=ApiResponse)
 async def get_monitoring_status_endpoint():
     """Get email monitoring status."""
     try:
         status = get_monitor_status()
         
-        return EmailResponse(
+        return ApiResponse(
             success=True,
             message="Monitor status retrieved",
             data={"status": status}

@@ -2,26 +2,26 @@
 This module provides service functions for managing Google Tasks via the Google Tasks API,
 with additional support for Kirishima-specific metadata and recurrence logic.
 Functions:
-    - create_task_list(request: CreateTaskListRequest) -> TasksResponse:
+    - create_task_list(request: CreateTaskListRequest) -> ApiResponse:
     - list_task_lists(exclude_stickynotes: bool = True) -> List[TaskListModel]:
         List all task lists, optionally excluding the stickynotes list.
-    - delete_task_list(task_list_id: str) -> TasksResponse:
+    - delete_task_list(task_list_id: str) -> ApiResponse:
         Delete a task list, except for the stickynotes list.
-    - create_task(request: CreateTaskRequest) -> TasksResponse:
+    - create_task(request: CreateTaskRequest) -> ApiResponse:
         Create a new task in a specified or default (stickynotes) task list, with Kirishima metadata.
     - list_stickynotes_tasks() -> List[TaskModel]:
         List all tasks in the stickynotes task list, parsing Kirishima metadata.
-    - update_task(task_id: str, request: UpdateTaskRequest, task_list_id: Optional[str] = None) -> TasksResponse:
+    - update_task(task_id: str, request: UpdateTaskRequest, task_list_id: Optional[str] = None) -> ApiResponse:
         Update an existing task, preserving and updating Kirishima metadata as needed.
-    - complete_task(task_id: str, task_list_id: Optional[str] = None) -> TasksResponse:
+    - complete_task(task_id: str, task_list_id: Optional[str] = None) -> ApiResponse:
         Complete a task, handling recurrence by updating the due date if an RRULE is present.
-    - delete_task(task_id: str, task_list_id: Optional[str] = None) -> TasksResponse:
+    - delete_task(task_id: str, task_list_id: Optional[str] = None) -> ApiResponse:
         Delete a task from a specified or default (stickynotes) task list.
     - get_due_tasks() -> DueTasksResponse:
         Retrieve all due and overdue tasks from the stickynotes task list, for use by the brain service.
 Dependencies:
     - shared.log_config.get_logger
-    - shared.models.googleapi (TaskModel, TaskListModel, CreateTaskRequest, UpdateTaskRequest, CreateTaskListRequest, TasksResponse, DueTasksResponse)
+    - shared.models.googleapi (TaskModel, TaskListModel, CreateTaskRequest, UpdateTaskRequest, CreateTaskListRequest, ApiResponse, DueTasksResponse)
     - .auth.get_tasks_service
     - .util (get_stickynotes_tasklist_id, create_kirishima_metadata, parse_kirishima_metadata, calculate_next_due_date, is_task_due)
     - typing
@@ -34,7 +34,7 @@ logger = get_logger(f"googleapi.{__name__}")
 
 from shared.models.googleapi import (
     TaskModel, TaskListModel, CreateTaskRequest, UpdateTaskRequest,
-    CreateTaskListRequest, TasksResponse, DueTasksResponse
+    CreateTaskListRequest, ApiResponse, DueTasksResponse
 )
 
 from .auth import get_tasks_service
@@ -47,7 +47,7 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 
 
-def create_task_list(request: CreateTaskListRequest) -> TasksResponse:
+def create_task_list(request: CreateTaskListRequest) -> ApiResponse:
     """
     Create a new task list.
     
@@ -55,7 +55,7 @@ def create_task_list(request: CreateTaskListRequest) -> TasksResponse:
         request: Task list creation request
         
     Returns:
-        TasksResponse: Operation result
+        ApiResponse: Operation result
     """
     try:
         service = get_tasks_service()
@@ -68,7 +68,7 @@ def create_task_list(request: CreateTaskListRequest) -> TasksResponse:
         
         logger.info(f"Created task list: {result['title']} ({result['id']})")
         
-        return TasksResponse(
+        return ApiResponse(
             success=True,
             message="Task list created successfully",
             data={
@@ -79,7 +79,7 @@ def create_task_list(request: CreateTaskListRequest) -> TasksResponse:
         
     except Exception as e:
         logger.error(f"Failed to create task list: {e}")
-        return TasksResponse(
+        return ApiResponse(
             success=False,
             message=f"Failed to create task list: {str(e)}"
         )
@@ -118,7 +118,7 @@ def list_task_lists(exclude_stickynotes: bool = True) -> List[TaskListModel]:
         return []
 
 
-def delete_task_list(task_list_id: str) -> TasksResponse:
+def delete_task_list(task_list_id: str) -> ApiResponse:
     """
     Delete a task list (except stickynotes).
     
@@ -126,7 +126,7 @@ def delete_task_list(task_list_id: str) -> TasksResponse:
         task_list_id: Task list ID to delete
         
     Returns:
-        TasksResponse: Operation result
+        ApiResponse: Operation result
     """
     try:
         service = get_tasks_service()
@@ -135,7 +135,7 @@ def delete_task_list(task_list_id: str) -> TasksResponse:
         task_list = service.tasklists().get(tasklist=task_list_id).execute()
         
         if task_list.get('title', '').lower() == 'stickynotes':
-            return TasksResponse(
+            return ApiResponse(
                 success=False,
                 message="Cannot delete stickynotes task list"
             )
@@ -144,20 +144,20 @@ def delete_task_list(task_list_id: str) -> TasksResponse:
         
         logger.info(f"Deleted task list: {task_list['title']} ({task_list_id})")
         
-        return TasksResponse(
+        return ApiResponse(
             success=True,
             message="Task list deleted successfully"
         )
         
     except Exception as e:
         logger.error(f"Failed to delete task list: {e}")
-        return TasksResponse(
+        return ApiResponse(
             success=False,
             message=f"Failed to delete task list: {str(e)}"
         )
 
 
-def create_task(request: CreateTaskRequest) -> TasksResponse:
+def create_task(request: CreateTaskRequest) -> ApiResponse:
     """
     Create a new task.
     
@@ -165,7 +165,7 @@ def create_task(request: CreateTaskRequest) -> TasksResponse:
         request: Task creation request
         
     Returns:
-        TasksResponse: Operation result
+        ApiResponse: Operation result
     """
     try:
         service = get_tasks_service()
@@ -202,7 +202,7 @@ def create_task(request: CreateTaskRequest) -> TasksResponse:
         
         logger.info(f"Created task: {result['title']} ({result['id']})")
         
-        return TasksResponse(
+        return ApiResponse(
             success=True,
             message="Task created successfully",
             data={
@@ -213,7 +213,7 @@ def create_task(request: CreateTaskRequest) -> TasksResponse:
         
     except Exception as e:
         logger.error(f"Failed to create task: {e}")
-        return TasksResponse(
+        return ApiResponse(
             success=False,
             message=f"Failed to create task: {str(e)}"
         )
@@ -309,7 +309,7 @@ def list_tasks_in_list(task_list_id: str) -> List[TaskModel]:
         return []
 
 
-def update_task(task_id: str, request: UpdateTaskRequest, task_list_id: Optional[str] = None) -> TasksResponse:
+def update_task(task_id: str, request: UpdateTaskRequest, task_list_id: Optional[str] = None) -> ApiResponse:
     """
     Update an existing task.
     
@@ -319,7 +319,7 @@ def update_task(task_id: str, request: UpdateTaskRequest, task_list_id: Optional
         task_list_id: Task list ID (defaults to stickynotes)
         
     Returns:
-        TasksResponse: Operation result
+        ApiResponse: Operation result
     """
     try:
         service = get_tasks_service()
@@ -366,7 +366,7 @@ def update_task(task_id: str, request: UpdateTaskRequest, task_list_id: Optional
         
         logger.info(f"Updated task: {result['title']} ({task_id})")
         
-        return TasksResponse(
+        return ApiResponse(
             success=True,
             message="Task updated successfully",
             data={
@@ -377,13 +377,13 @@ def update_task(task_id: str, request: UpdateTaskRequest, task_list_id: Optional
         
     except Exception as e:
         logger.error(f"Failed to update task: {e}")
-        return TasksResponse(
+        return ApiResponse(
             success=False,
             message=f"Failed to update task: {str(e)}"
         )
 
 
-def complete_task(task_id: str, task_list_id: Optional[str] = None) -> TasksResponse:
+def complete_task(task_id: str, task_list_id: Optional[str] = None) -> ApiResponse:
     """
     Complete a task, handling recurrence if present.
     
@@ -392,7 +392,7 @@ def complete_task(task_id: str, task_list_id: Optional[str] = None) -> TasksResp
         task_list_id: Task list ID (defaults to stickynotes)
         
     Returns:
-        TasksResponse: Operation result
+        ApiResponse: Operation result
     """
     try:
         service = get_tasks_service()
@@ -432,7 +432,7 @@ def complete_task(task_id: str, task_list_id: Optional[str] = None) -> TasksResp
                 
                 logger.info(f"Updated recurring task due date: {current_task['title']} -> {next_due}")
                 
-                return TasksResponse(
+                return ApiResponse(
                     success=True,
                     message=f"Recurring task updated - next due: {next_due}",
                     data={
@@ -457,7 +457,7 @@ def complete_task(task_id: str, task_list_id: Optional[str] = None) -> TasksResp
         
         logger.info(f"Completed task: {current_task['title']} ({task_id})")
         
-        return TasksResponse(
+        return ApiResponse(
             success=True,
             message="Task completed successfully",
             data={
@@ -468,13 +468,13 @@ def complete_task(task_id: str, task_list_id: Optional[str] = None) -> TasksResp
         
     except Exception as e:
         logger.error(f"Failed to complete task: {e}")
-        return TasksResponse(
+        return ApiResponse(
             success=False,
             message=f"Failed to complete task: {str(e)}"
         )
 
 
-def delete_task(task_id: str, task_list_id: Optional[str] = None) -> TasksResponse:
+def delete_task(task_id: str, task_list_id: Optional[str] = None) -> ApiResponse:
     """
     Delete a task.
     
@@ -483,7 +483,7 @@ def delete_task(task_id: str, task_list_id: Optional[str] = None) -> TasksRespon
         task_list_id: Task list ID (defaults to stickynotes)
         
     Returns:
-        TasksResponse: Operation result
+        ApiResponse: Operation result
     """
     try:
         service = get_tasks_service()
@@ -498,14 +498,14 @@ def delete_task(task_id: str, task_list_id: Optional[str] = None) -> TasksRespon
         
         logger.info(f"Deleted task: {task['title']} ({task_id})")
         
-        return TasksResponse(
+        return ApiResponse(
             success=True,
             message="Task deleted successfully"
         )
         
     except Exception as e:
         logger.error(f"Failed to delete task: {e}")
-        return TasksResponse(
+        return ApiResponse(
             success=False,
             message=f"Failed to delete task: {str(e)}"
         )

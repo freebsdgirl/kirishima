@@ -211,14 +211,14 @@ class GetEmailByIdRequest(BaseModel):
         }
     }
 
-class EmailResponse(BaseModel):
+class ApiResponse(BaseModel):
     """
-    Response model for email operations representing the result of an email-related action.
+    Generic response model for API operations representing the result of any action.
     
     Attributes:
-        success (bool): Indicates whether the email operation was completed successfully.
-        message (str): A descriptive message about the result of the email operation.
-        data (Optional[Dict[str, Any]]): Optional dictionary containing additional response details, such as message ID.
+        success (bool): Indicates whether the operation was completed successfully.
+        message (str): A descriptive message about the result of the operation.
+        data (Optional[Dict[str, Any]]): Optional dictionary containing additional response details.
     """
     success: bool                         = Field(..., description="Indicates if the operation was successful")
     message: str                          = Field(..., description="Response message")
@@ -229,14 +229,15 @@ class EmailResponse(BaseModel):
             "examples": [
                 {
                     "success": True,
-                    "message": "Email sent successfully",
+                    "message": "Operation completed successfully",
                     "data": {
-                        "message_id": "1234567890abcdef"
+                        "id": "1234567890abcdef",
+                        "details": "Additional information"
                     }
                 },
                 {
                     "success": False,
-                    "message": "Failed to send email",
+                    "message": "Operation failed: Error description",
                     "data": None
                 }
             ]
@@ -803,28 +804,7 @@ class EventsListResponse(BaseModel):
     }
 
 
-class CalendarResponse(BaseModel):
-    """
-    Response model for calendar operations.
-    """
-    success: bool = Field(..., description="Whether the operation was successful")
-    message: str = Field(..., description="Response message")
-    data: Optional[Dict[str, Any]] = Field(None, description="Response data")
 
-    model_config = {
-        "json_schema_extra": {
-            "examples": [
-                {
-                    "success": True,
-                    "message": "Event created successfully",
-                    "data": {
-                        "event_id": "abc123def456",
-                        "html_link": "https://calendar.google.com/event?eid=..."
-                    }
-                }
-            ]
-        }
-    }
 
 
 # Google Tasks Models
@@ -949,28 +929,7 @@ class UpdateTaskRequest(BaseModel):
     }
 
 
-class TasksResponse(BaseModel):
-    """
-    Response model for Google Tasks operations.
-    """
-    success: bool = Field(..., description="Whether the operation was successful")
-    message: str = Field(..., description="Response message")
-    data: Optional[Dict[str, Any]] = Field(None, description="Response data")
-    
-    model_config = {
-        "json_schema_extra": {
-            "examples": [
-                {
-                    "success": True,
-                    "message": "Task created successfully",
-                    "data": {
-                        "task_id": "MTIzNDU2Nzg5MDEyMzQ1Njc4OTA",
-                        "title": "Call dentist"
-                    }
-                }
-            ]
-        }
-    }
+
 
 
 class DueTasksResponse(BaseModel):

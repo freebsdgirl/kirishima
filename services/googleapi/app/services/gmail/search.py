@@ -15,7 +15,7 @@ Functions:
 from shared.models.googleapi import (
     SearchEmailRequest,
     EmailSearchByRequest,
-    EmailResponse
+    ApiResponse
 )
 
 from googleapiclient.discovery import Resource
@@ -26,14 +26,14 @@ logger = get_logger(f"googleapi.{__name__}")
 from typing import Dict, Any
 
 
-def search_emails(service, request: SearchEmailRequest) -> EmailResponse:
+def search_emails(service, request: SearchEmailRequest) -> ApiResponse:
     """
     Search for emails using Gmail's search syntax and shared models.
     Args:
         service: Authenticated Gmail service
         request: SearchEmailRequest model
     Returns:
-        EmailResponse model
+        ApiResponse model
     """
     try:
         results = service.users().messages().list(
@@ -44,7 +44,7 @@ def search_emails(service, request: SearchEmailRequest) -> EmailResponse:
         ).execute()
         messages = results.get('messages', [])
         if not messages:
-            return EmailResponse(success=True, message="No emails found", data={"emails": []})
+            return ApiResponse(success=True, message="No emails found", data={"emails": []})
         email_list = []
         for message in messages:
             msg = service.users().messages().get(
@@ -68,12 +68,12 @@ def search_emails(service, request: SearchEmailRequest) -> EmailResponse:
                 'labels': msg.get('labelIds', [])
             }
             email_list.append(email_info)
-        return EmailResponse(success=True, message=f"Found {len(email_list)} emails", data={"emails": email_list})
+        return ApiResponse(success=True, message=f"Found {len(email_list)} emails", data={"emails": email_list})
     except Exception as e:
-        return EmailResponse(success=False, message=f"Failed to search emails: {str(e)}", data=None)
+        return ApiResponse(success=False, message=f"Failed to search emails: {str(e)}", data=None)
 
 
-def get_unread_emails(service, max_results: int = 10) -> EmailResponse:
+def get_unread_emails(service, max_results: int = 10) -> ApiResponse:
     """
     Get unread emails from inbox using shared models.
     """
@@ -81,7 +81,7 @@ def get_unread_emails(service, max_results: int = 10) -> EmailResponse:
     return search_emails(service, req)
 
 
-def get_recent_emails(service, max_results: int = 10) -> EmailResponse:
+def get_recent_emails(service, max_results: int = 10) -> ApiResponse:
     """
     Get recent emails from inbox using shared models.
     """
@@ -89,7 +89,7 @@ def get_recent_emails(service, max_results: int = 10) -> EmailResponse:
     return search_emails(service, req)
 
 
-def get_emails_by_sender(service, request: EmailSearchByRequest) -> EmailResponse:
+def get_emails_by_sender(service, request: EmailSearchByRequest) -> ApiResponse:
     """
     Get emails by sender using shared models.
     """
@@ -97,7 +97,7 @@ def get_emails_by_sender(service, request: EmailSearchByRequest) -> EmailRespons
     return search_emails(service, req)
 
 
-def get_emails_by_subject(service, request: EmailSearchByRequest) -> EmailResponse:
+def get_emails_by_subject(service, request: EmailSearchByRequest) -> ApiResponse:
     """
     Get emails by subject using shared models.
     """
@@ -105,7 +105,7 @@ def get_emails_by_subject(service, request: EmailSearchByRequest) -> EmailRespon
     return search_emails(service, req)
 
 
-def get_email_by_id(service: Resource, email_id: str, format: str = "full") -> EmailResponse:
+def get_email_by_id(service: Resource, email_id: str, format: str = "full") -> ApiResponse:
     """
     Retrieve a specific email by its ID using shared models.
     """
@@ -136,10 +136,10 @@ def get_email_by_id(service: Resource, email_id: str, format: str = "full") -> E
         }
         body = extract_body_content(message.get('payload', {}))
         result['body'] = body
-        return EmailResponse(success=True, message="Email retrieved successfully", data={"email": result})
+        return ApiResponse(success=True, message="Email retrieved successfully", data={"email": result})
     except Exception as e:
         logger.error(f"Error retrieving email {email_id}: {e}")
-        return EmailResponse(success=False, message=f"Error retrieving email {email_id}: {e}", data=None)
+        return ApiResponse(success=False, message=f"Error retrieving email {email_id}: {e}", data=None)
 
 
 def extract_body_content(payload: Dict[str, Any]) -> Dict[str, str]:

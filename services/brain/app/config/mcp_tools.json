@@ -448,5 +448,82 @@
       "description": "Array of strings in format 'id|title' or single string for create/delete operations"
     },
     "persistent": true
+  },
+  "smarthome": {
+    "description": "Smart home device control and automation via natural language requests. Handles device discovery, action generation, and execution through Home Assistant. Supports lighting control, media recommendations, and general device automation.",
+    "depends_on": [],
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "user_request": {
+          "type": "string",
+          "description": "The full text request from the user describing what they want to do with smart home devices"
+        },
+        "device": {
+          "type": "string",
+          "description": "The name of the specific device, if applicable (optional)"
+        }
+      },
+      "required": ["user_request"]
+    },
+    "returns": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "description": "Status of the operation (success, error, etc.)"
+        },
+        "message": {
+          "type": "string",
+          "description": "Human-readable message about the operation result"
+        },
+        "reasoning": {
+          "type": "string",
+          "description": "Explanation of what was done and why"
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {"type": "string"},
+              "domain": {"type": "string"},
+              "service": {"type": "string"},
+              "entity_id": {"type": "string"},
+              "service_data": {"type": "object"}
+            }
+          },
+          "description": "List of Home Assistant actions that were executed"
+        },
+        "action_summary": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Compact summaries of executed actions"
+        },
+        "action_count": {
+          "type": "integer",
+          "description": "Number of actions executed"
+        },
+        "intent": {
+          "type": "string",
+          "description": "The detected intent (for media recommendations)"
+        },
+        "media_types": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Media types for recommendations"
+        },
+        "recommendations": {
+          "type": "array",
+          "description": "Media recommendations if applicable"
+        },
+        "device_ids": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Device IDs involved in the operation"
+        }
+      }
+    },
+    "persistent": false
   }
 }

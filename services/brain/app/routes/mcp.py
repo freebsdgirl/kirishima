@@ -27,14 +27,44 @@ from app.services.mcp.dependencies import validate_all_dependencies
 router = APIRouter()
 
 
-@router.post("/")
-async def mcp_handler(request: dict):
+async def _handle_jsonrpc_request(request: dict, client_type: str = "internal") -> dict:
     """
-    Main MCP protocol handler for JSON-RPC requests.
+    Consolidated JSON-RPC handler for MCP protocol requests.
+    
+    Args:
+        request: The JSON-RPC request dict
+        client_type: Client type for tool filtering ("internal", "copilot", "external")
+    
+    Returns:
+        JSON-RPC response dict
     """
     method = request.get("method")
     params = request.get("params", {})
     request_id = request.get("id")
+    
+    # Client-specific configuration
+    client_configs = {
+        "internal": {
+            "server_name": "kirishima-brain",
+            "get_tools": get_available_tools,
+            "is_tool_available": is_tool_available,
+            "error_suffix": ""
+        },
+        "copilot": {
+            "server_name": "kirishima-brain-copilot", 
+            "get_tools": lambda: get_available_tools_for_client("copilot"),
+            "is_tool_available": lambda tool_name: is_tool_available_for_client(tool_name, "copilot"),
+            "error_suffix": " or not authorized for Copilot"
+        },
+        "external": {
+            "server_name": "kirishima-brain-external",
+            "get_tools": lambda: get_available_tools_for_client("external"),
+            "is_tool_available": lambda tool_name: is_tool_available_for_client(tool_name, "external"),
+            "error_suffix": " or not authorized for external clients"
+        }
+    }
+    
+    config = client_configs.get(client_type, client_configs["internal"])
     
     if method == "initialize":
         return {
@@ -46,14 +76,14 @@ async def mcp_handler(request: dict):
                     "tools": {}
                 },
                 "serverInfo": {
-                    "name": "kirishima-brain",
+                    "name": config["server_name"],
                     "version": "1.0.0"
                 }
             }
         }
     
     elif method == "tools/list":
-        tools = get_available_tools()
+        tools = config["get_tools"]()
         return {
             "jsonrpc": "2.0", 
             "id": request_id,
@@ -72,13 +102,13 @@ async def mcp_handler(request: dict):
         tool_name = params.get("name")
         arguments = params.get("arguments", {})
         
-        if not is_tool_available(tool_name):
+        if not config["is_tool_available"](tool_name):
             return {
                 "jsonrpc": "2.0",
                 "id": request_id,
                 "error": {
                     "code": -32601,
-                    "message": f"Tool '{tool_name}' not found"
+                    "message": f"Tool '{tool_name}' not found{config['error_suffix']}"
                 }
             }
         
@@ -108,6 +138,14 @@ async def mcp_handler(request: dict):
                 "message": f"Method '{method}' not found"
             }
         }
+
+
+@router.post("/")
+async def mcp_handler(request: dict):
+    """
+    Main MCP protocol handler for JSON-RPC requests.
+    """
+    return await _handle_jsonrpc_request(request, "internal")
 
 
 @router.post("/copilot/")
@@ -116,82 +154,16 @@ async def mcp_copilot_handler(request: dict):
     MCP protocol handler for GitHub Copilot with filtered tools.
     Same protocol as main MCP endpoint but with restricted tool access.
     """
-    method = request.get("method")
-    params = request.get("params", {})
-    request_id = request.get("id")
-    
-    if method == "initialize":
-        return {
-            "jsonrpc": "2.0",
-            "id": request_id,
-            "result": {
-                "protocolVersion": "2024-11-05",
-                "capabilities": {
-                    "tools": {}
-                },
-                "serverInfo": {
-                    "name": "kirishima-brain-copilot",
-                    "version": "1.0.0"
-                }
-            }
-        }
-    
-    elif method == "tools/list":
-        tools = get_available_tools_for_client("copilot")
-        return {
-            "jsonrpc": "2.0", 
-            "id": request_id,
-            "result": {
-                "tools": [
-                    {
-                        "name": tool.name,
-                        "description": tool.description,
-                        "inputSchema": tool.parameters
-                    } for tool in tools
-                ]
-            }
-        }
-    
-    elif method == "tools/call":
-        tool_name = params.get("name")
-        arguments = params.get("arguments", {})
-        
-        if not is_tool_available_for_client(tool_name, "copilot"):
-            return {
-                "jsonrpc": "2.0",
-                "id": request_id,
-                "error": {
-                    "code": -32601,
-                    "message": f"Tool '{tool_name}' not found or not authorized for Copilot"
-                }
-            }
-        
-        tool_registry = _load_tool_registry()
-        result = await execute_tool_with_dependencies(tool_name, arguments, tool_registry)
-        
-        return {
-            "jsonrpc": "2.0",
-            "id": request_id,
-            "result": {
-                "content": [
-                    {
-                        "type": "text",
-                        "text": str(result.result) if result.success else result.error
-                    }
-                ],
-                "isError": not result.success
-            }
-        }
-    
-    else:
-        return {
-            "jsonrpc": "2.0",
-            "id": request_id, 
-            "error": {
-                "code": -32601,
-                "message": f"Method '{method}' not found"
-            }
-        }
+    return await _handle_jsonrpc_request(request, "copilot")
+
+
+@router.post("/external/")
+async def mcp_external_handler(request: dict):
+    """
+    MCP protocol handler for external clients with filtered tools.
+    Same protocol as main MCP endpoint but with restricted tool access.
+    """
+    return await _handle_jsonrpc_request(request, "external")
 
 
 @router.get("/")
@@ -230,6 +202,16 @@ async def get_copilot_tools():
     Filtered subset of tools safe for external agent use.
     """
     tools = get_available_tools_for_client("copilot")
+    return MCPToolsResponse(tools=tools)
+
+
+@router.get("/external/tools", response_model=MCPToolsResponse)
+async def get_external_tools():
+    """
+    Return the list of tools available to external clients.
+    Filtered subset of tools safe for external agent use.
+    """
+    tools = get_available_tools_for_client("external")
     return MCPToolsResponse(tools=tools)
 
 

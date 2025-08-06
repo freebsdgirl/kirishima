@@ -84,7 +84,6 @@ Content:
 The enhanced email cleaning is automatically applied in:
 
 1. **Gmail Monitor** (`monitor.py`): When emails are received and sent to brain service
-2. **NLP Service** (`nlp.py`): When emails are retrieved via API endpoints
 
 ## Files Added/Modified
 
@@ -95,7 +94,6 @@ The enhanced email cleaning is automatically applied in:
   - `summarize_thread_content()` - LLM-powered thread summarization
 
 - **`app/services/gmail/monitor.py`** - Updated to use enhanced cleaning
-- **`app/services/nlp.py`** - Enhanced email retrieval with thread context
 - **`.kirishima/prompts/googleapi/gmail/thread_summary.j2`** - LLM prompt for summarization
 
 ## Configuration
@@ -117,7 +115,7 @@ The enhanced email cleaning is automatically applied in:
 
 The system logs detailed processing statistics:
 
-```
+```text
 INFO: Processing email abc123: 45 words, is_reply=True, has_thread_context=True
 INFO: Thread thread456 has 1200 words, summarizing...
 INFO: Thread summarized: 1200 -> 380 words

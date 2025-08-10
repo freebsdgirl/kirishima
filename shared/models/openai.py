@@ -36,8 +36,8 @@ class OpenAICompletionRequest(BaseModel):
     """
     prompt: str                         = Field(..., description="The prompt to generate completions for.")
     model: Optional[str]                = Field(_default_mode['model'], description="The model to be used.")
-    temperature: Optional[float]        = Field(_default_mode['options']['temperature'], description="Sampling temperature.")
-    max_tokens: Optional[int]           = Field(_default_mode['options']['max_tokens'], description="Maximum tokens to generate.")
+    temperature: Optional[float]        = Field(..., description="Sampling temperature.")
+    max_tokens: Optional[int]           = Field(..., description="Maximum tokens to generate.")
     n: Optional[int]                    = Field(default=1, description="Number of completions to generate.")
     provider: Optional[str]             = Field("openai", description="The provider of the model, default is 'ollama'.")
 

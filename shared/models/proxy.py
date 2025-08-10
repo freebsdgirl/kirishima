@@ -130,8 +130,8 @@ class ProxyOneShotRequest(BaseModel):
     """
     model: Optional[str]            = Field(_default_mode["model"], description="The model to be used for generating the response.")
     prompt: str                     = Field(..., description="The prompt or input text for the model.")
-    temperature: Optional[float]    = Field(_default_mode['options']['temperature'], description="The temperature setting for randomness in the model's output.")
-    max_tokens: Optional[int]       = Field(_default_mode['options']['max_tokens'], description="The maximum number of tokens to generate in the response.")
+    temperature: Optional[float]    = Field(..., description="The temperature setting for randomness in the model's output.")
+    max_tokens: Optional[int]       = Field(..., description="The maximum number of tokens to generate in the response.")
     provider: Optional[str]         = Field("openai", description="The provider for the model (e.g., 'openai', 'ollama').")
     model_config = {
         "json_schema_extra": {

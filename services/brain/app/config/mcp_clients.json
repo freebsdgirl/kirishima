@@ -1,11 +1,22 @@
 {
   "internal": {
-    "allowed_tools": ["*"],
+    "allowed_tools": [
+      "memory",
+      "github_issue",
+      "manage_prompt",
+      "email",
+      "calendar",
+      "contacts",
+      "stickynotes",
+      "lists",
+      "smarthome"
+    ],
     "restricted_tools": []
   },
   "copilot": {
     "allowed_tools": [
-      "github_issue"
+  "github_issue",
+  "get_personality"
     ],
     "restricted_tools": []
   },

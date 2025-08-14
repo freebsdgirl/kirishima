@@ -14,6 +14,7 @@ Key endpoints:
 
 from fastapi import APIRouter, HTTPException, Request
 import logging
+from threading import Lock
 from shared.models.mcp import MCPToolsResponse, MCPToolRequest, MCPToolResponse
 from app.services.mcp.registry import (
     get_available_tools, 
@@ -29,6 +30,24 @@ router = APIRouter()
 
 
 logger = logging.getLogger("mcp")
+
+# Copilot personality bootstrap enforcement
+_copilot_personality_loaded = False
+_copilot_lock = Lock()
+
+def _reset_copilot_personality():
+    global _copilot_personality_loaded
+    with _copilot_lock:
+        _copilot_personality_loaded = False
+
+def _mark_copilot_personality():
+    global _copilot_personality_loaded
+    with _copilot_lock:
+        _copilot_personality_loaded = True
+
+def _is_copilot_personality_loaded():
+    with _copilot_lock:
+        return _copilot_personality_loaded
 
 
 async def _handle_jsonrpc_request(request: dict, client_type: str = "internal") -> dict:
@@ -72,6 +91,8 @@ async def _handle_jsonrpc_request(request: dict, client_type: str = "internal") 
     
     if method == "initialize":
         logger.debug(f"MCP initialize from client_type={client_type}")
+        if client_type == "copilot":
+            _reset_copilot_personality()
         return {
             "jsonrpc": "2.0",
             "id": request_id,
@@ -110,6 +131,18 @@ async def _handle_jsonrpc_request(request: dict, client_type: str = "internal") 
     elif method == "tools/call":
         tool_name = params.get("name")
         arguments = params.get("arguments", {})
+
+        # Enforce that Copilot loads personality first
+        if client_type == "copilot" and tool_name != "get_personality" and not _is_copilot_personality_loaded():
+            logger.info("Copilot attempted '%s' before get_personality loaded", tool_name)
+            return {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "error": {
+                    "code": -32001,
+                    "message": "Must call get_personality first to load style context"
+                }
+            }
         
         if not config["is_tool_available"](tool_name):
             return {
@@ -123,6 +156,8 @@ async def _handle_jsonrpc_request(request: dict, client_type: str = "internal") 
         
         tool_registry = _load_tool_registry()
         result = await execute_tool_with_dependencies(tool_name, arguments, tool_registry)
+        if client_type == "copilot" and tool_name == "get_personality" and result.success:
+            _mark_copilot_personality()
         logger.debug(
             "MCP tools/call client_type=%s tool=%s success=%s", 
             client_type, tool_name, result.success

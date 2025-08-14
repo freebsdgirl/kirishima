@@ -525,5 +525,24 @@
       }
     },
     "persistent": false
+  },
+  "get_personality": {
+    "description": "Return current multi-model personality/style guidelines for conversational tone; Copilot must call this before other tools.",
+    "depends_on": [],
+    "parameters": {
+  "type": "object",
+  "properties": {},
+  "required": []
+    },
+    "returns": {
+      "type": "object",
+      "properties": {
+        "version": {"type": "string"},
+        "generated_at": {"type": "string"},
+        "style_sections": {"type": "object", "description": "Map of model -> style guideline text"},
+        "instructions": {"type": "string", "description": "Instructions on how to apply the style."}
+      }
+    },
+    "persistent": false
   }
 }

@@ -61,7 +61,8 @@ async def _execute_single_tool_direct(tool_name: str, parameters: Dict[str, Any]
         "contacts": "contacts",
         "stickynotes": "stickynotes",
         "lists": "lists",
-        "smarthome": "smarthome"
+    "smarthome": "smarthome",
+    "get_personality": "get_personality"
     }
     
     # Get the module name

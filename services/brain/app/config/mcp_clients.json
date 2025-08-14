@@ -5,8 +5,6 @@
   },
   "copilot": {
     "allowed_tools": [
-      "lists",
-      "stickynotes", 
       "github_issue"
     ],
     "restricted_tools": []

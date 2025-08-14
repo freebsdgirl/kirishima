@@ -12,7 +12,8 @@ Key endpoints:
 - GET /mcp/validate - Dependency validation
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
+import logging
 from shared.models.mcp import MCPToolsResponse, MCPToolRequest, MCPToolResponse
 from app.services.mcp.registry import (
     get_available_tools, 
@@ -25,6 +26,9 @@ from app.services.mcp.executor import execute_tool_with_dependencies
 from app.services.mcp.dependencies import validate_all_dependencies
 
 router = APIRouter()
+
+
+logger = logging.getLogger("mcp")
 
 
 async def _handle_jsonrpc_request(request: dict, client_type: str = "internal") -> dict:
@@ -67,6 +71,7 @@ async def _handle_jsonrpc_request(request: dict, client_type: str = "internal") 
     config = client_configs.get(client_type, client_configs["internal"])
     
     if method == "initialize":
+        logger.debug(f"MCP initialize from client_type={client_type}")
         return {
             "jsonrpc": "2.0",
             "id": request_id,
@@ -84,6 +89,10 @@ async def _handle_jsonrpc_request(request: dict, client_type: str = "internal") 
     
     elif method == "tools/list":
         tools = config["get_tools"]()
+        logger.debug(
+            "MCP tools/list client_type=%s returned=%s (config-based)", 
+            client_type, [t.name for t in tools]
+        )
         return {
             "jsonrpc": "2.0", 
             "id": request_id,
@@ -114,6 +123,10 @@ async def _handle_jsonrpc_request(request: dict, client_type: str = "internal") 
         
         tool_registry = _load_tool_registry()
         result = await execute_tool_with_dependencies(tool_name, arguments, tool_registry)
+        logger.debug(
+            "MCP tools/call client_type=%s tool=%s success=%s", 
+            client_type, tool_name, result.success
+        )
         
         return {
             "jsonrpc": "2.0",
@@ -149,6 +162,7 @@ async def mcp_handler(request: dict):
 
 
 @router.post("/copilot/")
+@router.post("/copilot")
 async def mcp_copilot_handler(request: dict):
     """
     MCP protocol handler for GitHub Copilot with filtered tools.
@@ -158,6 +172,7 @@ async def mcp_copilot_handler(request: dict):
 
 
 @router.post("/external/")
+@router.post("/external")
 async def mcp_external_handler(request: dict):
     """
     MCP protocol handler for external clients with filtered tools.

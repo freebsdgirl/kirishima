@@ -1,35 +1,64 @@
-"""
-Tool registry and discovery service for MCP.
+"""Tool registry and discovery service for MCP.
+
+Adds robust path resolution for configuration so that running the brain service
+directly (outside Docker) still loads `mcp_clients.json` instead of silently
+falling back to permissive defaults (root cause of missing filtering).
 """
 
 from shared.models.mcp import MCPToolSchema
 from typing import Dict, Any, List
 import json
+from pathlib import Path
+
+from shared.log_config import get_logger
+logger = get_logger("brain.mcp.registry")
+
+
+def _resolve_config_file(filename: str) -> Path | None:
+    """Locate a config file by checking several candidate paths.
+
+    Order:
+      1. Relative to this file: ../config/<filename>
+      2. /app/app/config/<filename> (Docker layout)
+      3. /app/config/<filename> (alternate layout)
+    Returns first existing path or None.
+    """
+    module_dir = Path(__file__).resolve().parent
+    candidates = [
+        (module_dir.parent / 'config' / filename).resolve(),
+        Path('/app/app/config') / filename,
+        Path('/app/config') / filename,
+    ]
+    for p in candidates:
+        if p.exists():
+            return p
+    return None
+
+
+def _load_json_file(filename: str, default: Dict[str, Any]) -> Dict[str, Any]:
+    path = _resolve_config_file(filename)
+    if not path:
+        logger.warning(
+            "MCP config file '%s' not found in any candidate path; using default", filename
+        )
+        return default
+    try:
+        with path.open('r') as f:
+            data = json.load(f)
+            return data
+    except Exception as e:
+        logger.error("Failed to load MCP config '%s': %s; using default", path, e)
+        return default
 
 
 def _load_tool_registry() -> Dict[str, Any]:
-    """Load tool registry from JSON configuration file."""
-    try:
-        with open('/app/app/config/mcp_tools.json', 'r') as f:
-            return json.load(f)
-    except FileNotFoundError:
-        # Fallback to empty registry if file doesn't exist
-        return {}
+    return _load_json_file('mcp_tools.json', {})
 
 
 def _load_client_registry() -> Dict[str, Any]:
-    """Load client configuration from JSON file."""
-    try:
-        with open('/app/app/config/mcp_clients.json', 'r') as f:
-            return json.load(f)
-    except FileNotFoundError:
-        # Fallback to default internal-only access
-        return {
-            "internal": {
-                "allowed_tools": ["*"],
-                "restricted_tools": []
-            }
-        }
+    return _load_json_file('mcp_clients.json', {
+        "internal": {"allowed_tools": ["*"], "restricted_tools": []}
+    })
 
 
 # Tool registry - loaded from JSON configuration
@@ -91,9 +120,12 @@ def get_available_tools_for_client(client_type: str = "internal") -> List[MCPToo
     """
     client_registry = _load_client_registry()
     client_config = client_registry.get(client_type, client_registry.get("internal"))
-    
     allowed_tools = client_config.get("allowed_tools", [])
     restricted_tools = client_config.get("restricted_tools", [])
+    logger.debug(
+        "MCP tool filter load client_type=%s allowed=%s restricted=%s", 
+        client_type, allowed_tools, restricted_tools
+    )
     
     tools = []
     for tool_name, tool_info in TOOL_REGISTRY.items():
@@ -122,9 +154,12 @@ def is_tool_available_for_client(tool_name: str, client_type: str = "internal") 
     """Check if a tool is available for the specified client type."""
     client_registry = _load_client_registry()
     client_config = client_registry.get(client_type, client_registry.get("internal"))
-    
     allowed_tools = client_config.get("allowed_tools", [])
     restricted_tools = client_config.get("restricted_tools", [])
+    logger.debug(
+        "MCP tool availability check client_type=%s tool=%s allowed_list=%s restricted_list=%s", 
+        client_type, tool_name, allowed_tools, restricted_tools
+    )
     
     # First check if tool exists
     if tool_name not in TOOL_REGISTRY:

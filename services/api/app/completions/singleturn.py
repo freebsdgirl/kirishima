@@ -13,7 +13,7 @@ Key Features:
     - Uses tiktoken for accurate prompt token counting.
 """
 
-from shared.models.proxy import ProxyResponse, ProxyOneShotRequest
+from shared.models.proxy import ProxyResponse, SingleTurnRequest
 from shared.models.openai import OpenAICompletionRequest, OpenAICompletionResponse, OpenAICompletionChoice, OpenAIUsage
 from shared.models.api import CompletionRequest
 
@@ -100,7 +100,7 @@ async def _openai_v1_completions(request: Union[OpenAICompletionRequest, Complet
     raw_body = await request_data.json() if request_data is not None else request.model_dump()
     logger.info(f"/v1/completions Request:\n{json.dumps(raw_body, indent=4, ensure_ascii=False)}")
 
-    n = request.n if request.n and request.n > 0 else 1
+    n = request.n if getattr(request, 'n', None) and request.n > 0 else 1
     completions: List[OpenAICompletionChoice] = []
     total_completion_tokens = 0
     created_unix: Optional[int] = None
@@ -111,25 +111,19 @@ async def _openai_v1_completions(request: Union[OpenAICompletionRequest, Complet
     if not prompt_text:
         raise HTTPException(status_code=400, detail="Missing prompt or content in request")
     
-    proxy_request = ProxyOneShotRequest(
-        prompt=prompt_text,
-        model=request.model,
-        temperature=getattr(request, 'temperature', 0.7),
-        max_tokens=getattr(request, 'max_tokens', 256),
-        provider=getattr(request, 'provider', 'openai')
-    )
-    proxy_request_data = proxy_request.model_dump()
-    proxy_request_data["stream"] = False
+    # Treat request.model as a mode name; fallback to 'default'
+    mode_name = getattr(request, 'model', None) or 'default'
+    singleturn_req = SingleTurnRequest(model=mode_name, prompt=prompt_text)
+    singleturn_payload = singleturn_req.model_dump()
 
     # Sequentially call the proxy service n times
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        brain_port = os.getenv("BRAIN_PORT", 4207)
         for i in range(n):
             try:
-                brain_port = os.getenv("BRAIN_PORT", 4207)
-
                 response = await client.post(
-                    f"http://brain:{brain_port}/api/singleturn", 
-                    json=proxy_request_data
+                    f"http://brain:{brain_port}/api/singleturn",
+                    json=singleturn_payload
                 )
                 response.raise_for_status()
 
@@ -166,7 +160,7 @@ async def _openai_v1_completions(request: Union[OpenAICompletionRequest, Complet
                 logger.error(f"Error converting timestamp: {err}")
                 created_unix = int(datetime.datetime.now().timestamp())
 
-            total_completion_tokens += proxy_response.eval_count
+            total_completion_tokens += proxy_response.eval_count or 0
 
             # Create an OpenAI-style choice from the proxy response
             choice = OpenAICompletionChoice(
@@ -183,10 +177,10 @@ async def _openai_v1_completions(request: Union[OpenAICompletionRequest, Complet
         tokens = encoding.encode(prompt_text)
 
     except Exception as err:
-        logger.warning(f"Error retrieving encoding for model '{request.model}': {err}.")
+        logger.warning(f"Error retrieving encoding for model '{mode_name}': {err}.")
         raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error retrieving encoding for model '{request.model}': {err}"
+                detail=f"Error retrieving encoding for model '{mode_name}': {err}"
             )
 
     prompt_tokens = len(tokens)
@@ -197,7 +191,7 @@ async def _openai_v1_completions(request: Union[OpenAICompletionRequest, Complet
         id=f"cmpl-{uuid.uuid4()}",
         object="text_completion",
         created=created_unix if created_unix else int(datetime.datetime.now().timestamp()),
-        model=request.model,
+        model=mode_name,
         choices=completions,
         usage=OpenAIUsage(
             prompt_tokens=prompt_tokens,

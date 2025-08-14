@@ -1,138 +1,72 @@
 """
-This module provides the core logic for handling single-turn completion requests
-to various language model providers (Ollama, OpenAI, Anthropic) via a unified API.
-
-Functions:
-    _completions(message: ProxyOneShotRequest) -> ProxyResponse:
-        Handles a completion request by determining the appropriate provider,
-        constructing the provider-specific payload, enqueuing the request for
-        asynchronous processing, and returning a normalized ProxyResponse.
-
-Configuration:
-    Loads timeout and other settings from '/app/config/config.json'.
-
-Dependencies:
-    - shared.models.proxy: Data models for requests and responses.
-    - shared.log_config: Logger configuration.
-    - app.util: Utility for resolving model/provider/options.
-    - app.queue.router: Provider-specific queues.
-    - shared.models.queue: ProxyTask definition.
-    - fastapi: For HTTPException and status codes.
-
-    HTTPException: For unknown providers or timeout errors.
+Refactored single-turn completions: accepts SingleTurnRequest (mode-based) only.
 """
-from shared.models.proxy import ProxyOneShotRequest, ProxyResponse, OllamaRequest
+from shared.models.proxy import SingleTurnRequest, ProxyResponse, OllamaRequest, OpenAIRequest, AnthropicRequest
 
 from shared.log_config import get_logger
 logger = get_logger(f"proxy.{__name__}")
 
 from app.services.util import _resolve_model_provider_options
-from app.services.queue import ollama_queue, openai_queue, anthropic_queue
-from shared.models.queue import ProxyTask
 
-import uuid
-import asyncio
-from datetime import datetime
 import json
+from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, status
-router = APIRouter()
+from fastapi import HTTPException
+
+from app.services.send_to_ollama import send_to_ollama
+from app.services.send_to_openai import send_to_openai
+from app.services.send_to_anthropic import send_to_anthropic
 
 
-async def _completions(message: ProxyOneShotRequest) -> ProxyResponse:
-    """
-    Handle API completions request by forwarding the request to the Ollama language model service.
-
-    This endpoint takes a ProxyOneShotRequest, constructs a payload for the Ollama API,
-    sends an asynchronous request, and returns a ProxyResponse with the generated
-    text and metadata.
-
-    Args:
-        message (ProxyOneShotRequest): The completion request containing model, prompt,
-            temperature, and max tokens parameters.
-
-    Returns:
-        ProxyResponse: The response from the language model, including generated
-            text, token count, and timestamp.
-
-    Raises:
-        HTTPException: If there are connection or communication errors with the Ollama service.
-    """
+async def _completions(message: SingleTurnRequest) -> ProxyResponse:
     with open('/app/config/config.json') as f:
         _config = json.load(f)
 
-    TIMEOUT = _config["timeout"]
+    logger.debug(f"/api/singleturn Request (mode-based):\n{message.model_dump_json(indent=4)}")
 
-    logger.debug(f"/api/singleturn Request:\n{message.model_dump_json(indent=4)}")
+    provider, actual_model, options = _resolve_model_provider_options(message.model)
 
-    options = {
-        "temperature": message.temperature,
-        "max_tokens": message.max_tokens,
-        "stream": False
-    }
-
-    model = message.model
-
-    if not message.provider:
-        if message.model.startswith("claude"):
-            message.provider = "anthropic"
-        elif message.model.startswith("gpt"):
-            message.provider = "openai"
-        else:
-            message.provider = "ollama"
-
-    # Branch on provider and construct provider-specific request
-    if message.provider == "ollama":
+    if provider == "ollama":
         payload = OllamaRequest(
-            model=model,
+            model=actual_model,
             prompt=f"[INST]<<SYS>>{message.prompt}<<SYS>>[/INST]",
             options=options,
             stream=False,
             raw=True
         )
-        queue_to_use = ollama_queue
-    elif message.provider == "openai":
-        from shared.models.proxy import OpenAIRequest  # Local import to avoid circular
+    elif provider == "openai":
         payload = OpenAIRequest(
-            model=model,
+            model=actual_model,
             messages=[{"role": "user", "content": message.prompt}],
             options=options
         )
-        queue_to_use = openai_queue
-    elif message.provider == "anthropic":
-        from shared.models.proxy import AnthropicRequest  # Local import to avoid circular
+    elif provider == "anthropic":
         payload = AnthropicRequest(
-            model=model,
+            model=actual_model,
             messages=[{"role": "user", "content": message.prompt}],
             options=options
         )
-        queue_to_use = anthropic_queue
     else:
-        raise HTTPException(status_code=400, detail=f"Unknown provider: {message.provider}")
+        raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}")
 
-    # Create a blocking ProxyTask
-    task_id = str(uuid.uuid4())
-    future = asyncio.Future()
-    task = ProxyTask(
-        priority=1,
-        task_id=task_id,
-        payload=payload,
-        blocking=True,
-        future=future,
-        callback=None
-    )
-    await queue_to_use.enqueue(task)
+    async def _dispatch(p):
+        if isinstance(p, OllamaRequest):
+            return await send_to_ollama(p)
+        if isinstance(p, OpenAIRequest):
+            return await send_to_openai(p)
+        if isinstance(p, AnthropicRequest):
+            return await send_to_anthropic(p)
+        raise HTTPException(status_code=500, detail="Unsupported payload type for dispatch")
 
+    logger.debug(f"Dispatching directly to provider={provider} model={actual_model} (no queue)")
     try:
-        result = await asyncio.wait_for(future, timeout=TIMEOUT)
-    except asyncio.TimeoutError:
-        queue_to_use.remove_task(task_id)
-        raise HTTPException(
-            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-            detail="Task timed out"
-        )
+        result = await _dispatch(payload)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error during provider dispatch: {e}")
+        raise HTTPException(status_code=500, detail=f"Provider dispatch failed: {e}")
 
-    # result is a provider-specific response; normalize to ProxyResponse
     proxy_response = ProxyResponse(
         response=getattr(result, 'response', None),
         eval_count=getattr(result, 'eval_count', None),
@@ -141,7 +75,5 @@ async def _completions(message: ProxyOneShotRequest) -> ProxyResponse:
         function_call=getattr(result, 'function_call', None),
         timestamp=datetime.now().isoformat()
     )
-
-    queue_to_use.remove_task(task_id)
 
     return proxy_response

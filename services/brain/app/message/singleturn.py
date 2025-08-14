@@ -1,13 +1,13 @@
 """
 This module defines an API endpoint for handling single-turn messages.
-The endpoint receives a `ProxyOneShotRequest`, forwards it to a proxy service,
+The endpoint receives a `SingleTurnRequest`, forwards it to a proxy service,
 and returns the response as a `ProxyResponse`. It acts as an intermediary
 service, allowing for additional scaffolding or processing if needed in the
 future.
 Modules and Libraries:
 - `shared.config`: Provides configuration constants such as `TIMEOUT`.
 - `shared.consul`: Used to retrieve the proxy service address and port.
-- `shared.models.proxy`: Contains the `ProxyOneShotRequest` and `ProxyResponse` models.
+- `shared.models.proxy`: Contains the `SingleTurnRequest` and `ProxyResponse` models.
 - `shared.log_config`: Provides logging functionality.
 - `httpx`: Used for making asynchronous HTTP requests.
 - `json`: Used for JSON serialization and deserialization.
@@ -15,7 +15,7 @@ Modules and Libraries:
 Functions:
 - `incoming_singleturn_message`: Handles POST requests to the `/api/singleturn` endpoint.
 """
-from shared.models.proxy import ProxyOneShotRequest, ProxyResponse
+from shared.models.proxy import SingleTurnRequest, ProxyResponse
 
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
@@ -34,16 +34,16 @@ TIMEOUT = _config["timeout"]
 
 
 @router.post("/api/singleturn", response_model=ProxyResponse)
-async def incoming_singleturn_message(message: ProxyOneShotRequest) -> ProxyResponse:
+async def incoming_singleturn_message(message: SingleTurnRequest) -> ProxyResponse:
     """
     Proxies the incoming single-turn message to the proxy service.
     
-    This function receives a ProxyOneShotRequest, forwards it to the proxy service,
+    This function receives a SingleTurnRequest, forwards it to the proxy service,
     and returns the response as a ProxyResponse. This intermediary service
     allows for additional scaffolding if needed in the future.
     
     Args:
-        message (ProxyOneShotRequest): The incoming request payload.
+        message (SingleTurnRequest): The incoming request payload.
     
     Returns:
         ProxyResponse: The response received from the proxy service.
@@ -51,7 +51,7 @@ async def incoming_singleturn_message(message: ProxyOneShotRequest) -> ProxyResp
     Raises:
         HTTPException: If any error occurs when contacting the proxy service.
     """
-    logger.debug(f"brain: /api/singleturn Request:\n{message.model_dump_json(indent=4)}")
+    logger.debug(f"brain: /api/singleturn Request (mode-based):\n{message.model_dump_json(indent=4)}")
 
     payload = message.model_dump()
     

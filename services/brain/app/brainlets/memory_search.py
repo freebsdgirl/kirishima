@@ -20,13 +20,12 @@ Returns:
                  otherwise a string indicating no memories were found.
 """
 from typing import Dict, Any
-from shared.models.proxy import MultiTurnRequest
+from shared.models.proxy import MultiTurnRequest, SingleTurnRequest
 import json
 import uuid
 import os
 import httpx
 
-from shared.models.proxy import ProxyOneShotRequest
 from app.message.singleturn import incoming_singleturn_message
 
 from app.tools.memory import memory_search_tool
@@ -83,23 +82,12 @@ async def memory_search(brainlets_output: Dict[str, Any], message: MultiTurnRequ
             brainlet_config = brainlet
             break
     model = None
-    temperature = None
-    max_tokens = None
     if brainlet_config:
-        model = brainlet_config.get('model')
-        options = brainlet_config.get('options', {})
-        temperature = options.get('temperature')
-        max_tokens = options.get('max_completion_tokens') or options.get('max_tokens')
+        model = brainlet_config.get('model')  # Interpreted as a mode name for SingleTurnRequest
 
-    req_kwargs = {"prompt": prompt}
-    if model:
-        req_kwargs["model"] = model
-    if temperature is not None:
-        req_kwargs["temperature"] = temperature
-    if max_tokens is not None:
-        req_kwargs["max_tokens"] = max_tokens
-    req = ProxyOneShotRequest(**req_kwargs)
-    response = await incoming_singleturn_message(req)
+    # Build SingleTurnRequest (mode-style). Fallback to 'default' if not set.
+    singleturn_req = SingleTurnRequest(model=model or 'default', prompt=prompt)
+    response = await incoming_singleturn_message(singleturn_req)
     keyword_response = response.response
 
     # Parse the JSON response from the LLM

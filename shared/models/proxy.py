@@ -2,21 +2,16 @@
 This module defines Pydantic models for proxying and standardizing requests and responses
 across various language model providers and communication platforms.
 Models:
-    - IncomingMessage: Standardizes incoming messages from different platforms.
-    - ProxyRequest: Represents a proxy request with message, user, context, and optional memory/contextual data.
-    - ProxyOneShotRequest: Represents a one-shot proxy interaction with a language model.
-    - MultiTurnRequest: Represents a multi-turn conversation request with a language model.
-    - ProxyResponse: Standardizes the response from a proxy model interaction.
-    - ProxyDiscordDMRequest: Encapsulates a Discord direct message proxy request with conversation and user details.
-    - OllamaRequest: Represents a request to the Ollama API for text generation.
-    - OpenAIRequest: Represents a request to the OpenAI API for text generation.
-    - RespondJsonRequest: Represents a JSON request for generating a model response.
-    - DivoomRequest: Represents a request for the Divoom API (structure only).
-    - OllamaResponse: Standardizes the response from the Ollama API.
-    - OpenAIResponse: Standardizes and parses the response from the OpenAI API.
-These models facilitate structured, type-safe interactions between application logic,
-language model APIs, and various communication platforms, supporting both single-turn
-and multi-turn conversational flows, as well as provider-specific options and metadata.
+    - IncomingMessage
+    - ProxyRequest
+    - SingleTurnRequest (mode-based single turn)
+    - MultiTurnRequest
+    - ProxyResponse
+    - ProxyDiscordDMRequest
+    - OllamaRequest / OpenAIRequest / AnthropicRequest
+    - RespondJsonRequest / DivoomRequest
+    - OllamaResponse / OpenAIResponse / AnthropicResponse
+NOTE: ProxyOneShotRequest has been removed. Use SingleTurnRequest + mode configuration instead.
 """
 
 from typing import List, Optional, Dict, Any, Literal
@@ -112,35 +107,6 @@ class ProxyRequest(BaseModel):
                     }
                 ],
                 "summaries": None
-            }
-        }
-    }
-
-
-class ProxyOneShotRequest(BaseModel):
-    """
-    Represents a request for a one-shot proxy interaction with a language model.
-    
-    Attributes:
-        model (str): The name of the model to be used for generating the response. Defaults to 'nemo'.
-        prompt (str): The input text or prompt to be processed by the model.
-        temperature (float): Controls the randomness of the model's output. Defaults to 0.7.
-        max_tokens (int): The maximum number of tokens to generate in the response. Defaults to 256.
-        provider (Optional[str]): The provider for the model (e.g., 'openai', 'ollama'). Defaults to 'openai'.
-    """
-    model: Optional[str]            = Field(_default_mode["model"], description="The model to be used for generating the response.")
-    prompt: str                     = Field(..., description="The prompt or input text for the model.")
-    temperature: Optional[float]    = Field(..., description="The temperature setting for randomness in the model's output.")
-    max_tokens: Optional[int]       = Field(..., description="The maximum number of tokens to generate in the response.")
-    provider: Optional[str]         = Field("openai", description="The provider for the model (e.g., 'openai', 'ollama').")
-    model_config = {
-        "json_schema_extra": {
-            "example": {
-                "model": "nemo",
-                "prompt": "Don't forget your meds",
-                "temperature": 0.7,
-                "max_tokens": 256,
-                "provider": "openai"
             }
         }
     }

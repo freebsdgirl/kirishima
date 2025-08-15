@@ -11,9 +11,9 @@ Constants:
 
     The module uses structured logging to trace the summary creation process, including debug, warning, and error messages.
 """
-from shared.models.ledger import SummaryCreateRequest, SummaryMetadata, Summary, CanonicalUserMessage
-from shared.models.openai import OpenAICompletionRequest
+from shared.models.ledger import SummaryCreateRequest, SummaryMetadata, Summary, CanonicalUserMessage, UserMessagesRequest
 from shared.prompt_loader import load_prompt
+from shared.models.proxy import SingleTurnRequest
 
 from shared.log_config import get_logger
 logger = get_logger(f"ledger.{__name__}")
@@ -80,7 +80,8 @@ async def _create_periodic_summary(request: SummaryCreateRequest) -> List[dict]:
 
     # Use internal helper to get messages for the user
     try:
-        messages = _get_user_messages(user_id=user_id, period=params["period"], date=params["date"])
+        request_obj = UserMessagesRequest(user_id=user_id, period=params["period"], date=params["date"])
+        messages = _get_user_messages(request_obj)
     except Exception as e:
         logger.error(f"Failed to get user messages for user {user_id}, period {params['period']}, date {params['date']}: {e}")
         return []
@@ -89,9 +90,11 @@ async def _create_periodic_summary(request: SummaryCreateRequest) -> List[dict]:
         logger.warning(f"No messages found for user {user_id} for period {request.period} on date {request.date}")
         return []
 
-    # Chunk messages into 4096-token chunks using AutoTokenizer (gpt2)
+    logger.debug(f"Got messages: {messages}")
+
+    # Chunk messages into 8192-token chunks using AutoTokenizer (gpt2)
     tokenizer = AutoTokenizer.from_pretrained("gpt2")
-    max_tokens = 4096
+    max_tokens = 8192
 
     # Ensure all messages are CanonicalUserMessage
     canon_msgs = [CanonicalUserMessage.model_validate(m) if not isinstance(m, CanonicalUserMessage) else m for m in messages]
@@ -116,8 +119,8 @@ async def _create_periodic_summary(request: SummaryCreateRequest) -> List[dict]:
     message_chunks = chunk_messages(canon_msgs, max_tokens)
     summaries = []
 
-    periodic_max_tokens = _config["summary"]["periodic_max_tokens"] or 256
-    api_port = os.getenv("API_PORT", 4200)
+    periodic_max_tokens = _config["summary"]["periodic_max_tokens"] or 512
+    proxy_port = os.getenv("PROXY_PORT", 4205)
     for chunk in message_chunks:
         # Prompt construction (moved from proxy/app/summary.py)
         user_label = "Randi"
@@ -136,23 +139,19 @@ async def _create_periodic_summary(request: SummaryCreateRequest) -> List[dict]:
                            conversation_str=conversation_str,
                            max_tokens=periodic_max_tokens)
 
-        summary_req = OpenAICompletionRequest(
-            model="gpt-4.1",  # or use from config if needed
-            prompt=prompt,
-            max_tokens=periodic_max_tokens,
-            temperature=0.7,
-            n=1,
-            provider="openai"
+        summary_req = SingleTurnRequest(
+            model="summarize",
+            prompt=prompt
         )
         try:
             async with httpx.AsyncClient(timeout=timeout) as client:
                 response = await client.post(
-                    f"http://api:{api_port}/v1/completions",
+                    f"http://proxy:{proxy_port}/api/singleturn",
                     json=summary_req.model_dump()
                 )
                 response.raise_for_status()
             summary_data = response.json()
-            summary_text = summary_data['choices'][0]['content']
+            summary_text = summary_data['response']
             metadata = SummaryMetadata(
                 summary_type=request.period,
                 timestamp_begin=chunk[0].created_at,
@@ -161,7 +160,7 @@ async def _create_periodic_summary(request: SummaryCreateRequest) -> List[dict]:
             summaries.append(Summary(content=summary_text, metadata=metadata))
         except Exception as e:
             logger.error(f"Failed to summarize chunk for period {params['period']}, date {params['date']}: {e}")
-            continue
+            return []
 
     # If more than 1 Summary is created, combine them
     if len(summaries) > 1:
@@ -180,23 +179,21 @@ async def _create_periodic_summary(request: SummaryCreateRequest) -> List[dict]:
         combined_prompt = load_prompt("ledger", "summary", "combine",
                                     summaries=formatted_summaries,
                                     max_tokens=periodic_max_tokens)
-        combined_req = OpenAICompletionRequest(
-            model="gpt-4.1",
-            prompt=combined_prompt,
-            max_tokens=periodic_max_tokens,
-            temperature=0.3,
-            n=1,
-            provider="openai"
+
+        combined_req = SingleTurnRequest(
+            model="summarize",
+            prompt=combined_prompt
         )
+
         try:
             async with httpx.AsyncClient(timeout=timeout) as client:
                 response = await client.post(
-                    f"http://api:{api_port}/v1/completions",
+                    f"http://proxy:{proxy_port}/api/singleturn",
                     json=combined_req.model_dump()
                 )
                 response.raise_for_status()
             combined_data = response.json()
-            combined_text = combined_data['choices'][0]['content']
+            combined_text = combined_data['response']
             metadata = SummaryMetadata(
                 summary_type=request.period,
                 timestamp_begin=summaries[0].metadata.timestamp_begin,

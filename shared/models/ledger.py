@@ -1134,10 +1134,10 @@ class UserSyncRequest(BaseModel):
     Useful for bulk message synchronization across different platforms and models.
     
     Attributes:
-        user_id (str): The unique identifier of the user
+        user_id (Optional[str]): The unique identifier of the user (defaults to config user_id if not provided)
         snapshot (List[RawUserMessage]): A list of raw user messages to synchronize
     """
-    user_id: str = Field(..., description="The unique identifier of the user")
+    user_id: Optional[str] = Field(None, description="The unique identifier of the user (defaults to config user_id if not provided)")
     snapshot: List[RawUserMessage] = Field(..., description="List of messages to synchronize")
 
     model_config = {

@@ -86,20 +86,13 @@ def _sync_user_buffer_helper(request: UserSyncRequest):
     # ----------------- API logic -----------------
     with _open_conn() as conn:
         cur = conn.cursor()
-        cur.execute(
-            f"SELECT id, role, content FROM {TABLE} WHERE user_id = ? ORDER BY id",
-            (user_id,),
-        )
-        rows = cur.fetchall()
-
-        user_rows      = [(idx, r) for idx, r in enumerate(rows) if r[1] == "user"]
-        assistant_rows = [(idx, r) for idx, r in enumerate(rows) if r[1] == "assistant"]
-
-        incoming_user      = [m for m in snapshot if m.role == "user"]
-        incoming_assistant = [m for m in snapshot if m.role == "assistant"]
-
-        # Seed brand‑new buffer with exactly the last incoming message
-        if not rows:
+        
+        # Check if the table is empty first
+        cur.execute(f"SELECT COUNT(*) FROM {TABLE} WHERE user_id = ?", (user_id,))
+        total_count = cur.fetchone()[0]
+        
+        if total_count == 0:
+            # Seed brand‑new buffer with exactly the last incoming message
             cur.execute(
                 f"INSERT INTO {TABLE} (user_id, platform, platform_msg_id, role, content, model, tool_calls, function_call, tool_call_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 _msg_fields(last_msg),
@@ -107,15 +100,32 @@ def _sync_user_buffer_helper(request: UserSyncRequest):
             conn.commit()
             return
 
-        last_db_user = user_rows[-1][1] if user_rows else None
+        # Get last user message
+        cur.execute(
+            f"SELECT id, content FROM {TABLE} WHERE user_id = ? AND role = 'user' ORDER BY id DESC LIMIT 1",
+            (user_id,)
+        )
+        last_user_row = cur.fetchone()
+        last_user_id, last_user_content = last_user_row if last_user_row else (None, None)
+
+        # Get last assistant message  
+        cur.execute(
+            f"SELECT id, content FROM {TABLE} WHERE user_id = ? AND role = 'assistant' ORDER BY id DESC LIMIT 1",
+            (user_id,)
+        )
+        last_assistant_row = cur.fetchone()
+        last_assistant_id, last_assistant_content = last_assistant_row if last_assistant_row else (None, None)
+
+        incoming_user      = [m for m in snapshot if m.role == "user"]
+        incoming_assistant = [m for m in snapshot if m.role == "assistant"]
 
         # --- User message deduplication and assistant refresh logic ---
         if last_msg.role == "user":
-            if last_db_user and last_msg.content == last_db_user[2]:
+            if last_user_content and last_msg.content == last_user_content:
                 # If duplicate user message, remove any subsequent assistant message
-                if assistant_rows and assistant_rows[-1][0] > user_rows[-1][0]:
+                if last_assistant_id and last_user_id and last_assistant_id > last_user_id:
                     cur.execute(
-                        f"DELETE FROM {TABLE} WHERE id = ?", (assistant_rows[-1][1][0],)
+                        f"DELETE FROM {TABLE} WHERE id = ?", (last_assistant_id,)
                     )
                     conn.commit()
                 return
@@ -125,18 +135,16 @@ def _sync_user_buffer_helper(request: UserSyncRequest):
             if (
                 len(snapshot) >= 2 and
                 snapshot[-2].role == "assistant" and
-                assistant_rows and
-                user_rows and
+                last_assistant_id and
+                last_user_id and
                 len(incoming_user) >= 1 and
-                incoming_user[-1].content == user_rows[-1][1][2]  # Same user message as last in DB
+                incoming_user[-1].content == last_user_content  # Same user message as last in DB
             ):
                 incoming_assistant_content = snapshot[-2].content
-                last_db_assistant_content = assistant_rows[-1][1][2]
-                last_db_assistant_id = assistant_rows[-1][1][0]
-                if incoming_assistant_content != last_db_assistant_content:
+                if incoming_assistant_content != last_assistant_content:
                     cur.execute(
                         f"UPDATE {TABLE} SET content = ?, updated_at = (STRFTIME('%Y-%m-%d %H:%M:%f','now')) WHERE id = ?",
-                        (incoming_assistant_content, last_db_assistant_id),
+                        (incoming_assistant_content, last_assistant_id),
                     )
                     conn.commit()
             
@@ -151,24 +159,23 @@ def _sync_user_buffer_helper(request: UserSyncRequest):
         # Handle assistant edit detection for non-user last messages
         if (
             len(incoming_user) >= 2 and
-            last_db_user and incoming_user[-2].content == last_db_user[2] and
+            last_user_content and incoming_user[-2].content == last_user_content and
             incoming_assistant
         ):
-            last_db_assistant_id = assistant_rows[-1][1][0] if assistant_rows else None
             if (
-                last_db_assistant_id and
-                incoming_assistant[-1].content != assistant_rows[-1][1][2]
+                last_assistant_id and
+                incoming_assistant[-1].content != last_assistant_content
             ):
                 cur.execute(
                     f"UPDATE {TABLE} SET content = ?, updated_at = (STRFTIME('%Y-%m-%d %H:%M:%f','now')) WHERE id = ?",
-                    (incoming_assistant[-1].content, last_db_assistant_id),
+                    (incoming_assistant[-1].content, last_assistant_id),
                 )
                 conn.commit()
             return
 
         # Fallback append for other message types
         cur.execute(
-            f"INSERT INTO {TABLE} (user_id, platform, platform_msg_id, role, content, model, tool_calls, function_call, tool_call_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            f"INSERT INTO {TABLE} (user_id, platform, platform_msg_id, role, content, model, tool_calls, function_call, tool_call_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             _msg_fields(last_msg),
         )
         conn.commit()

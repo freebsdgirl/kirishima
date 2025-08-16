@@ -1159,6 +1159,40 @@ class UserSyncRequest(BaseModel):
     }
 
 
+class ToolSyncRequest(BaseModel):
+    """
+    Request model for synchronizing tool messages.
+
+    Requires both the tool call itself as well as the tool output.
+    Previously, this was logged in the UserSyncRequest, but it has been separated for clarity.
+
+    Attributes:
+        model (str): The model used for the tool
+        platform (str): The platform used for the tool
+        tool_call (str): The tool call to synchronize
+        tool_output (str): The output from the tool call
+    """
+    model: str              = Field(..., description="The model used for the tool")
+    platform: str           = Field(..., description="The platform used for the tool")
+    tool_call: str          = Field(..., description="The tool call to synchronize")
+    tool_output: str        = Field(..., description="The output from the tool call")
+    tool_call_id: str       = Field(..., description="The unique identifier for the tool call")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "model": "example_model",
+                    "platform": "example_platform",
+                    "tool_call": "example_tool_call",
+                    "tool_output": "example_tool_output",
+                    "tool_call_id": "123e4567-e89b-12d3-a456-426614174000"
+                }
+            ]
+        }
+    }
+
+
 class SummaryGetRequest(BaseModel):
     """
     Request model for retrieving summaries with flexible filtering options.

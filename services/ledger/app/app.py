@@ -23,6 +23,7 @@ from app.routes.topic import router as topic_router
 from app.routes.summary import router as summary_router
 from app.routes.context import router as context_router
 from app.routes.user import router as user_router
+from app.routes.sync import router as sync_router
 
 from app.setup import init_buffer_db
 
@@ -45,6 +46,7 @@ app.include_router(topic_router, tags=["topics"], prefix="/topics")
 app.include_router(summary_router, tags=["summary"], prefix="/summary")
 app.include_router(context_router, tags=["context"], prefix="/context")
 app.include_router(user_router, tags=["user"], prefix="/user")
+app.include_router(sync_router, tags=["sync"], prefix="/sync")
 
 register_list_routes(app)
 

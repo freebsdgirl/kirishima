@@ -1193,6 +1193,20 @@ class ToolSyncRequest(BaseModel):
     }
 
 
+class AssistantSyncRequest(BaseModel):
+    """
+    Request model for synchronizing assistant messages.
+
+    Attributes:
+        model (str): The model used for the assistant
+        platform (str): The platform used for the assistant
+        content (str): The assistant message content
+    """
+    model: str              = Field(..., description="The model used for the assistant")
+    platform: str           = Field(..., description="The platform used for the assistant")
+    content: str            = Field(..., description="The assistant message content")
+
+
 class SummaryGetRequest(BaseModel):
     """
     Request model for retrieving summaries with flexible filtering options.

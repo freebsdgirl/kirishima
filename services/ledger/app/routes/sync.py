@@ -1,7 +1,8 @@
 from fastapi import APIRouter, HTTPException
-from shared.models.ledger import ToolSyncRequest, AssistantSyncRequest
+from shared.models.ledger import ToolSyncRequest, AssistantSyncRequest, UserSyncRequest
 from app.services.sync.tool import _sync_tool_buffer_helper
 from app.services.sync.assistant import _sync_assistant_buffer_helper
+from app.services.sync.user import _sync_user_buffer_helper
 
 from shared.log_config import get_logger
 logger = get_logger(f"ledger.{__name__}")
@@ -33,4 +34,20 @@ async def sync_assistant(request: AssistantSyncRequest):
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Failed to sync assistant: {e}")
+        raise HTTPException(status_code=503, detail=f"Database error: {e}")
+
+
+@router.post("/user")
+async def sync_user(request: UserSyncRequest):
+    """
+    Endpoint for synchronizing user messages.
+    """
+    try:
+        _sync_user_buffer_helper(request)
+        return {"status": "success"}
+    except ValueError as e:
+        logger.error(f"Invalid user sync request: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to sync user: {e}")
         raise HTTPException(status_code=503, detail=f"Database error: {e}")

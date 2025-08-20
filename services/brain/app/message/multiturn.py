@@ -20,8 +20,8 @@ Logging:
 """
  
 from shared.models.proxy import MultiTurnRequest, ProxyResponse
-from shared.models.memory import MemoryListQuery
-from app.util import get_admin_user_id, post_to_service, get_user_alias, sanitize_messages, get_recent_summaries
+from shared.models.ledger import ToolSyncRequest
+from app.util import sync_with_ledger, get_admin_user_id, post_to_service, get_user_alias, sanitize_messages, get_recent_summaries
 
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
@@ -30,6 +30,8 @@ import json
 import sqlite3
 from pathlib import Path
 import inspect
+import httpx
+import os
 
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
@@ -137,16 +139,13 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
         "provider": provider  # Set the resolved provider
     })
 
-    # --- Send last 4 messages to ledger as RawUserMessage ---
-    from app.util import sync_with_ledger
+    # --- Send last 4 messages to ledger ---
     try:
-        platform_msg_id = None
         last_msgs = updated_request.messages[-4:]
         sync_snapshot = [
             {
-                "user_id": message.user_id,
                 "platform": platform,
-                "platform_msg_id": platform_msg_id,
+                "platform_msg_id": None,
                 "role": m.get("role"),
                 "content": m.get("content"),
                 "model": message.model if hasattr(message, 'model') else None,
@@ -156,13 +155,18 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
             }
             for m in last_msgs
         ]
-        ledger_buffer = await sync_with_ledger(
-            user_id=message.user_id,
-            platform=platform,
-            snapshot=sync_snapshot,
-            error_prefix="Error forwarding to ledger service",
-            logger=logger
-        )
+
+        ledger_port = os.getenv("LEDGER_PORT", 4203)
+
+        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+            get_sync = await client.post(f"http://ledger:{ledger_port}/sync/user", json={"snapshot": sync_snapshot})
+            get_sync.raise_for_status()
+        
+            # Get updated buffer
+            get_response = await client.get(f"http://ledger:{ledger_port}/sync/get")
+            get_response.raise_for_status()
+            ledger_buffer = get_response.json()
+        
         # Use dicts for messages, not ChatMessage, and preserve tool_calls/function_call/tool_call_id fields
         updated_request = updated_request.copy(update={
             "messages": [

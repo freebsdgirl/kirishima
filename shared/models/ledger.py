@@ -21,7 +21,7 @@ class RawUserMessage(BaseModel):
     Represents a raw user message exchanged between a user and the system.
 
     Attributes:
-        user_id (str): Sender's unique ID.
+        user_id (Optional[str]): Sender's unique ID (defaults to c63989a3-756c-4bdf-b0c2-13d01e129e02).
         platform (str): Origin platform (e.g., 'api', 'discord', etc).
         platform_msg_id (Optional[str]): Optional platform-specific message ID.
         role (str): Role of the message sender, either 'user' or 'assistant'.
@@ -30,7 +30,7 @@ class RawUserMessage(BaseModel):
         tool_calls (Optional[dict]): Tool call requests as dict/JSON.
         function_call (Optional[dict]): Function call content as dict/JSON.
     """
-    user_id: str                                = Field(..., description="Sender's unique ID")
+    user_id: Optional[str]                      = Field(default="c63989a3-756c-4bdf-b0c2-13d01e129e02", description="Sender's unique ID")
     platform: str                               = Field(..., description="Origin platform ('api','discord',etc)")
     platform_msg_id: Optional[str]              = Field(None, description="Optional platform‑specific message ID")
     role: str                                   = Field(..., description="'user' or 'assistant'")

@@ -263,10 +263,18 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
     MAX_TOOL_LOOPS = 10
     while tool_loop_count < MAX_TOOL_LOOPS:
         # 1. Send to proxy
-        response = await post_to_service(
-            'proxy', '/api/multiturn', updated_request.model_dump(),
-            error_prefix="Error forwarding to proxy service"
-        )
+        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+            try:
+                proxy_port = os.getenv("PROXY_PORT", 4205)
+                response = await client.post(f"http://proxy:{proxy_port}/api/multiturn", json=updated_request.model_dump())
+                response.raise_for_status()
+            except Exception as e:
+                logger.error(f"Error sending request to proxy service: {e}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Failed to send request to proxy service: {e}"
+                )
+
         try:
             json_response = response.json()
             proxy_response = ProxyResponse.model_validate(json_response)

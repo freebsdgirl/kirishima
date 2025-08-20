@@ -25,8 +25,8 @@ def _sync_tool_buffer_helper(request: ToolSyncRequest):
         cur = conn.cursor()
         # first, insert the tool call
         cur.execute(
-            f"INSERT INTO {TABLE} (user_id, model, platform, role, tool_calls, tool_call_id) VALUES (?, ?, ?, ?, ?, ?)",
-            (user_id, request.model, request.platform, "assistant", request.tool_call, request.tool_call_id),
+            f"INSERT INTO {TABLE} (user_id, model, platform, role, content, tool_calls, tool_call_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (user_id, request.model, request.platform, "assistant", "", request.tool_call, request.tool_call_id),
         )
         # then, insert the tool output
         cur.execute(

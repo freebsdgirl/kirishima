@@ -21,7 +21,7 @@ Logging:
  
 from shared.models.proxy import MultiTurnRequest, ProxyResponse
 from shared.models.ledger import ToolSyncRequest
-from app.util import sync_with_ledger, get_admin_user_id, post_to_service, get_user_alias, sanitize_messages, get_recent_summaries
+from app.util import get_admin_user_id, post_to_service, get_user_alias, sanitize_messages, get_recent_summaries
 
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
@@ -258,11 +258,9 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
 
     # send the payload to the proxy service and handle tool call loop
     final_response = None
-    message_buffer = updated_request.messages
-    tool_loop_count = 0
-    MAX_TOOL_LOOPS = 10
     proxy_port = os.getenv("PROXY_PORT", 4205)
-    while tool_loop_count < MAX_TOOL_LOOPS:
+    ledger_port = os.getenv("LEDGER_PORT", 4203)
+    while True:
         # 1. Send to proxy
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
             try:
@@ -285,33 +283,11 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
                 detail=f"Failed to parse response from proxy service: {e}"
             )
 
-        # 2. Sync assistant/tool call message to ledger
-        # this gets trickier - first, we have to determine if it's a tool request so we know which
-        # sync endpoint to use since we split up normal assistant replies and tool requests. if it *is* a tool 
-        # request, we can't send it to ledger yet - it has to be sent after the tool is executed.
-        sync_snapshot = [{
-            "user_id": message.user_id,
-            "platform": platform,
-            "platform_msg_id": None,
-            "role": "assistant",
-            "content": proxy_response.response,
-            "model": message.model if hasattr(message, 'model') else None,
-            # Only include the first tool_call dict if tool_calls is a non-empty list
-            "tool_calls": proxy_response.tool_calls[0] if isinstance(proxy_response.tool_calls, list) and proxy_response.tool_calls else None,
-            "function_call": getattr(proxy_response, 'function_call', None),
-        }]
-        await sync_with_ledger(
-            user_id=message.user_id,
-            platform=platform,
-            snapshot=sync_snapshot,
-            error_prefix="Error forwarding to ledger service (proxy_response)",
-            logger=logger
-        )
-
-        # 3. If tool call, execute tool and loop
+        # 2. Handle tool calls and assistant content separately
         tool_calls = getattr(proxy_response, 'tool_calls', None)
         
         if tool_calls:
+            # Handle tool calls
             for tool_call in tool_calls:
                 if tool_call.get('type') == 'function':
                     fn = tool_call['function']['name']
@@ -336,69 +312,62 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
                         else:
                             logger.warning(f"No tool function registered for {fn}")
                             tool_result = {"error": f"Tool '{fn}' is not available."}
-                    # 4. Create tool message per OpenAI spec
-                    tool_msg = {
+                    
+                    # Sync tool call and result to ledger
+                    tool_sync_request = {
+                        "model": message.model if hasattr(message, 'model') else None,
+                        "platform": platform,
+                        "tool_call": json.dumps(tool_call),
+                        "tool_output": json.dumps(tool_result) if not isinstance(tool_result, str) else tool_result,
+                        "tool_call_id": tool_call.get("id")
+                    }
+                    
+                    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+                        sync_response = await client.post(f"http://ledger:{ledger_port}/sync/tool", json=tool_sync_request)
+                        sync_response.raise_for_status()
+                    
+                    # Add tool call message to conversation
+                    updated_request.messages.append({
+                        "role": "assistant",
+                        "content": "",
+                        "tool_calls": [tool_call]
+                    })
+                    
+                    # Add tool result message to conversation  
+                    updated_request.messages.append({
                         "role": "tool",
                         "content": json.dumps(tool_result) if not isinstance(tool_result, str) else tool_result,
                         "tool_call_id": tool_call.get("id")
-                    }
-                    # 5. Sync tool message to ledger
-                    tool_sync = [{
-                        "user_id": message.user_id,
-                        "platform": platform,
-                        "platform_msg_id": None,
-                        "role": "tool",
-                        "content": tool_msg["content"],
-                        "model": message.model if hasattr(message, 'model') else None,
-                        "tool_calls": None,
-                        "function_call": None,
-                        "tool_call_id": tool_msg["tool_call_id"]
-                    }]
-                    ledger_buffer = await sync_with_ledger(
-                        user_id=message.user_id,
-                        platform=platform,
-                        snapshot=tool_sync,
-                        error_prefix="Error forwarding tool message to ledger",
-                        logger=logger
-                    )
-                    # 6. Update message buffer for next request
-                    message_buffer = [
-                        {
-                            "role": msg["role"],
-                            "content": msg["content"],
-                            **({"tool_calls": msg["tool_calls"]} if msg.get("tool_calls") is not None else {}),
-                            **({"function_call": msg["function_call"]} if msg.get("function_call") is not None else {}),
-                            **({"tool_call_id": msg["tool_call_id"]} if msg.get("tool_call_id") is not None else {}),
-                        }
-                        for msg in ledger_buffer
-                    ]
-                    updated_request = updated_request.copy(update={"messages": message_buffer})
+                    })
             
-            # Continue looping if we had tool calls that need follow-up
-            if tool_calls:
-                tool_loop_count += 1
-                continue  # Loop again with updated buffer
-        # 7. If we get a real assistant message (content), break and return
-        if proxy_response.response:
+            # Continue loop with updated messages
+            continue
+            
+        elif proxy_response.response:
+            # Handle assistant content
+            assistant_sync_request = {
+                "model": message.model if hasattr(message, 'model') else None,
+                "platform": platform,
+                "content": proxy_response.response
+            }
+            
+            async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+                sync_response = await client.post(f"http://ledger:{ledger_port}/sync/assistant", json=assistant_sync_request)
+                sync_response.raise_for_status()
+            
+            # Add assistant message to conversation
+            updated_request.messages.append({
+                "role": "assistant",
+                "content": proxy_response.response
+            })
+            
             final_response = proxy_response
             break
-        tool_loop_count += 1
+        
     if final_response is None:
         final_response = proxy_response
 
-    # Ensure the assistant's final response is appended to updated_request.messages
-    if final_response and final_response.response:
-        assistant_msg = {
-            "role": "assistant",
-            "content": final_response.response,
-        }
-        # Optionally include tool_calls and function_call if present
-        if hasattr(final_response, 'tool_calls') and final_response.tool_calls:
-            assistant_msg["tool_calls"] = final_response.tool_calls
-        if hasattr(final_response, 'function_call') and final_response.function_call:
-            assistant_msg["function_call"] = final_response.function_call
-        updated_request.messages.append(assistant_msg)
-
+    
     # Run post-execution brainlets
     # these do not get synced to ledger.
     post_brainlets = [b for b in brainlets_sorted if b.get('execution_stage') == 'post']

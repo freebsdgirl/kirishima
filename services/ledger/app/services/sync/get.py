@@ -73,16 +73,6 @@ def _get_sync_buffer_helper(user_id: str = None) -> List[CanonicalUserMessage]:
         # Convert to CanonicalUserMessage objects
         messages = [CanonicalUserMessage(**msg) for msg in raw_messages]
         
-        # Filter out only assistant messages with empty content AND no tool calls
-        messages = [
-            msg for msg in messages
-            if not (
-                getattr(msg, 'role', None) == 'assistant' and 
-                not getattr(msg, 'content', None) and 
-                not getattr(msg, 'tool_calls', None)
-            )
-        ]
-        
         # Apply token-based limiting from the end
         if token_limit:
             total_tokens = 0
@@ -90,8 +80,21 @@ def _get_sync_buffer_helper(user_id: str = None) -> List[CanonicalUserMessage]:
             
             # Work backwards through messages, counting tokens
             for msg in reversed(messages):
+                # Count tokens from content
                 content = getattr(msg, 'content', '') or ''
                 msg_tokens = len(encoding.encode(content))
+                
+                # Count tokens from tool calls if present
+                tool_calls = getattr(msg, 'tool_calls', None)
+                if tool_calls:
+                    tool_calls_str = json.dumps(tool_calls) if tool_calls else ''
+                    msg_tokens += len(encoding.encode(tool_calls_str))
+                
+                # Count tokens from function calls if present
+                function_call = getattr(msg, 'function_call', None)
+                if function_call:
+                    function_call_str = json.dumps(function_call) if function_call else ''
+                    msg_tokens += len(encoding.encode(function_call_str))
                 
                 if total_tokens + msg_tokens <= token_limit:
                     limited_messages.insert(0, msg)

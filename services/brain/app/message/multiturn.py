@@ -33,6 +33,12 @@ import inspect
 import httpx
 import os
 
+import app.brainlets
+from collections import defaultdict, deque
+from app.tools.stickynotes import check_stickynotes
+
+from app.tools import TOOL_FUNCTIONS
+
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
 
@@ -168,7 +174,7 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
             ledger_buffer = get_response.json()
         
         # Use dicts for messages, not ChatMessage, and preserve tool_calls/function_call/tool_call_id fields
-        updated_request = updated_request.copy(update={
+        updated_request = updated_request.model_copy(update={
             "messages": [
                 {
                     "role": msg["role"],
@@ -186,14 +192,13 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to sync messages with ledger service."
         )
+
     # Run the brainlets!
     # Load brainlets config and import brainlets
     brainlets_config = _config.get('brainlets', [])
-    import app.brainlets
 
     # Topological sort to respect depends_on
     def topo_sort_brainlets(brainlets):
-        from collections import defaultdict, deque
         name_to_brainlet = {b['name']: b for b in brainlets}
         graph = defaultdict(list)
         indegree = defaultdict(int)
@@ -232,6 +237,7 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
                 brainlets_output[brainlet_name] = brainlet_result
 
     # Merge brainlets_output lists into updated_request.messages
+    # brainlets output is *not* saved to ledger's tool endpoint
     for v in brainlets_output.values():
         if isinstance(v, list):
             updated_request.messages.extend(v)
@@ -243,7 +249,7 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
 
     # technically this should be a brainlet, but it lives here for now.
     # check for any stickynotes that are due and return them as tool calls
-    from app.tools.stickynotes import check_stickynotes
+    # these also are *not* saved to the ledger's tool endpoint
     tools_calls = await check_stickynotes(message.user_id)
     if tools_calls:
         # if the list isn't empty, append the dicts to the messages.
@@ -251,8 +257,6 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
         updated_request.messages.extend(tools_calls)
 
     # send the payload to the proxy service and handle tool call loop
-    from app.tools import TOOL_FUNCTIONS
-    import json as _json
     final_response = None
     message_buffer = updated_request.messages
     tool_loop_count = 0
@@ -302,7 +306,7 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
                     fn = tool_call['function']['name']
                     args = tool_call['function'].get('arguments', '{}')
                     try:
-                        args_dict = _json.loads(args) if isinstance(args, str) else args
+                        args_dict = json.loads(args) if isinstance(args, str) else args
                     except Exception as e:
                         logger.error(f"Failed to parse tool arguments for {fn}: {e}")
                         tool_result = {"error": f"Failed to parse tool arguments: {e}"}
@@ -324,7 +328,7 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
                     # 4. Create tool message per OpenAI spec
                     tool_msg = {
                         "role": "tool",
-                        "content": _json.dumps(tool_result) if not isinstance(tool_result, str) else tool_result,
+                        "content": json.dumps(tool_result) if not isinstance(tool_result, str) else tool_result,
                         "tool_call_id": tool_call.get("id")
                     }
                     # 5. Sync tool message to ledger

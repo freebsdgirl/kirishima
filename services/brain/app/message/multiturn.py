@@ -261,11 +261,11 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
     message_buffer = updated_request.messages
     tool_loop_count = 0
     MAX_TOOL_LOOPS = 10
+    proxy_port = os.getenv("PROXY_PORT", 4205)
     while tool_loop_count < MAX_TOOL_LOOPS:
         # 1. Send to proxy
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
             try:
-                proxy_port = os.getenv("PROXY_PORT", 4205)
                 response = await client.post(f"http://proxy:{proxy_port}/api/multiturn", json=updated_request.model_dump())
                 response.raise_for_status()
             except Exception as e:
@@ -286,6 +286,9 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
             )
 
         # 2. Sync assistant/tool call message to ledger
+        # this gets trickier - first, we have to determine if it's a tool request so we know which
+        # sync endpoint to use since we split up normal assistant replies and tool requests. if it *is* a tool 
+        # request, we can't send it to ledger yet - it has to be sent after the tool is executed.
         sync_snapshot = [{
             "user_id": message.user_id,
             "platform": platform,
@@ -397,6 +400,7 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
         updated_request.messages.append(assistant_msg)
 
     # Run post-execution brainlets
+    # these do not get synced to ledger.
     post_brainlets = [b for b in brainlets_sorted if b.get('execution_stage') == 'post']
     post_brainlets_output = {}
     for brainlet in post_brainlets:
@@ -410,7 +414,6 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
                 # Pass the latest brainlets_output and updated_request (with final_response)
                 post_result = await brainlet_func(brainlets_output, updated_request)
                 post_brainlets_output[brainlet_name] = post_result
-    # Optionally merge post_brainlets_output into final_response if needed
 
     logger.debug(f"brain: /api/multiturn Returns:\n{final_response.model_dump_json(indent=4)}")
     return final_response

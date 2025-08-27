@@ -5,7 +5,7 @@ clients (e.g. Copilot) can dynamically pull the latest tone contract instead of
 hardcoding it. Lightweight: no persistence, no caching complexity.
 """
 from datetime import datetime, timezone
-from shared.models.mcp import MCPToolResponse
+from shared.models.mcp import ToolCallResponse
 from shared.log_config import get_logger
 
 logger = get_logger("brain.mcp.get_personality")
@@ -37,7 +37,7 @@ APPLICATION_INSTRUCTIONS = (
     "If a requested model isn't present, fall back to 'default'. Always retrieve this tool before other tool usage in a new session."
 )
 
-async def get_personality(params: dict) -> MCPToolResponse:
+async def get_personality(params: dict) -> ToolCallResponse:
     """Return full personality/style guidance (no filtering)."""
     payload = {
         "version": PERSONALITY_VERSION,
@@ -46,4 +46,4 @@ async def get_personality(params: dict) -> MCPToolResponse:
         "instructions": APPLICATION_INSTRUCTIONS,
     }
     logger.info(f"Served personality version {PERSONALITY_VERSION} full")
-    return MCPToolResponse(success=True, result=payload, error=None)
+    return ToolCallResponse(result=payload, error=None)

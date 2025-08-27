@@ -9,6 +9,9 @@ from typing import Any, Dict, List, Optional
 from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
 
+from shared.log_config import get_logger
+logger = get_logger(f"brain.{__name__}")
+
 class MCPClient:
     def __init__(self, url: str, short_name: Optional[str] = None, description: Optional[str] = None):
         self.url = url
@@ -40,8 +43,19 @@ class MCPClient:
                 return [tool.dict() for tool in response.tools]
 
     async def call_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Any:
-        async with streamablehttp_client(self.url) as (read, write, _):
-            async with ClientSession(read, write) as session:
-                await session.initialize()
-                result = await session.call_tool(tool_name, arguments)
-                return result.structuredContent or result.content
+        logger.debug(f"MCPClient.call_tool() connecting to {self.url} for tool {tool_name} with args {arguments}")
+        try:
+            async with streamablehttp_client(self.url) as (read, write, _):
+                logger.debug(f"MCPClient.call_tool() got streams for {self.url}")
+                async with ClientSession(read, write) as session:
+                    logger.debug(f"MCPClient.call_tool() initializing session for {self.url}")
+                    await session.initialize()
+                    logger.debug(f"MCPClient.call_tool() calling session.call_tool({tool_name}, {arguments}) for {self.url}")
+                    result = await session.call_tool(tool_name, arguments)
+                    logger.debug(f"MCPClient.call_tool() got result from {self.url}: type={type(result)}, structuredContent={result.structuredContent}, content={result.content}")
+                    return_value = result.structuredContent or result.content
+                    logger.debug(f"MCPClient.call_tool() returning {return_value} from {self.url}")
+                    return return_value
+        except Exception as e:
+            logger.error(f"MCPClient.call_tool() exception for {self.url} tool {tool_name}: {e}", exc_info=True)
+            raise

@@ -20,24 +20,22 @@ Logging:
 """
  
 from shared.models.proxy import MultiTurnRequest, ProxyResponse
-from shared.models.ledger import ToolSyncRequest
-from app.util import get_admin_user_id, post_to_service, get_user_alias, sanitize_messages, get_recent_summaries
+from app.util import get_admin_user_id, get_user_alias, sanitize_messages, get_recent_summaries
 
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
 
 import json
+from app.services.mcp_client.client import MCPClient
+from app.services.mcp_client.util import mcp_tools_to_openai
 import sqlite3
 from pathlib import Path
-import inspect
 import httpx
 import os
 
 import app.brainlets
 from collections import defaultdict, deque
 from app.tools.stickynotes import check_stickynotes
-
-from app.tools import TOOL_FUNCTIONS
 
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
@@ -117,22 +115,22 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
     # summaries is already a formatted string, no need to re-parse or join
 
     # Build new MultiTurnRequest with updated fields
-    with open('/app/app/tools.json') as f:
-        all_tools = json.load(f)
-    
-    # Resolve provider from mode to determine which tools to include
+    # Get tools from MCP servers and convert to OpenAI schema
+    mcp_clients = MCPClient.from_config()
+    mcp_tools = []
+    for mcp_client in mcp_clients:
+        tools = await mcp_client.list_tools()
+        mcp_tools.extend(tools)
+    tools = mcp_tools_to_openai(mcp_tools)
+
+    # Provider logic can be kept if needed for other fields
     def resolve_provider_from_mode(mode: str):
-        """Resolve provider from mode using config.json"""
         llm_modes = _config.get("llm", {}).get("mode", {})
         mode_config = llm_modes.get(mode) or llm_modes.get("default")
         if mode_config:
             return mode_config.get("provider", "openai")
-        return "openai"  # fallback
-    
+        return "openai"
     provider = resolve_provider_from_mode(message.model)
-    
-    # Use all tools for all providers
-    tools = all_tools
 
     updated_request = message.copy(update={
         "memories": [m.model_dump() for m in memories],
@@ -250,11 +248,11 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
     # technically this should be a brainlet, but it lives here for now.
     # check for any stickynotes that are due and return them as tool calls
     # these also are *not* saved to the ledger's tool endpoint
-    tools_calls = await check_stickynotes(message.user_id)
-    if tools_calls:
+    #tools_calls = await check_stickynotes(message.user_id)
+    #if tools_calls:
         # if the list isn't empty, append the dicts to the messages.
         # they are already formatted as OpenAI tool calls.
-        updated_request.messages.extend(tools_calls)
+    #    updated_request.messages.extend(tools_calls)
 
     # send the payload to the proxy service and handle tool call loop
     final_response = None
@@ -298,21 +296,21 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
                         logger.error(f"Failed to parse tool arguments for {fn}: {e}")
                         tool_result = {"error": f"Failed to parse tool arguments: {e}"}
                     else:
-                        tool_fn = TOOL_FUNCTIONS.get(fn)
-                        if tool_fn:
-                            try:
-                                if inspect.iscoroutinefunction(tool_fn):
-                                    tool_result = await tool_fn(**args_dict)
-                                else:
-                                    tool_result = tool_fn(**args_dict)
-                                logger.info(f"Executed tool {fn}: {tool_result}")
-                            except Exception as e:
-                                logger.error(f"Error executing tool {fn}: {e}")
-                                tool_result = {"error": f"Tool '{fn}' execution failed: {e}"}
-                        else:
-                            logger.warning(f"No tool function registered for {fn}")
-                            tool_result = {"error": f"Tool '{fn}' is not available."}
-                    
+                        mcp_clients = MCPClient.from_config()
+                        tool_result = None
+                        for mcp_client in mcp_clients:
+                            tools = await mcp_client.list_tools()
+                            if any(t.get('name') == fn for t in tools):
+                                try:
+                                    tool_result = await mcp_client.call_tool(fn, args_dict)
+                                    logger.info(f"MCP tool {fn} called via {mcp_client.url}: {tool_result}")
+                                except Exception as e:
+                                    logger.error(f"Error executing MCP tool {fn}: {e}")
+                                    tool_result = {"error": f"MCP tool '{fn}' execution failed: {e}"}
+                                break
+                        if tool_result is None:
+                            logger.warning(f"No MCP tool registered for {fn}")
+                            tool_result = {"error": f"Tool '{fn}' is not available via MCP."}
                     # Sync tool call and result to ledger
                     tool_sync_request = {
                         "model": message.model if hasattr(message, 'model') else None,
@@ -321,25 +319,21 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
                         "tool_output": json.dumps(tool_result) if not isinstance(tool_result, str) else tool_result,
                         "tool_call_id": tool_call.get("id")
                     }
-                    
                     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
                         sync_response = await client.post(f"http://ledger:{ledger_port}/sync/tool", json=tool_sync_request)
                         sync_response.raise_for_status()
-                    
                     # Add tool call message to conversation
                     updated_request.messages.append({
                         "role": "assistant",
                         "content": "",
                         "tool_calls": [tool_call]
                     })
-                    
                     # Add tool result message to conversation  
                     updated_request.messages.append({
                         "role": "tool",
                         "content": json.dumps(tool_result) if not isinstance(tool_result, str) else tool_result,
                         "tool_call_id": tool_call.get("id")
                     })
-            
             # Continue loop with updated messages
             continue
             

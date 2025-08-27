@@ -3,13 +3,13 @@ GitHub issue management service for MCP.
 Direct implementation (not wrapper) of GitHub issue functionality.
 """
 
-from shared.models.mcp import MCPToolResponse
+from shared.models.mcp import ToolCallResponse
 from typing import Dict, Any
 import json
 import requests
 
 
-async def github_issue(parameters: Dict[str, Any], context: Dict[str, Any] = None) -> MCPToolResponse:
+async def github_issue(parameters: Dict[str, Any]) -> ToolCallResponse:
     """
     Manage GitHub issues - create, view, comment, close, list.
     Direct implementation for MCP server.
@@ -58,6 +58,7 @@ async def github_issue(parameters: Dict[str, Any], context: Dict[str, Any] = Non
                 "title": issue.get("title"),
                 "html_url": issue.get("html_url")
             }
+            return ToolCallResponse(result={"success": True, "data": result})
 
         elif action == "list":
             params = {}
@@ -85,10 +86,11 @@ async def github_issue(parameters: Dict[str, Any], context: Dict[str, Any] = Non
                     "created_at": issue.get("created_at"),
                     "updated_at": issue.get("updated_at")
                 })
+            return ToolCallResponse(result={"success": True, "data": result})
 
         elif action == "view":
             if not issue_id:
-                return MCPToolResponse(success=False, result=None, error="Missing issue_id for view action")
+                return ToolCallResponse(result={"success": False, "error": "Missing issue_id for view action"})
             
             resp = requests.get(f"{api_url}/issues/{issue_id}", headers=headers, timeout=timeout)
             resp.raise_for_status()
@@ -100,10 +102,11 @@ async def github_issue(parameters: Dict[str, Any], context: Dict[str, Any] = Non
                 "body": issue.get("body"),
                 "html_url": issue.get("html_url")
             }
+            return ToolCallResponse(result={"success": True, "data": result})
 
         elif action == "comment":
             if not issue_id or not comment_body:
-                return MCPToolResponse(success=False, result=None, error="Missing issue_id or comment_body for comment action")
+                return ToolCallResponse(result={"success": False, "error": "Missing issue_id or comment_body for comment action"})
             
             data = {"body": comment_body}
             resp = requests.post(f"{api_url}/issues/{issue_id}/comments", json=data, headers=headers, timeout=timeout)
@@ -116,10 +119,11 @@ async def github_issue(parameters: Dict[str, Any], context: Dict[str, Any] = Non
                 "user": comment.get("user", {}).get("login"),
                 "html_url": comment.get("html_url")
             }
+            return ToolCallResponse(result={"success": True, "data": result})
 
         elif action == "close":
             if not issue_id:
-                return MCPToolResponse(success=False, result=None, error="Missing issue_id for close action")
+                return ToolCallResponse(result={"success": False, "error": "Missing issue_id for close action"})
             
             data = {"state": "closed"}
             resp = requests.patch(f"{api_url}/issues/{issue_id}", json=data, headers=headers, timeout=timeout)
@@ -132,10 +136,11 @@ async def github_issue(parameters: Dict[str, Any], context: Dict[str, Any] = Non
                 "body": issue.get("body"),
                 "html_url": issue.get("html_url")
             }
+            return ToolCallResponse(result={"success": True, "data": result})
 
         elif action == "list_comments":
             if not issue_id:
-                return MCPToolResponse(success=False, result=None, error="Missing issue_id for list_comments action")
+                return ToolCallResponse(result={"success": False, "error": "Missing issue_id for list_comments action"})
             
             resp = requests.get(f"{api_url}/issues/{issue_id}/comments", headers=headers, timeout=timeout)
             resp.raise_for_status()
@@ -150,14 +155,13 @@ async def github_issue(parameters: Dict[str, Any], context: Dict[str, Any] = Non
                 }
                 for c in comments
             ]
+            return ToolCallResponse(result={"success": True, "data": result})
 
         else:
-            return MCPToolResponse(success=False, result=None, error=f"Unknown action: {action}")
-
-        return MCPToolResponse(success=True, result=result)
+            return ToolCallResponse(result={"success": False, "error": f"Unknown action: {action}"})
 
     except requests.HTTPError as e:
         error_msg = f"HTTP error: {e.response.status_code} - {e.response.text}"
-        return MCPToolResponse(success=False, result=None, error=error_msg)
+        return ToolCallResponse(result={"success": False, "error": error_msg})
     except Exception as e:
-        return MCPToolResponse(success=False, result=None, error=str(e))
+        return ToolCallResponse(result={"success": False, "error": str(e)})

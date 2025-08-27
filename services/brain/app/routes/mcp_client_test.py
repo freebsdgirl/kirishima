@@ -1,9 +1,11 @@
 # Temporary test route for MCP client
 from fastapi import APIRouter, Query
 from typing import Optional
-import asyncio
 from app.services.mcp_client.client import MCPClient
 from app.services.mcp_client.util import mcp_tools_to_openai
+
+from shared.log_config import get_logger
+logger = get_logger(f"brain.{__name__}")
 
 router = APIRouter()
 

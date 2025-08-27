@@ -1,0 +1,205 @@
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "tools": [
+      {
+        "name": "search_web",
+        "title": "Web Search",
+        "description": "Search the web for information using a query string",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "The search query to execute",
+              "minLength": 1,
+              "maxLength": 500
+            },
+            "max_results": {
+              "type": "integer",
+              "description": "Maximum number of results to return",
+              "minimum": 1,
+              "maximum": 20,
+              "default": 10
+            },
+            "language": {
+              "type": "string",
+              "description": "Language code for search results",
+              "enum": ["en", "es", "fr", "de", "it"],
+              "default": "en"
+            }
+          },
+          "required": ["query"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "results": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "description": "Title of the search result"
+                  },
+                  "url": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "URL of the search result"
+                  },
+                  "snippet": {
+                    "type": "string",
+                    "description": "Brief excerpt from the page"
+                  },
+                  "timestamp": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "When the result was indexed"
+                  }
+                },
+                "required": ["title", "url", "snippet"],
+                "additionalProperties": false
+              }
+            },
+            "total_count": {
+              "type": "integer",
+              "description": "Total number of results found",
+              "minimum": 0
+            },
+            "search_time_ms": {
+              "type": "number",
+              "description": "Time taken to perform the search in milliseconds"
+            }
+          },
+          "required": ["results", "total_count"],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "title": "Web Search Tool",
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": true
+        }
+      },
+      {
+        "name": "create_file",
+        "title": "Create File",
+        "description": "Create a new file with specified content",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "File path where the file should be created",
+              "pattern": "^[^<>:\"|?*\\x00-\\x1f]+$"
+            },
+            "content": {
+              "type": "string",
+              "description": "Content to write to the file"
+            },
+            "encoding": {
+              "type": "string",
+              "description": "Text encoding to use",
+              "enum": ["utf-8", "ascii", "latin-1"],
+              "default": "utf-8"
+            },
+            "overwrite": {
+              "type": "boolean",
+              "description": "Whether to overwrite if file exists",
+              "default": false
+            }
+          },
+          "required": ["path", "content"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean",
+              "description": "Whether the file was created successfully"
+            },
+            "path": {
+              "type": "string",
+              "description": "Full path of the created file"
+            },
+            "size_bytes": {
+              "type": "integer",
+              "description": "Size of the created file in bytes",
+              "minimum": 0
+            },
+            "created_at": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Timestamp when the file was created"
+            }
+          },
+          "required": ["success", "path"],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "title": "File Creator",
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": false,
+          "openWorldHint": false
+        }
+      },
+      {
+        "name": "calculate",
+        "title": "Mathematical Calculator",
+        "description": "Perform mathematical calculations with support for basic operations",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "expression": {
+              "type": "string",
+              "description": "Mathematical expression to evaluate (e.g., '2 + 3 * 4')",
+              "pattern": "^[0-9+\\-*/()\\s\\.]+$",
+              "maxLength": 1000
+            },
+            "precision": {
+              "type": "integer",
+              "description": "Number of decimal places in the result",
+              "minimum": 0,
+              "maximum": 15,
+              "default": 2
+            }
+          },
+          "required": ["expression"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "result": {
+              "type": "number",
+              "description": "The calculated result"
+            },
+            "expression": {
+              "type": "string",
+              "description": "The original expression that was evaluated"
+            },
+            "formatted_result": {
+              "type": "string",
+              "description": "Human-readable formatted result"
+            }
+          },
+          "required": ["result", "expression"],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "title": "Calculator",
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        }
+      }
+    ]
+  }
+}

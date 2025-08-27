@@ -11,7 +11,7 @@ import json
 from pathlib import Path
 
 from shared.log_config import get_logger
-logger = get_logger("brain.mcp.registry")
+logger = get_logger(f"brain.{__name__}")
 
 
 def _resolve_config_file(filename: str) -> Path | None:

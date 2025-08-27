@@ -12,179 +12,145 @@ Key endpoints:
 - GET /mcp/validate - Dependency validation
 """
 
-from fastapi import APIRouter, HTTPException, Request
-import logging
+from fastapi import APIRouter, HTTPException
+
+from shared.log_config import get_logger
+logger = get_logger(f"brain.{__name__}")
+
+import importlib
 from threading import Lock
-from shared.models.mcp import MCPToolsResponse, MCPToolRequest, MCPToolResponse
-from app.services.mcp.registry import (
-    get_available_tools, 
-    get_available_tools_for_client,
-    is_tool_available, 
-    is_tool_available_for_client,
-    _load_tool_registry
-)
-from app.services.mcp.executor import execute_tool_with_dependencies
-from app.services.mcp.dependencies import validate_all_dependencies
+from shared.models.mcp import ToolsListResponse, ToolCallRequest, ToolCallResponse, Tool, ToolAnnotation
+
+import json
+
+def get_all_tools():
+    with open("/app/app/config/tools.json", "r") as f:
+        data = json.load(f)
+    tools = []
+    for tool in data:
+        if isinstance(tool.get("annotations"), dict):
+            tool["annotations"] = ToolAnnotation(**tool["annotations"])
+        tools.append(Tool(**tool))
+    return tools
+
+def get_copilot_tools():
+    return [t for t in get_all_tools() if t.name in ("get_personality", "github_issue")]
 
 router = APIRouter()
 
 
-logger = logging.getLogger("mcp")
-
-# Copilot personality bootstrap enforcement
-_copilot_personality_loaded = False
-_copilot_lock = Lock()
-
-def _reset_copilot_personality():
-    global _copilot_personality_loaded
-    with _copilot_lock:
-        _copilot_personality_loaded = False
-
-def _mark_copilot_personality():
-    global _copilot_personality_loaded
-    with _copilot_lock:
-        _copilot_personality_loaded = True
-
-def _is_copilot_personality_loaded():
-    with _copilot_lock:
-        return _copilot_personality_loaded
-
-
 async def _handle_jsonrpc_request(request: dict, client_type: str = "internal") -> dict:
     """
-    Consolidated JSON-RPC handler for MCP protocol requests.
-    
-    Args:
-        request: The JSON-RPC request dict
-        client_type: Client type for tool filtering ("internal", "copilot", "external")
-    
-    Returns:
-        JSON-RPC response dict
+    Minimal JSON-RPC handler for MCP protocol requests, using new models and registry.
     """
+    logger.debug(f"_handle_jsonrpc_request input: {request}")
     method = request.get("method")
     params = request.get("params", {})
     request_id = request.get("id")
-    
-    # Client-specific configuration
-    client_configs = {
-        "internal": {
-            "server_name": "kirishima-brain",
-            "get_tools": get_available_tools,
-            "is_tool_available": is_tool_available,
-            "error_suffix": ""
-        },
-        "copilot": {
-            "server_name": "kirishima-brain-copilot", 
-            "get_tools": lambda: get_available_tools_for_client("copilot"),
-            "is_tool_available": lambda tool_name: is_tool_available_for_client(tool_name, "copilot"),
-            "error_suffix": " or not authorized for Copilot"
-        },
-        "external": {
-            "server_name": "kirishima-brain-external",
-            "get_tools": lambda: get_available_tools_for_client("external"),
-            "is_tool_available": lambda tool_name: is_tool_available_for_client(tool_name, "external"),
-            "error_suffix": " or not authorized for external clients"
-        }
-    }
-    
-    config = client_configs.get(client_type, client_configs["internal"])
-    
+
+    # Early exit for notifications (no id)
+    if request_id is None:
+        # JSON-RPC spec: notifications must not get a response
+        logger.debug("Received notification (no id); returning no response.")
+        return None
+
+    # Tool filtering
+    if client_type == "copilot":
+        tools = get_copilot_tools()
+    else:
+        tools = get_all_tools()
+
     if method == "initialize":
-        logger.debug(f"MCP initialize from client_type={client_type}")
-        if client_type == "copilot":
-            _reset_copilot_personality()
-        return {
+        response = {
             "jsonrpc": "2.0",
             "id": request_id,
             "result": {
                 "protocolVersion": "2024-11-05",
-                "capabilities": {
-                    "tools": {}
-                },
-                "serverInfo": {
-                    "name": config["server_name"],
-                    "version": "1.0.0"
-                }
+                "capabilities": {"tools": {}},
+                "serverInfo": {"name": "kirishima-brain", "version": "1.0.0"}
             }
         }
-    
+        return response
+
     elif method == "tools/list":
-        tools = config["get_tools"]()
-        logger.debug(
-            "MCP tools/list client_type=%s returned=%s (config-based)", 
-            client_type, [t.name for t in tools]
-        )
-        return {
-            "jsonrpc": "2.0", 
+        response = {
+            "jsonrpc": "2.0",
             "id": request_id,
             "result": {
                 "tools": [
                     {
-                        "name": tool.name,
-                        "description": tool.description,
-                        "inputSchema": tool.parameters
-                    } for tool in tools
+                        "name": t.name,
+                        "title": getattr(t, "title", t.name),
+                        "description": t.description,
+                        "inputSchema": t.inputSchema,
+                        "outputSchema": t.outputSchema,
+                        "annotations": t.annotations,
+                        "_meta": None
+                    } for t in tools
                 ]
             }
         }
-    
+        return response
+
     elif method == "tools/call":
         tool_name = params.get("name")
         arguments = params.get("arguments", {})
-
-        # Enforce that Copilot loads personality first
-        if client_type == "copilot" and tool_name != "get_personality" and not _is_copilot_personality_loaded():
-            logger.info("Copilot attempted '%s' before get_personality loaded", tool_name)
+        allowed = [t.name for t in tools]
+        if tool_name not in allowed:
             return {
                 "jsonrpc": "2.0",
                 "id": request_id,
-                "error": {
-                    "code": -32001,
-                    "message": "Must call get_personality first to load style context"
-                }
+                "error": {"code": -32601, "message": f"Tool '{tool_name}' not found or not allowed"}
             }
-        
-        if not config["is_tool_available"](tool_name):
-            return {
-                "jsonrpc": "2.0",
-                "id": request_id,
-                "error": {
-                    "code": -32601,
-                    "message": f"Tool '{tool_name}' not found{config['error_suffix']}"
-                }
-            }
-        
-        tool_registry = _load_tool_registry()
-        result = await execute_tool_with_dependencies(tool_name, arguments, tool_registry)
-        if client_type == "copilot" and tool_name == "get_personality" and result.success:
-            _mark_copilot_personality()
-        logger.debug(
-            "MCP tools/call client_type=%s tool=%s success=%s", 
-            client_type, tool_name, result.success
-        )
-        
-        return {
-            "jsonrpc": "2.0",
-            "id": request_id,
-            "result": {
-                "content": [
-                    {
-                        "type": "text",
-                        "text": str(result.result) if result.success else result.error
+        # Dynamically import and call the tool implementation
+        try:
+            module = importlib.import_module(f"app.services.mcp.{tool_name}")
+            tool_func = getattr(module, tool_name)
+            result = await tool_func(arguments)
+            # If result is a ToolCallResponse, extract the actual result content
+            if hasattr(result, "model_dump"):
+                result_dict = result.model_dump()
+                # Extract the actual result, not the wrapper
+                actual_result = result_dict.get("result")
+                if result_dict.get("error"):
+                    return {
+                        "jsonrpc": "2.0",
+                        "id": request_id,
+                        "error": {"code": -32000, "message": result_dict["error"]}
                     }
-                ],
-                "isError": not result.success
+            else:
+                actual_result = result
+            
+            # Return structured content - MCP library requires structuredContent to be a dict
+            if isinstance(actual_result, list):
+                structured_content = {"items": actual_result}
+            elif isinstance(actual_result, dict):
+                structured_content = actual_result  
+            else:
+                structured_content = {"value": actual_result}
+                
+            return {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "result": {
+                    "content": [{"type": "text", "text": f"Tool {tool_name} executed successfully"}],
+                    "structuredContent": structured_content,
+                    "isError": False
+                }
             }
-        }
-    
+        except Exception as e:
+            logger.error(f"Tool execution error for {tool_name}: {e}")
+            return {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "error": {"code": -32000, "message": f"Tool execution failed: {str(e)}"}
+            }
+
     else:
         return {
             "jsonrpc": "2.0",
-            "id": request_id, 
-            "error": {
-                "code": -32601,
-                "message": f"Method '{method}' not found"
-            }
+            "id": request_id,
+            "error": {"code": -32601, "message": f"Method '{method}' not found"}
         }
 
 
@@ -193,6 +159,7 @@ async def mcp_handler(request: dict):
     """
     Main MCP protocol handler for JSON-RPC requests.
     """
+    logger.debug(f"/mcp/: {request}")
     return await _handle_jsonrpc_request(request, "internal")
 
 
@@ -203,6 +170,7 @@ async def mcp_copilot_handler(request: dict):
     MCP protocol handler for GitHub Copilot with filtered tools.
     Same protocol as main MCP endpoint but with restricted tool access.
     """
+    logger.debug(f"/mcp/copilot/: {request}")
     return await _handle_jsonrpc_request(request, "copilot")
 
 
@@ -213,12 +181,14 @@ async def mcp_external_handler(request: dict):
     MCP protocol handler for external clients with filtered tools.
     Same protocol as main MCP endpoint but with restricted tool access.
     """
+    logger.debug(f"/mcp/external/: {request}")
     return await _handle_jsonrpc_request(request, "external")
 
 
 @router.get("/")
 async def mcp_server_info():
     """MCP server information endpoint."""
+    logger.debug("/mcp/ GET")
     return {
         "name": "kirishima-brain",
         "version": "1.0.0",
@@ -235,126 +205,54 @@ async def mcp_server_info():
     }
 
 
-@router.get("/tools", response_model=MCPToolsResponse)
+@router.get("/tools", response_model=ToolsListResponse)
 async def get_tools():
     """
     Return the list of available tools and their schemas for dynamic discovery.
-    This allows agents to discover what tools are available at runtime.
     """
-    tools = get_available_tools()
-    return MCPToolsResponse(tools=tools)
+    tools = get_all_tools()
+    return ToolsListResponse(tools=tools)
 
 
-@router.get("/copilot/tools", response_model=MCPToolsResponse)
-async def get_copilot_tools():
+@router.get("/copilot/tools", response_model=ToolsListResponse)
+async def get_copilot_tools_endpoint():
     """
     Return the list of tools available to GitHub Copilot.
-    Filtered subset of tools safe for external agent use.
+    Only get_personality and github_issue are exposed.
     """
-    tools = get_available_tools_for_client("copilot")
-    return MCPToolsResponse(tools=tools)
+    tools = get_copilot_tools()
+    return ToolsListResponse(tools=tools)
 
 
-@router.get("/external/tools", response_model=MCPToolsResponse)
-async def get_external_tools():
+@router.post("/execute", response_model=ToolCallResponse)
+async def execute_tool(request: ToolCallRequest):
     """
-    Return the list of tools available to external clients.
-    Filtered subset of tools safe for external agent use.
+    Generic tool execution endpoint.
     """
-    tools = get_available_tools_for_client("external")
-    return MCPToolsResponse(tools=tools)
+    if request.name not in [t.name for t in get_all_tools()]:
+        return ToolCallResponse(result=None, error=f"Tool '{request.name}' not found")
+    return ToolCallResponse(result={"status": "success", "tool": request.name, "args": request.arguments})
 
 
-@router.post("/memory", response_model=MCPToolResponse)
-async def mcp_memory(request: MCPToolRequest):
+@router.post("/copilot/execute", response_model=ToolCallResponse)
+async def execute_copilot_tool(request: ToolCallRequest):
     """
-    MCP endpoint for comprehensive memory management.
-    Supports search, create, update, delete, list, and get operations.
+    Copilot tool execution endpoint.
+    Only get_personality and github_issue are allowed.
     """
-    return await execute_tool_with_dependencies("memory", request.parameters)
-
-
-@router.post("/github_issue", response_model=MCPToolResponse)
-async def mcp_github_issue(request: MCPToolRequest):
-    """
-    MCP endpoint for GitHub issue management.
-    """
-    return await execute_tool_with_dependencies("github_issue", request.parameters)
-
-
-@router.post("/manage_prompt", response_model=MCPToolResponse)
-async def mcp_manage_prompt(request: MCPToolRequest):
-    """
-    MCP endpoint for agent's system prompt management.
-    Internal use only - not available to external clients like Copilot.
-    """
-    return await execute_tool_with_dependencies("manage_prompt", request.parameters)
-
-
-@router.post("/email", response_model=MCPToolResponse)
-async def mcp_email(request: MCPToolRequest):
-    """
-    MCP endpoint for email operations.
-    Supports draft, send, search, and list actions.
-    """
-    return await execute_tool_with_dependencies("email", request.parameters)
-
-
-@router.post("/calendar", response_model=MCPToolResponse)
-async def mcp_calendar(request: MCPToolRequest):
-    """
-    MCP endpoint for calendar operations.
-    Supports create_event, search_events, get_upcoming, delete_event, and list_events actions.
-    """
-    return await execute_tool_with_dependencies("calendar", request.parameters)
-
-
-@router.post("/contacts", response_model=MCPToolResponse)
-async def mcp_contacts(request: MCPToolRequest):
-    """
-    MCP endpoint for contacts operations.
-    Supports get_contact, list_contacts, search_contacts, create_contact, update_contact, and delete_contact actions.
-    """
-    return await execute_tool_with_dependencies("contacts", request.parameters)
-
-
-@router.post("/stickynotes", response_model=MCPToolResponse)
-async def mcp_stickynotes(request: MCPToolRequest):
-    """
-    MCP endpoint for stickynotes operations (default task list).
-    Supports list, create, update, complete, and delete actions.
-    """
-    return await execute_tool_with_dependencies("stickynotes", request.parameters)
-
-
-@router.post("/lists", response_model=MCPToolResponse)
-async def mcp_lists(request: MCPToolRequest):
-    """
-    MCP endpoint for task list management operations.
-    Supports list_task_lists, create_task_list, delete_task_list, list_tasks, create_task, and delete_task actions.
-    """
-    return await execute_tool_with_dependencies("lists", request.parameters)
-
-
-@router.post("/execute", response_model=MCPToolResponse)
-async def execute_tool(request: MCPToolRequest):
-    """
-    Generic tool execution endpoint with dependency resolution.
-    """
-    if not is_tool_available(request.tool_name):
-        raise HTTPException(status_code=404, detail=f"Tool '{request.tool_name}' not found")
+    if request.name not in ("get_personality", "github_issue"):
+        return ToolCallResponse(result=None, error="Copilot is only allowed to call get_personality and github_issue tools.")
     
-    tool_registry = _load_tool_registry()
-    return await execute_tool_with_dependencies(request.tool_name, request.parameters, tool_registry)
+    # Actually execute the tool using dynamic import
+    try:
+        module = importlib.import_module(f"app.services.mcp.{request.name}")
+        tool_func = getattr(module, request.name)
+        return await tool_func(request.arguments)
+    except Exception as e:
+        logger.error(f"Error executing tool {request.name}: {e}")
+        return ToolCallResponse(result=None, error=f"Tool execution failed: {str(e)}")
 
 
-@router.get("/validate")
-async def validate_dependencies():
-    """Validate all tool dependencies."""
-    return validate_all_dependencies()
-
-
-@router.get("/execution_plan/{tool_name}")
 async def get_execution_plan_endpoint(tool_name: str):
     """Get the execution plan for a specific tool."""
     try:

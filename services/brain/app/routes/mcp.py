@@ -1,47 +1,35 @@
 """
-MCP (Model Context Protocol) routes for exposing Brain's tools and brainlets as standardized API endpoints.
+MCP (Model Context Protocol) routes for exposing Brain's tools as standardized API endpoints.
 
 This module implements the MCP server functionality, allowing external agents (like Copilot)
 to discover and call Brain's tools in a standardized way.
 
+All tool discovery and execution is backed by the decorator-based registry in app.tools.
+No JSON tool definition files, no dynamic importlib loading.
+
 Key endpoints:
-- GET /mcp/tools - Dynamic tool discovery
-- POST /mcp/memory - Comprehensive memory management (search, create, update, delete, list, get)
-- POST /mcp/github_issue - GitHub issue management (create, view, comment, close, list)
-- POST /mcp/execute - Generic tool execution with dependency resolution
-- GET /mcp/validate - Dependency validation
+- POST /mcp/ — JSON-RPC handler (internal clients)
+- POST /mcp/copilot/ — JSON-RPC handler (Copilot, filtered tools)
+- POST /mcp/external/ — JSON-RPC handler (external clients, filtered tools)
+- GET /mcp/ — Server info
+- GET /mcp/tools — Tool discovery (OpenAI format)
+- POST /mcp/execute — Tool execution
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
 
-import importlib
-from threading import Lock
-from shared.models.mcp import ToolsListResponse, ToolCallRequest, ToolCallResponse, Tool, ToolAnnotation
-
-import json
-
-def get_all_tools():
-    with open("/app/app/config/tools.json", "r") as f:
-        data = json.load(f)
-    tools = []
-    for tool in data:
-        if isinstance(tool.get("annotations"), dict):
-            tool["annotations"] = ToolAnnotation(**tool["annotations"])
-        tools.append(Tool(**tool))
-    return tools
-
-def get_copilot_tools():
-    return [t for t in get_all_tools() if t.name in ("get_personality", "github_issue")]
+from app.tools import get_mcp_tools, get_openai_tools, call_tool
 
 router = APIRouter()
 
 
 async def _handle_jsonrpc_request(request: dict, client_type: str = "internal") -> dict:
     """
-    Minimal JSON-RPC handler for MCP protocol requests, using new models and registry.
+    JSON-RPC handler for MCP protocol requests.
+    Tool discovery and execution backed entirely by app.tools registry.
     """
     logger.debug(f"_handle_jsonrpc_request input: {request}")
     method = request.get("method")
@@ -50,18 +38,14 @@ async def _handle_jsonrpc_request(request: dict, client_type: str = "internal") 
 
     # Early exit for notifications (no id)
     if request_id is None:
-        # JSON-RPC spec: notifications must not get a response
         logger.debug("Received notification (no id); returning no response.")
         return None
 
-    # Tool filtering
-    if client_type == "copilot":
-        tools = get_copilot_tools()
-    else:
-        tools = get_all_tools()
+    # Get tools from the new registry, filtered by client type
+    tools = get_mcp_tools(client_type)
 
     if method == "initialize":
-        response = {
+        return {
             "jsonrpc": "2.0",
             "id": request_id,
             "result": {
@@ -70,81 +54,64 @@ async def _handle_jsonrpc_request(request: dict, client_type: str = "internal") 
                 "serverInfo": {"name": "kirishima-brain", "version": "1.0.0"}
             }
         }
-        return response
 
     elif method == "tools/list":
-        response = {
+        return {
             "jsonrpc": "2.0",
             "id": request_id,
             "result": {
                 "tools": [
                     {
-                        "name": t.name,
-                        "title": getattr(t, "title", t.name),
-                        "description": t.description,
-                        "inputSchema": t.inputSchema,
-                        "outputSchema": t.outputSchema,
-                        "annotations": t.annotations,
-                        "_meta": None
+                        "name": t["name"],
+                        "title": t["name"],
+                        "description": t["description"],
+                        "inputSchema": t["inputSchema"],
+                        "_meta": None,
                     } for t in tools
                 ]
             }
         }
-        return response
 
     elif method == "tools/call":
         tool_name = params.get("name")
         arguments = params.get("arguments", {})
-        allowed = [t.name for t in tools]
-        if tool_name not in allowed:
+        allowed_names = [t["name"] for t in tools]
+        if tool_name not in allowed_names:
             return {
                 "jsonrpc": "2.0",
                 "id": request_id,
-                "error": {"code": -32601, "message": f"Tool '{tool_name}' not found or not allowed"}
+                "error": {"code": -32601, "message": f"Tool '{tool_name}' not found or not allowed for client '{client_type}'"}
             }
-        # Dynamically import and call the tool implementation
-        try:
-            module = importlib.import_module(f"app.services.mcp.{tool_name}")
-            tool_func = getattr(module, tool_name)
-            result = await tool_func(arguments)
-            # If result is a ToolCallResponse, extract the actual result content
-            if hasattr(result, "model_dump"):
-                result_dict = result.model_dump()
-                # Extract the actual result, not the wrapper
-                actual_result = result_dict.get("result")
-                if result_dict.get("error"):
-                    return {
-                        "jsonrpc": "2.0",
-                        "id": request_id,
-                        "error": {"code": -32000, "message": result_dict["error"]}
-                    }
-            else:
-                actual_result = result
-            
-            # Return structured content - MCP library requires structuredContent to be a dict
-            if isinstance(actual_result, list):
-                structured_content = {"items": actual_result}
-            elif isinstance(actual_result, dict):
-                structured_content = actual_result  
-            else:
-                structured_content = {"value": actual_result}
-                
+
+        # Execute via the unified registry — no importlib, no HTTP self-call
+        result = await call_tool(tool_name, arguments)
+
+        if result.error:
             return {
                 "jsonrpc": "2.0",
                 "id": request_id,
-                "result": {
-                    "content": [{"type": "text", "text": f"Tool {tool_name} executed successfully"}],
-                    "structuredContent": structured_content,
-                    "isError": False
-                }
+                "error": {"code": -32000, "message": result.error}
             }
-        except Exception as e:
-            logger.error(f"Tool execution error for {tool_name}: {e}")
-            return {
-                "jsonrpc": "2.0",
-                "id": request_id,
-                "error": {"code": -32000, "message": f"Tool execution failed: {str(e)}"}
+
+        actual_result = result.result
+
+        # Normalize structuredContent to dict (MCP spec requirement)
+        if isinstance(actual_result, list):
+            structured_content = {"items": actual_result}
+        elif isinstance(actual_result, dict):
+            structured_content = actual_result
+        else:
+            structured_content = {"value": actual_result}
+
+        return {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "result": {
+                "content": [{"type": "text", "text": f"Tool {tool_name} executed successfully"}],
+                "structuredContent": structured_content,
+                "isError": False,
             }
+        }
 
     else:
         return {
@@ -205,68 +172,39 @@ async def mcp_server_info():
     }
 
 
-@router.get("/tools", response_model=ToolsListResponse)
+@router.get("/tools")
 async def get_tools():
-    """
-    Return the list of available tools and their schemas for dynamic discovery.
-    """
-    tools = get_all_tools()
-    return ToolsListResponse(tools=tools)
+    """Return all registered tools in OpenAI format for dynamic discovery."""
+    return {"tools": get_openai_tools("internal")}
 
 
-@router.get("/copilot/tools", response_model=ToolsListResponse)
+@router.get("/copilot/tools")
 async def get_copilot_tools_endpoint():
-    """
-    Return the list of tools available to GitHub Copilot.
-    Only get_personality and github_issue are exposed.
-    """
-    tools = get_copilot_tools()
-    return ToolsListResponse(tools=tools)
+    """Return tools available to GitHub Copilot."""
+    return {"tools": get_openai_tools("copilot")}
 
 
-@router.post("/execute", response_model=ToolCallResponse)
-async def execute_tool(request: ToolCallRequest):
-    """
-    Generic tool execution endpoint.
-    """
-    if request.name not in [t.name for t in get_all_tools()]:
-        return ToolCallResponse(result=None, error=f"Tool '{request.name}' not found")
-    return ToolCallResponse(result={"status": "success", "tool": request.name, "args": request.arguments})
+@router.post("/execute")
+async def execute_tool_endpoint(request: dict):
+    """Generic tool execution endpoint."""
+    name = request.get("name")
+    arguments = request.get("arguments", {})
+    if not name:
+        return {"result": None, "error": "Missing 'name' in request"}
+    result = await call_tool(name, arguments)
+    return result.model_dump()
 
 
-@router.post("/copilot/execute", response_model=ToolCallResponse)
-async def execute_copilot_tool(request: ToolCallRequest):
-    """
-    Copilot tool execution endpoint.
-    Only get_personality and github_issue are allowed.
-    """
-    if request.name not in ("get_personality", "github_issue"):
-        return ToolCallResponse(result=None, error="Copilot is only allowed to call get_personality and github_issue tools.")
-    
-    # Actually execute the tool using dynamic import
-    try:
-        module = importlib.import_module(f"app.services.mcp.{request.name}")
-        tool_func = getattr(module, request.name)
-        return await tool_func(request.arguments)
-    except Exception as e:
-        logger.error(f"Error executing tool {request.name}: {e}")
-        return ToolCallResponse(result=None, error=f"Tool execution failed: {str(e)}")
-
-
-async def get_execution_plan_endpoint(tool_name: str):
-    """Get the execution plan for a specific tool."""
-    try:
-        from app.services.mcp.registry import ToolRegistry
-        from app.services.mcp.dependencies import DependencyResolver
-        
-        registry = ToolRegistry()
-        resolver = DependencyResolver(registry)
-        execution_plan = resolver.get_execution_plan(tool_name)
-        
-        return {
-            "tool_name": tool_name,
-            "execution_plan": execution_plan,
-            "dependencies_found": len(execution_plan) > 1
-        }
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+@router.post("/copilot/execute")
+async def execute_copilot_tool(request: dict):
+    """Copilot tool execution endpoint with access control."""
+    name = request.get("name")
+    arguments = request.get("arguments", {})
+    if not name:
+        return {"result": None, "error": "Missing 'name' in request"}
+    # Verify copilot access
+    allowed = [t["function"]["name"] for t in get_openai_tools("copilot")]
+    if name not in allowed:
+        return {"result": None, "error": f"Tool '{name}' not allowed for copilot client"}
+    result = await call_tool(name, arguments)
+    return result.model_dump()

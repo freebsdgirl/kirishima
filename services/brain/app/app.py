@@ -36,7 +36,6 @@ from app.notification.callback import router as notification_callback_router
 from app.notification.get import router as notification_get_router
 from app.notification.post import router as notification_post_router
 
-from app.routes.mcp_client_test import router as mcp_test_router
 from app.routes.mcp import router as mcp_router
 
 from shared.docs_exporter import router as docs_router
@@ -72,7 +71,6 @@ app.include_router(notification_get_router, tags=["notification"])
 app.include_router(notification_post_router, tags=["notification"])
 
 app.include_router(mcp_router, prefix="/mcp", tags=["mcp"])
-app.include_router(mcp_test_router, tags=["mcp"])
 
 register_list_routes(app)
 

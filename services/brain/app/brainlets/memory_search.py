@@ -28,7 +28,7 @@ import httpx
 
 from app.message.singleturn import incoming_singleturn_message
 
-from app.tools.memory import memory_search_tool
+from app.tools.memory_management import memory_search_tool
 from shared.prompt_loader import load_prompt
 
 from shared.log_config import get_logger

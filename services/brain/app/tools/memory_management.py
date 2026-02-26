@@ -2,10 +2,7 @@
 
 Actions: search, create, update, delete, list, get.
 
-Note: this file coexists with the old memory.py (which exports memory_search_tool
-used by brainlets/memory_search.py). The old file has no @tool decorator so it's
-invisible to the registry. In Phase 4 cleanup, this file replaces memory.py and the
-brainlet import gets updated.
+Also exports memory_search_tool() for direct use by brainlets.
 """
 
 import os
@@ -233,3 +230,47 @@ async def _get(params: dict) -> ToolResponse:
             return ToolResponse(result=resp.json())
     except httpx.HTTPError as e:
         return ToolResponse(error=f"Ledger HTTP error: {e}")
+
+
+# ---------------------------------------------------------------------------
+# Standalone helper — used by brainlets/memory_search.py directly
+# ---------------------------------------------------------------------------
+
+async def memory_search_tool(
+    keywords=None,
+    category=None,
+    topic_id=None,
+    memory_id=None,
+    min_keywords=2,
+    created_after=None,
+    created_before=None,
+):
+    """Search memories via ledger. Returns raw JSON (not ToolResponse).
+
+    This is a convenience wrapper for brainlets that need direct search access
+    without going through the @tool decorator dispatch.
+    """
+    search_params = {}
+    if keywords is not None:
+        search_params["keywords"] = keywords if isinstance(keywords, list) else [keywords]
+    if category is not None:
+        search_params["category"] = category
+    if topic_id is not None:
+        search_params["topic_id"] = topic_id
+    if memory_id is not None:
+        search_params["memory_id"] = memory_id
+    if min_keywords is not None:
+        search_params["min_keywords"] = int(min_keywords)
+    if created_after is not None:
+        search_params["created_after"] = created_after
+    if created_before is not None:
+        search_params["created_before"] = created_before
+
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            resp = await client.get(f"{_LEDGER_BASE}/memories/_search", params=search_params)
+            resp.raise_for_status()
+            return resp.json()
+    except Exception as e:
+        logger.error("Error searching memories: %s", e)
+        raise

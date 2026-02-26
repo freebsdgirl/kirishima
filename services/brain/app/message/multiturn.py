@@ -14,7 +14,7 @@ Key Functions:
 Dependencies:
 - FastAPI, httpx, sqlite3, shared models and utilities, app-specific modules for memory, tools, and brainlets.
 Configuration:
-- Reads from `/app/config/config.json` and `/app/app/tools.json` for settings and tool definitions.
+- Reads from `/app/config/config.json` for settings. Tool definitions provided by the decorator-based registry in `app.tools`.
 Logging:
 - Uses a structured logger for debugging and error reporting throughout the workflow.
 """

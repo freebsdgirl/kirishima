@@ -592,7 +592,7 @@ services:
               capabilities: [gpu]
 
   ollama-webui:
-    image: ghcr.io/open-webui/open-webui:main
+    image: ghcr.io/open-webui/open-webui:latest
     container_name: ollama-webui
     volumes:
       - ./services/ollama-webui:/app/backend/data

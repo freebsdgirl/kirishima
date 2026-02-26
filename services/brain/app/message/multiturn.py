@@ -35,7 +35,6 @@ import os
 
 import app.brainlets
 from collections import defaultdict, deque
-from app.tools.stickynotes import check_stickynotes
 
 from fastapi import APIRouter, HTTPException, status
 router = APIRouter()
@@ -254,15 +253,6 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
             for val in v.values():
                 if isinstance(val, list):
                     updated_request.messages.extend(val)
-
-    # technically this should be a brainlet, but it lives here for now.
-    # check for any stickynotes that are due and return them as tool calls
-    # these also are *not* saved to the ledger's tool endpoint
-    #tools_calls = await check_stickynotes(message.user_id)
-    #if tools_calls:
-        # if the list isn't empty, append the dicts to the messages.
-        # they are already formatted as OpenAI tool calls.
-    #    updated_request.messages.extend(tools_calls)
 
     # send the payload to the proxy service and handle tool call loop
     final_response = None

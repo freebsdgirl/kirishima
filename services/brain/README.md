@@ -189,7 +189,7 @@ app/tools/
     github_issue.py      # GitHub API integration (always=False, routed)
     manage_prompt.py     # Agent self-modification (always=True)
     memory_management.py # Ledger-backed memory CRUD (always=True)
-    stickynotes.py       # Persistent reminders (legacy format, not yet migrated)
+    stickynotes.py       # Persistent reminders (always=False, routed)
 ```
 
 ### Tool Definition Pattern
@@ -249,6 +249,7 @@ Reduces token waste by only sending relevant tools to the conversational LLM:
 | `manage_prompt` | Local SQLite | add, delete, list | Yes | Yes |
 | `memory` | Ledger | search, create, update, delete, list, get | Yes | Yes |
 | `github_issue` | GitHub API | create, view, comment, close, list, list_comments | Yes | No |
+| `stickynotes` | Stickynotes | create, list, snooze, resolve | Yes | No |
 
 ### MCP Server Endpoints (`routes/mcp.py`)
 

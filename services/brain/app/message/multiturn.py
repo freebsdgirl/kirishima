@@ -26,8 +26,7 @@ from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
 
 import json
-from app.services.mcp_client.client import MCPClient
-from app.services.mcp_client.util import mcp_tools_to_openai
+from app.tools import get_openai_tools, call_tool, get_tool_meta
 import sqlite3
 from pathlib import Path
 import httpx
@@ -115,13 +114,8 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
     # summaries is already a formatted string, no need to re-parse or join
 
     # Build new MultiTurnRequest with updated fields
-    # Get tools from MCP servers and convert to OpenAI schema
-    mcp_clients = MCPClient.from_config()
-    mcp_tools = []
-    for mcp_client in mcp_clients:
-        tools = await mcp_client.list_tools()
-        mcp_tools.extend(tools)
-    tools = mcp_tools_to_openai(mcp_tools)
+    # Get tools from the auto-discovery registry in OpenAI function-calling format
+    tools = get_openai_tools(client_type="internal")
 
     # Provider logic can be kept if needed for other fields
     def resolve_provider_from_mode(mode: str):
@@ -296,21 +290,13 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
                         logger.error(f"Failed to parse tool arguments for {fn}: {e}")
                         tool_result = {"error": f"Failed to parse tool arguments: {e}"}
                     else:
-                        mcp_clients = MCPClient.from_config()
-                        tool_result = None
-                        for mcp_client in mcp_clients:
-                            tools = await mcp_client.list_tools()
-                            if any(t.get('name') == fn for t in tools):
-                                try:
-                                    tool_result = await mcp_client.call_tool(fn, args_dict)
-                                    logger.info(f"MCP tool {fn} called via {mcp_client.url}: {tool_result}")
-                                except Exception as e:
-                                    logger.error(f"Error executing MCP tool {fn}: {e}")
-                                    tool_result = {"error": f"MCP tool '{fn}' execution failed: {e}"}
-                                break
-                        if tool_result is None:
-                            logger.warning(f"No MCP tool registered for {fn}")
-                            tool_result = {"error": f"Tool '{fn}' is not available via MCP."}
+                        tool_response = await call_tool(fn, args_dict)
+                        if tool_response.success:
+                            tool_result = tool_response.result
+                            logger.info(f"Tool {fn} executed: {tool_result}")
+                        else:
+                            tool_result = {"error": tool_response.error}
+                            logger.error(f"Tool {fn} failed: {tool_response.error}")
                     # Sync tool call and result to ledger
                     tool_sync_request = {
                         "model": message.model if hasattr(message, 'model') else None,

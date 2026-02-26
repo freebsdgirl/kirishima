@@ -61,16 +61,13 @@
 
 ### Phase 1: MCP Server Foundation
 - ✅ **Initial MCP router implementation** - Created `/mcp/` endpoints in brain service
-- ✅ **Tool registry system** - Implemented dynamic tool discovery via `/mcp/tools`
-- ✅ **Shared models created** - Added `shared/models/mcp.py`
-- ✅ **Service layer structure** - Created `app/services/mcp/` with proper separation
-- ✅ **JSON-based tool registry** - Moved tool definitions to `mcp_tools.json`
+- ✅ **Tool registry system** - Decorator-based auto-discovery via `app/tools/` (replaced JSON files)
+- ✅ **Shared models created** - `ToolResponse` in `app/tools/base.py` (replaced `MCPToolResponse`)
+- ✅ **Service layer structure** - Tools live in `app/tools/` as self-registering modules
+- ✅ **Auto-discovery registry** - `@tool` decorator + `__init__.py` scanner (replaced `mcp_tools.json`)
 
 ### Phase 2: Tool Dependency Resolution
-- ✅ **Add dependency field to tool registry** - Extended `mcp_tools.json` with `depends_on` arrays
-- ✅ **Implement dependency resolver** - Created service to calculate execution order
-- ✅ **Update tool execution logic** - Auto-execute dependencies before main tool
-- ✅ **Test dependency chains** - Validated complex dependency scenarios
+- ✅ ~~**Dependency resolver**~~ - Removed; no tools use `depends_on`. Add back if needed.
 
 ### Phase 3: URL-Based Client Authentication & Identification
 - ✅ **URL-based client endpoints** - Implemented `/mcp/` (internal) and `/mcp/copilot/` (external)
@@ -82,19 +79,20 @@
 - ✅ **Memory tool** - Full CRUD operations (search, create, update, delete, list, get)
 - ✅ **GitHub issue tool** - Issue management with create, view, comment, close, list operations
 - ✅ **Manage prompt tool** - Agent system prompt management (internal only)
-- 🔄 **Additional tool migration** - Gradually expose more existing tools via MCP
+- ✅ **Get personality tool** - Multi-model style guidelines
+- ✅ **Tool migration complete** - 4 core tools migrated to decorator pattern, old implementations deleted
 
 ### Phase 5: Input Validation & Error Handling
-- ✅ **Standardize error responses** - Consistent MCPToolResponse format across all endpoints
+- ✅ **Standardize error responses** - Unified `ToolResponse` model (replaced `MCPToolResponse` and `ToolCallResponse`)
 - ✅ **Add timeout handling** - HTTP client timeouts prevent hanging tool executions
 - ✅ **Implement comprehensive logging** - Custom logging module integration throughout
-- 🔄 **Create validation middleware** - Add FastAPI dependency for enhanced request validation
 
-### Phase 6: Production Integration & Monitoring
-- 🔄 **Integrate with Kirishima** - Replace tools.json usage with MCP calls in brain service
-- 🔄 **Test with Copilot** - Validate external agent integration in production
-- 🔄 **Performance optimization** - Add caching, connection pooling as needed
-- 🔄 **Documentation & monitoring** - OpenAPI docs, health checks, usage analytics
+### Phase 6: Production Integration
+- ✅ **Integrate with Kirishima** - `multiturn.py` uses direct `call_tool()` dispatch (no HTTP self-call)
+- ✅ **Tool router** - Cheap LLM call selects relevant tools per message (`app/tools/router.py`)
+- ✅ **MCP routes rewritten** - `routes/mcp.py` uses registry directly (no importlib, no JSON files)
+- ✅ **Old code deleted** - 25+ files removed (JSON configs, old implementations, legacy infrastructure)
+- 🔄 **External agent testing** - Validate Copilot integration in production
 
 ### Phase 7: Intent-Based Orchestration (Future Initiative)
 - 🔄 **Design intent detection system** - Replace brainlets with intent-based orchestration

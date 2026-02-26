@@ -56,12 +56,12 @@ The `/api/multiturn` endpoint implements a comprehensive conversation orchestrat
 
 ```python
 updated_request = message.copy(update={
-    "memories": [],  # Legacy, being phased out
+    "memories": [],
     "messages": message.messages,
     "username": username,
     "summaries": summaries,
     "platform": platform,
-    "tools": tools,  # Loaded from tools.json
+    "tools": tools,  # Built from always_tools + router-selected tools
     "agent_prompt": agent_prompt
 })
 ```
@@ -82,7 +82,7 @@ updated_request = message.copy(update={
 
 - **LLM Request**: Send enriched request to proxy service
 - **Tool Call Detection**: Parse assistant response for function calls
-- **Function Execution**: Execute registered tools with parameter validation
+- **Function Execution**: Direct dispatch via `call_tool()` from registry (no HTTP self-call)
 - **Response Formatting**: Convert tool results to OpenAI-compatible tool messages
 - **Loop Control**: Maximum 10 iterations to prevent infinite loops
 
@@ -174,128 +174,95 @@ async def brainlet_function(brainlets_output: Dict[str, Any], request: MultiTurn
 
 ## Tools System
 
-Comprehensive function calling system for external service integration and system control.
+Decorator-based, auto-discovering tool system for function calling and external service integration.
 
-### Tool Definition (`tools.json`)
+### Architecture
 
-Tools follow OpenAI function calling specification:
+Tools are self-registering Python modules in `app/tools/`. Each tool file contains a single `@tool`-decorated async function that carries all metadata inline — no JSON files, no manual registry.
 
-```json
-{
-    "type": "function",
-    "function": {
-        "name": "manage_prompt",
-        "description": "Manage the agent's prompt (add or delete a line, or list all lines and ids)",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "action": {
-                    "type": "string",
-                    "description": "Action to perform: 'add', 'delete', or 'list'",
-                    "enum": ["add", "delete", "list"]
-                },
-                "prompt_id": {"type": "string"},
-                "prompt_text": {"type": "string"},
-                "reasoning": {"type": "string"}
-            },
-            "required": ["action"]
-        }
-    }
-}
+```
+app/tools/
+    __init__.py          # Auto-discovery, registry, dispatch (public API)
+    base.py              # @tool decorator + ToolResponse model
+    router.py            # Cheap LLM call to select relevant tools per message
+    get_personality.py   # Multi-model style guidelines (always=True)
+    github_issue.py      # GitHub API integration (always=False, routed)
+    manage_prompt.py     # Agent self-modification (always=True)
+    memory_management.py # Ledger-backed memory CRUD (always=True)
+    stickynotes.py       # Persistent reminders (legacy format, not yet migrated)
 ```
 
-### Tool Registration
-
-Tools are registered in `app/tools/__init__.py`:
+### Tool Definition Pattern
 
 ```python
-TOOL_FUNCTIONS = {
-    "manage_prompt": manage_prompt,
-    "memory": memory,
-    "tts": tts,
-    "update_divoom": update_divoom,
-    "github_issue": github_issue,
-    "smarthome": smarthome,
-    "stickynotes": stickynotes
-}
+from app.tools.base import tool, ToolResponse
+
+@tool(
+    name="my_tool",
+    description="Does a thing",
+    parameters={"type": "object", "properties": {...}, "required": [...]},
+    persistent=True,     # logged to ledger
+    always=True,         # always sent to LLM (vs. routed by tool router)
+    clients=["internal", "copilot"],  # access control
+    guidance="Optional extra context injected into system prompt",
+)
+async def my_tool(parameters: dict) -> ToolResponse:
+    return ToolResponse(result={"status": "ok"})
 ```
+
+### Registry API (`app.tools`)
+
+| Function | Purpose |
+|---|---|
+| `get_tool(name)` | Return callable or None |
+| `get_openai_tools(client_type)` | All tools in OpenAI format, filtered by client access |
+| `get_mcp_tools(client_type)` | All tools in MCP format, filtered |
+| `get_always_tools(client_type)` | Only `always=True` tools in OpenAI format |
+| `get_routed_tools_catalog()` | `{name: description}` for `always=False` tools (router input) |
+| `get_openai_tools_by_names(names, ct)` | OpenAI format for specific tool names |
+| `call_tool(name, params)` | Execute locally → fallback to MCPClient → ToolResponse |
 
 ### Tool Execution Flow
 
-1. **LLM Tool Call**: Assistant response contains tool_calls array
-2. **Function Resolution**: Look up function in TOOL_FUNCTIONS registry
-3. **Parameter Parsing**: JSON decode function arguments
-4. **Async/Sync Handling**: Automatically detect and handle coroutine functions
-5. **Error Wrapping**: Catch exceptions and return structured error responses
-6. **Response Formatting**: Convert results to OpenAI tool message format
+1. **Tool Router**: Cheap LLM call (gpt-4.1-nano) selects which routed tools are relevant
+2. **Tool Merge**: Always-on tools + router-selected tools sent to conversational LLM
+3. **LLM Response**: Assistant response may contain `tool_calls` array
+4. **Direct Dispatch**: `call_tool(name, params)` — direct function call, no HTTP round-trip
+5. **External Fallback**: If tool not found locally, falls through to MCPClient for external MCP servers
+6. **Ledger Sync**: Tool call and result synced to ledger for history
+7. **Loop**: Repeat until LLM responds with text (max 10 iterations)
+
+### Tool Router (`app/tools/router.py`)
+
+Reduces token waste by only sending relevant tools to the conversational LLM:
+
+- **Always-on tools** (`always=True`): Sent every call — `memory`, `manage_prompt`, `get_personality`
+- **Routed tools** (`always=False`): Only included when the router says they're relevant — `github_issue`, future external MCP tools
+- **Router model**: `router` mode in proxy config → gpt-4.1-nano (fast, cheap)
+- **Graceful fallback**: If router fails, all routed tools are included (safe default)
 
 ### Built-in Tools
 
-**manage_prompt**:
+| Tool | Service | Actions | Persistent | Always |
+|------|---------|---------|------------|--------|
+| `get_personality` | Local | Return style guidelines | No | Yes |
+| `manage_prompt` | Local SQLite | add, delete, list | Yes | Yes |
+| `memory` | Ledger | search, create, update, delete, list, get | Yes | Yes |
+| `github_issue` | GitHub API | create, view, comment, close, list, list_comments | Yes | No |
 
-- CRUD operations for agent-managed prompts
-- SQLite storage in brainlets database
-- **Self-modification capability**: Agent can rewrite its own system prompt
-- User-specific prompt management via scripts/manage_prompt.py
+### MCP Server Endpoints (`routes/mcp.py`)
 
-**memory**:
+- **`/mcp/`** — Internal tools (full access)
+- **`/mcp/copilot/`** — Copilot tools (curated subset)
+- **`/mcp/external/`** — External client tools (restricted)
+- All use the same registry — client access controlled via `config/mcp_clients.json`
 
-- Legacy memory operations (being phased out)
-- Add, delete, list, search memory entries
-- Integration with memory service APIs
+### Adding a New Tool
 
-**github_issue**:
+1. Create `app/tools/my_tool.py` with `@tool` decorator
+2. Save. Docker auto-restarts. Tool is live.
 
-- GitHub repository integration
-- Create issues, add comments in agent voice
-- **Autonomous development**: All project issues are agent-created
-- Automated project management workflows with @kirishima-ai account
-
-**smarthome**:
-
-- Home Assistant integration
-- Natural language device control
-- Entity discovery and state management
-
-**tts**:
-
-- Text-to-speech control
-- Enable/disable TTS for conversation
-- Integration with STT/TTS service
-
-**update_divoom**:
-
-- Bluetooth display control
-- Emoji and pixel art updates
-- Hardware status indication
-
-**stickynotes**:
-
-- Context-aware reminders
-- Persistent note storage
-- Automatic injection into conversations
-
-### Tool Implementation Pattern
-
-```python
-async def tool_function(**kwargs):
-    """
-    Standard tool function signature.
-    
-    Args:
-        **kwargs: Parameters from LLM tool call
-        
-    Returns:
-        Union[dict, str]: Result data for LLM consumption
-    """
-    try:
-        # Validate parameters
-        # Execute tool logic
-        # Return structured result
-        return {"status": "success", "result": data}
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
-```
+No JSON files. No executor mapping. No routes to register. Auto-discovery handles everything.
 
 ## Service Integration Patterns
 
@@ -355,10 +322,9 @@ sync_snapshot = [{
 
 ### Adding New Tools
 
-1. **Create Tool Function**: Implement in `app/tools/new_tool.py`
-2. **Register Function**: Add to `TOOL_FUNCTIONS` in `__init__.py`
-3. **Define Schema**: Add OpenAI function spec to `tools.json`
-4. **Test Integration**: Verify parameter parsing and error handling
+1. Create `app/tools/my_tool.py` with `@tool` decorator
+2. Save. Docker auto-restarts. Auto-discovery registers the tool.
+3. No JSON, no manual registration, no route changes.
 
 ### Adding New Brainlets
 

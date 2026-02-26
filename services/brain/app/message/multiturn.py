@@ -14,7 +14,7 @@ Key Functions:
 Dependencies:
 - FastAPI, httpx, sqlite3, shared models and utilities, app-specific modules for memory, tools, and brainlets.
 Configuration:
-- Reads from `/app/config/config.json` for settings. Tool definitions provided by the decorator-based registry in `app.tools`.
+- Reads from `/app/config/config.json` for settings. Tool definitions provided by the decorator-based registry in `app.tools`. Tool selection uses a cheap LLM router (`app.tools.router`) to include only relevant tools per message.
 Logging:
 - Uses a structured logger for debugging and error reporting throughout the workflow.
 """
@@ -26,7 +26,8 @@ from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
 
 import json
-from app.tools import get_openai_tools, call_tool, get_tool_meta
+from app.tools import get_openai_tools, get_always_tools, get_routed_tools_catalog, get_openai_tools_by_names, call_tool, get_tool_meta
+from app.tools.router import route_tools
 import sqlite3
 from pathlib import Path
 import httpx
@@ -114,8 +115,23 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
     # summaries is already a formatted string, no need to re-parse or join
 
     # Build new MultiTurnRequest with updated fields
-    # Get tools from the auto-discovery registry in OpenAI function-calling format
-    tools = get_openai_tools(client_type="internal")
+    # Get always-on tools + route additional tools based on user message
+    always_tools = get_always_tools(client_type="internal")
+    routed_catalog = get_routed_tools_catalog()
+    if routed_catalog:
+        # Extract latest user message for router context
+        user_message = ""
+        for msg in reversed(message.messages):
+            if msg.get("role") == "user" and msg.get("content"):
+                user_message = msg["content"]
+                break
+        selected_names = await route_tools(user_message, routed_catalog)
+        selected_tools = get_openai_tools_by_names(selected_names, client_type="internal")
+        tools = always_tools + selected_tools
+        if selected_names:
+            logger.info("Router selected tools: %s", selected_names)
+    else:
+        tools = always_tools
 
     # Provider logic can be kept if needed for other fields
     def resolve_provider_from_mode(mode: str):
@@ -252,7 +268,10 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
     final_response = None
     proxy_port = os.getenv("PROXY_PORT", 4205)
     ledger_port = os.getenv("LEDGER_PORT", 4203)
-    while True:
+    max_iterations = 10
+    iteration = 0
+    while iteration < max_iterations:
+        iteration += 1
         # 1. Send to proxy
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
             try:
@@ -344,6 +363,9 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
             final_response = proxy_response
             break
         
+    if iteration >= max_iterations:
+        logger.warning("Tool execution loop hit max iterations (%d); forcing response", max_iterations)
+
     if final_response is None:
         final_response = proxy_response
 

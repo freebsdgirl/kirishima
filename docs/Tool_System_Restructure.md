@@ -124,7 +124,7 @@ services/brain/app/tools/
     manage_prompt.py     # Phase 2 (rewrite from scratch)
     memory.py            # Phase 2 (rewrite, fix inconsistent returns)
     router.py            # Phase 3 (tool router — not a tool itself, excluded from auto-discovery)
-    # stickynotes.py     # Deferred — add when needed
+    stickynotes.py       # Migrated separately — includes check_stickynotes() pre-injection utility
     # smarthome.py       # Deferred — add when Home Assistant is back
     # External MCP tools (email, calendar, contacts, lists) handled by MCPClient, no local files needed
 ```
@@ -556,11 +556,16 @@ Claude (Sonnet or otherwise) can do this in one shot — it just needs to follow
 | `contacts` | External Google MCP server |
 | `lists` | External Google MCP server |
 
+### Migrated separately (not part of original Phase 2, but done):
+
+| Tool | Service Called | Status |
+|------|---------------|--------|
+| `stickynotes` | stickynotes service | Migrated in commit `2698744`. Includes `check_stickynotes()` utility for pre-injection of due notes. |
+
 ### Deferred (keep microservice, migrate tool later):
 
 | Tool | Service Called | Why deferred |
 |------|---------------|--------------|
-| `stickynotes` | stickynotes service | Custom implementation, not urgent. Migrate when needed — one file. |
 | `smarthome` | smarthome service | Home Assistant not currently running. Migrate when HA is back. |
 
 ### Always=Yes rationale:

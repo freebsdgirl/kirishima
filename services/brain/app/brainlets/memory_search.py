@@ -158,31 +158,6 @@ async def memory_search(brainlets_output: Dict[str, Any], message: MultiTurnRequ
         logger.error(f"Failed to get contextual memories: {e}")
         return "Error retrieving contextual memories."
     
-    # OLD MEMORY SEARCH CODE (commented out)
-    # # Tool response entry
-    # tool_result = await memory_search_tool(keywords=keywords)
-
-    # if not tool_result.get("memories"):
-    #     return "No memories found for the provided keywords."
-
-    # # Only keep 'id' and 'memory' fields in each memory
-    # minimal_memories = [
-    #     {"id": m.get("id"), "memory": m.get("memory"), "created_at": m.get("created_at")} for m in tool_result["memories"]
-    # ]
-    # tool_result = {"memories": minimal_memories}
-    # 
-    # # limit to the first 5 memories
-    # if len(minimal_memories) > 5:
-    #     minimal_memories = minimal_memories[:5]
-
-    # memory_text = [
-    #     f"{m['id']}|{m['memory']}|{m['created_at']}\n" for m in minimal_memories
-    # ]
-
-    # if not memory_text:
-    #     logger.debug("No memories found for the provided keywords.")
-    #     return "No memories found for the provided keywords."
-
     tool_entry = {
         "role": "tool",
         "content": ''.join(memory_text),

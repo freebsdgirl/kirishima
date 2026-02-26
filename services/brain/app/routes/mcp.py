@@ -86,11 +86,19 @@ async def _handle_jsonrpc_request(request: dict, client_type: str = "internal") 
         # Execute via the unified registry — no importlib, no HTTP self-call
         result = await call_tool(tool_name, arguments)
 
+        # Tool-level errors are returned as successful MCP responses with
+        # isError=True. Do NOT convert them to JSON-RPC protocol errors —
+        # that causes McpError on the client side and prevents agents from
+        # seeing the actual error message.
         if result.error:
             return {
                 "jsonrpc": "2.0",
                 "id": request_id,
-                "error": {"code": -32000, "message": result.error}
+                "result": {
+                    "content": [{"type": "text", "text": result.error}],
+                    "structuredContent": {"success": False, "error": result.error},
+                    "isError": True,
+                }
             }
 
         actual_result = result.result

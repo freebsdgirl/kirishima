@@ -1,85 +1,168 @@
+"""manage_prompt tool — CRUD for agent system prompts in brainlets DB.
+
+Actions: add, delete, list.
+Rewritten from scratch — the old MCP version imported a model that
+no longer exists (MCPToolResponse).
 """
-This module provides a function to manage prompt entries in the brainlets SQLite database.
-It supports adding, deleting, and listing prompts associated with a user.
-Functions:
-    manage_prompt(action: str, prompt_id: str = None, prompt_text: str = None, reasoning: str = None) -> dict
-        Perform add, delete, or list operations on prompts in the database.
-Details:
-- The database path is loaded from a shared configuration file.
-- Prompts are associated with a user ID (currently stubbed).
-- Each prompt includes an ID, user ID, prompt text, reasoning, and timestamp.
-- Only enabled prompts are listed.
-- Returns a dictionary indicating the result of the operation.
-"""
-import sqlite3
+
 import json
+import sqlite3
 import uuid
 from datetime import datetime
 from pathlib import Path
+from typing import Any, Dict
+
+from app.tools.base import tool, ToolResponse
+from shared.log_config import get_logger
+
+logger = get_logger(f"brain.{__name__}")
+
+# Hardcoded user_id — same stub as the old implementation.
+# TODO: replace with actual user resolution when multi-user lands.
+_USER_ID = "c63989a3-756c-4bdf-b0c2-13d01e129e02"
 
 
-def manage_prompt(action: str, prompt_id: str = None, prompt_text: str = None, reasoning: str = None):
-    """
-    Manage prompts in the brainlets database.
-    
-    Args:
-        action (str): 'add', 'delete', or 'list'.
-        prompt_id (str, optional): The ID of the prompt to manage.
-        prompt_text (str, optional): The text of the prompt to add or update.
-        reasoning (str, optional): The reasoning for the prompt.
-    
-    Returns:
-        dict: Result of the action performed.
-    """
-    user_id = 'c63989a3-756c-4bdf-b0c2-13d01e129e02'  # Stub: replace with actual user_id logic
+def _get_db_path() -> str:
+    """Resolve the brainlets DB path from config.json."""
+    with open("/app/config/config.json") as f:
+        config = json.load(f)
+    return config["db"]["brainlets"]
 
-    with open('/app/config/config.json') as f:
-        _config = json.load(f)
-    
-    db_path = _config['db']['brainlets']
+
+@tool(
+    name="manage_prompt",
+    description="Manage agent's system prompts - add, delete, or list prompt entries (internal use only)",
+    persistent=True,
+    always=True,
+    clients=["internal"],
+    service="brainlets",
+    parameters={
+        "type": "object",
+        "properties": {
+            "action": {
+                "type": "string",
+                "enum": ["add", "delete", "list"],
+                "description": "Action to perform: add, delete, or list",
+            },
+            "prompt_id": {
+                "type": "string",
+                "description": "ID of the prompt to delete (required for delete action)",
+            },
+            "prompt_text": {
+                "type": "string",
+                "description": "Text content of the prompt (required for add action)",
+            },
+            "reasoning": {
+                "type": "string",
+                "description": "Reasoning for the prompt change (required for add action)",
+            },
+        },
+        "required": ["action"],
+    },
+)
+async def manage_prompt(parameters: dict) -> ToolResponse:
+    """Dispatch to add / delete / list."""
+    action = parameters.get("action")
+    if not action:
+        return ToolResponse(error="action is required")
+
+    try:
+        if action == "add":
+            return await _add(parameters)
+        elif action == "delete":
+            return await _delete(parameters)
+        elif action == "list":
+            return await _list_prompts()
+        else:
+            return ToolResponse(error=f"Unknown action: {action}")
+    except Exception as e:
+        logger.error("manage_prompt error: %s", e, exc_info=True)
+        return ToolResponse(error=str(e))
+
+
+# ---------------------------------------------------------------------------
+# Action handlers
+# ---------------------------------------------------------------------------
+
+async def _add(params: dict) -> ToolResponse:
+    prompt_text = params.get("prompt_text")
+    reasoning = params.get("reasoning")
+
+    if not prompt_text or not reasoning:
+        return ToolResponse(error="prompt_text and reasoning are required for add action")
+
+    db_path = _get_db_path()
     if not db_path or not Path(db_path).exists():
-        return {"status": "error", "error": "Brainlets database not configured or does not exist."}
-    
+        return ToolResponse(error="Brainlets database not configured or does not exist")
+
+    prompt_id = str(uuid.uuid4())
+    timestamp = datetime.now().isoformat()
+
     try:
         with sqlite3.connect(db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("PRAGMA journal_mode=WAL;")
-            
-            if action == 'add':
-                if not prompt_text or not reasoning:
-                    return {"status": "error", "error": "prompt_text and reasoning are required for adding a prompt."}
-                prompt_id = str(uuid.uuid4())
-                timestamp = datetime.now().isoformat()
-                cursor.execute(
-                    "INSERT INTO prompt (id, user_id, prompt, reasoning, timestamp) VALUES (?, ?, ?, ?, ?)",
-                    (prompt_id, user_id, prompt_text, reasoning, timestamp)
-                )
-                conn.commit()
-                return {"status": "success", "action": "added", "id": prompt_id}
-
-            elif action == 'delete':
-                if not prompt_id:
-                    return {"status": "error", "error": "prompt_id is required for deleting a prompt."}
-                cursor.execute("DELETE FROM prompt WHERE id = ? AND user_id = ?", (prompt_id, user_id))
-                conn.commit()
-                if cursor.rowcount == 0:
-                    return {"status": "error", "error": "No prompt found with that ID for the user."}
-                return {"status": "success", "action": "deleted", "id": prompt_id}
-
-            elif action == 'list':
-                cursor.execute("SELECT id, prompt, reasoning, timestamp FROM prompt WHERE user_id = ? AND enabled = 1", (user_id,))
-                prompts = cursor.fetchall()
-                if not prompts:
-                    return {"status": "success", "action": "list", "prompts": []}
-                prompt_list = [{"id": row[0], "prompt": row[1], "reasoning": row[2], "timestamp": row[3]} for row in prompts]
-                return {"status": "success", "action": "list", "prompts": prompt_list}
-            else:
-                return {"status": "error", "error": "Invalid action. Use 'add', 'update', 'delete', or 'list'."}
-
+            cursor.execute(
+                "INSERT INTO prompt (id, user_id, prompt, reasoning, timestamp) VALUES (?, ?, ?, ?, ?)",
+                (prompt_id, _USER_ID, prompt_text, reasoning, timestamp),
+            )
+            conn.commit()
     except sqlite3.Error as e:
-        return {"status": "error", "error": str(e)}
-# Example usage:
-# result = manage_prompt('add', 'user123', prompt_text='What is AI?', reasoning='To understand the basics of AI.')
-# result = manage_prompt('list', 'user123')
-# result = manage_prompt('update', 'user123', prompt_id='some-id', prompt_text='Updated prompt text', reasoning='Updated reasoning.')
-# result = manage_prompt('delete', 'user123', prompt_id='some-id')
+        logger.error("DB error in manage_prompt add: %s", e)
+        return ToolResponse(error=f"Database error: {e}")
+
+    return ToolResponse(result={"status": "success", "action": "added", "id": prompt_id})
+
+
+async def _delete(params: dict) -> ToolResponse:
+    prompt_id = params.get("prompt_id")
+    if not prompt_id:
+        return ToolResponse(error="prompt_id is required for delete action")
+
+    db_path = _get_db_path()
+    if not db_path or not Path(db_path).exists():
+        return ToolResponse(error="Brainlets database not configured or does not exist")
+
+    try:
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA journal_mode=WAL;")
+            cursor.execute(
+                "DELETE FROM prompt WHERE id = ? AND user_id = ?",
+                (prompt_id, _USER_ID),
+            )
+            conn.commit()
+
+            if cursor.rowcount == 0:
+                return ToolResponse(error="No prompt found with that ID for the user")
+    except sqlite3.Error as e:
+        logger.error("DB error in manage_prompt delete: %s", e)
+        return ToolResponse(error=f"Database error: {e}")
+
+    return ToolResponse(result={"status": "success", "action": "deleted", "id": prompt_id})
+
+
+async def _list_prompts() -> ToolResponse:
+    db_path = _get_db_path()
+    if not db_path or not Path(db_path).exists():
+        return ToolResponse(error="Brainlets database not configured or does not exist")
+
+    try:
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA journal_mode=WAL;")
+            cursor.execute(
+                "SELECT id, prompt, reasoning, timestamp FROM prompt WHERE user_id = ? AND enabled = 1",
+                (_USER_ID,),
+            )
+            rows = cursor.fetchall()
+    except sqlite3.Error as e:
+        logger.error("DB error in manage_prompt list: %s", e)
+        return ToolResponse(error=f"Database error: {e}")
+
+    if not rows:
+        return ToolResponse(result={"status": "success", "action": "list", "prompts": []})
+
+    # Compact format: id|prompt_text
+    prompt_list = [f"{row[0]}|{row[1]}" for row in rows]
+    return ToolResponse(result={"status": "success", "action": "list", "prompts": prompt_list})

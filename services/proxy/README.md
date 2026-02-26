@@ -1,67 +1,150 @@
-# Proxy Micr## Endpoints
+# Proxy Microservice
 
-- `POST /completions`  
-  Direct, "dumb" LLM calls. Specify the model; provider defaults to Ollama for `nemo:latest` unless overridden. Prompts are sent in instruct format for Ollama with `raw=true`.
-- `POST /chat/completions`  
-  Mode-driven, context-rich LLM calls. "Mode" is mapped to a concrete model, provider, and options. Loads app.prompts.{provider}-{mode} and builds the system prompt using context (memories, summaries, time, etc). Final prompt is rendered using a mode-specific Jinja template.
-- `POST /api/multiturn`  
-  Multi-turn conversation processing with context management and tool execution.
-- `POST /api/singleturn`  
-  Single-turn LLM requests for simple operations without conversation history.
-- `POST /summary/user`  
-  Generate user-specific summaries from conversation data.
-- `POST /summary/user/combined`  
-  Generate combined summaries across multiple time periods.
-- `POST /json`  
-  JSON-specific processing and formatting endpoint.
-- `POST /queue/enqueue`  
-  Manually enqueue tasks in the provider-specific processing queues.
-- `GET /queue/status`  
-  Get current status of all provider queues.
-- `GET /queue/task/{task_id}`  
-  Get status and results of a specific queued task.ce
-
-Acts as the LLM gateway for the system. Handles all communication with Ollama and OpenAI models, encapsulating prompt construction, provider/model resolution, and queue-based request dispatch.
-
-## Features
-
-- Supports both /completions (direct model access) and /chat/completions (mode-based, context-aware)
-- Dynamically resolves provider/model/options using config.json
-- Flexible system prompt construction via provider/mode-specific prompt modules and Jinja templates
-- Multiturn prompt formatting (Ollama gets instruct-style [INST] blocks, OpenAI uses native format)
-- All requests are queued (per-provider, with priority support) and processed asynchronously
+Sole LLM gateway for the system. Handles prompt construction, provider/model resolution, and direct dispatch to LLM providers. No other service talks to LLMs directly. Runs on `${PROXY_PORT}`.
 
 ## Endpoints
 
-- `POST /completions`  
-  Direct, “dumb” LLM calls. Specify the model; provider defaults to Ollama for `nemo:latest` unless overridden. Prompts are sent in instruct format for Ollama with `raw=true`.
-- `POST /chat/completions`  
-  Mode-driven, context-rich LLM calls. “Mode” is mapped to a concrete model, provider, and options. Loads app.prompts.{provider}-{mode} and builds the system prompt using context (memories, summaries, time, etc). Final prompt is rendered using a mode-specific Jinja template.
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/singleturn` | Simple mode-based completion (no context, no tools) |
+| POST | `/api/multiturn` | Full multi-turn with system prompt, tools, memories, summaries |
+| ANY | `/queue/*` | Returns HTTP 410 — queue system has been removed |
+
+System endpoints: `/ping`, `/__list_routes__`, `/docs/export`
 
 ## How It Works
 
-- /chat/completions:
-    - Accepts a “mode”, resolves provider/model/options from config
-    - Loads the prompt module for that provider/mode, constructs context, and renders the system prompt
-    - Multiturn prompt is formatted for the provider (Ollama: instruct-style, OpenAI: as-is)
-    - Enqueues the job in the relevant provider queue with optional priority
+### Mode → Provider Resolution
 
-- /completions:
-    - Accepts explicit model (and optionally provider)
-    - Formats prompt for instruct models (Ollama) and sends with `raw=true`
-    - Enqueues the job in the matching queue
+Both endpoints accept a `model` field that's actually a **mode name** (e.g., `default`, `work`, `claude`). The proxy resolves it to a concrete provider/model/options via `config.json`:
 
-- Both endpoints use per-provider queues (Ollama, OpenAI), supporting priority and async processing
+```json
+"llm": {
+    "mode": {
+        "default": { "model": "gpt-4.1", "provider": "openai", "options": {...} },
+        "work":    { "model": "gpt-4o", "provider": "openai", "options": {...} },
+        "claude":  { "model": "claude-sonnet-4-20250514", "provider": "anthropic", "options": {...} },
+        "nsfw":    { "model": "nemo:latest", "provider": "ollama", "options": {...} },
+        "router":  { "model": "gpt-4.1-nano", "provider": "openai", "options": {...} }
+    }
+}
+```
 
-## Configuration
+If the requested mode isn't found, falls back to `default`.
 
-- All provider/model/option mappings live in `config.json`
-- Prompt modules live in `app/prompts/`, one per provider-mode combination
-- Jinja templates determine actual prompt formatting per mode
+### Providers
 
-## Notes & Gotchas
+| Provider | Dispatch | Format |
+|----------|----------|--------|
+| `openai` | `POST /v1/chat/completions` (OpenAI API) | Native chat messages |
+| `anthropic` | `POST /v1/chat/completions` (Anthropic OpenAI-compat endpoint) | Same as OpenAI |
+| `ollama` | `POST /api/generate` (local Ollama) | Instruct-style `[INST]<<SYS>>...<</SYS>>[/INST]`, `raw=true` |
 
-- Prompt module/template indirection adds complexity, but enables deep customization
-- Everything is async and queue-driven; no synchronous LLM calls
-- Watch for queue contention under heavy load
-- Extendable for future LLM providers/models—just add a prompt module and config entry
+All dispatch is **synchronous** (direct HTTP call, no queue). The old async queue system was fully removed.
+
+### Prompt Construction
+
+The prompt system uses a two-tier approach:
+
+1. **Centralized prompts** (preferred): JSON context files at `/app/config/prompts/proxy/contexts/{provider}-{mode}.json` + Jinja2 templates at `/app/config/prompts/proxy/templates/{template}.j2`
+2. **Legacy module prompts** (fallback): Python modules at `app/prompts/{provider}-{mode}.py` with `build_prompt()` functions
+
+The dispatcher (`prompts/dispatcher.py`) tries centralized first, falls back to legacy modules.
+
+Context available to templates: `memories`, `summaries`, `time`, `agent_prompt`, `username`, `platform`.
+
+### SingleTurn Flow
+
+```
+SingleTurnRequest(model, prompt)
+  → resolve mode → (provider, model, options)
+  → wrap prompt for provider format
+  → dispatch to provider
+  → ProxyResponse(response, eval_count, prompt_eval_count, timestamp)
+```
+
+### MultiTurn Flow
+
+```
+MultiTurnRequest(model, messages, memories, summaries, tools, username, platform, agent_prompt)
+  → resolve mode → (provider, model, options)
+  → build system prompt via dispatcher (centralized or legacy)
+  → format messages for provider (instruct-style for Ollama, native for OpenAI/Anthropic)
+  → include tools with tool_choice="auto" (OpenAI/Anthropic only; Ollama ignores tools)
+  → dispatch to provider
+  → normalize response (extract tool_calls, function_call, token counts)
+  → ProxyResponse
+```
+
+### Tool Support
+
+- Tools are passed through from the request to OpenAI/Anthropic providers
+- `tool_choice` is hardcoded to `"auto"` (not configurable from caller)
+- Ollama doesn't support tool calls — tools silently ignored
+- Response normalizes `tool_calls` as lists (OpenAI may return single objects)
+
+## File Structure
+
+```
+app/
+├── app.py                          # FastAPI setup, middleware, tracing
+├── routes/
+│   ├── openai.py                   # /api/singleturn and /api/multiturn route definitions
+│   └── queue.py                    # Returns 410 for removed queue endpoints
+├── services/
+│   ├── completions.py              # SingleTurn handler
+│   ├── chat_completions.py         # MultiTurn handler (system prompt, context)
+│   ├── util.py                     # _resolve_model_provider_options(), _create_memory_str()
+│   ├── send_to_ollama.py           # Ollama dispatch (POST /api/generate)
+│   ├── send_to_openai.py           # OpenAI dispatch (POST /v1/chat/completions)
+│   ├── send_to_anthropic.py        # Anthropic dispatch (OpenAI-compat endpoint)
+│   ├── is_instruct_model.py        # Queries Ollama /api/show for instruct detection
+│   ├── send_prompt_to_llm.py       # DEAD CODE — unused legacy function
+│   └── queue.py                    # Stub — logs queue removal
+└── prompts/
+    ├── dispatcher.py               # Centralized → legacy fallback routing
+    ├── centralized_loader.py       # JSON context + Jinja2 template loading
+    ├── util.py                     # Jinja2 environment setup (legacy templates)
+    ├── guest.py                    # BROKEN — import path wrong after refactor
+    └── work.py                     # BROKEN — same import issue as guest.py
+```
+
+## Dependencies
+
+- **Brain service**: Calls `/api/singleturn` and `/api/multiturn`
+- **Config**: `/app/config/config.json` for mode/provider/model mappings
+- **Prompt templates**: `/app/config/prompts/proxy/` (centralized system)
+- **External APIs**: OpenAI, Anthropic, local Ollama
+
+## Known Issues and Recommendations
+
+### Issues
+
+1. **Broken legacy prompt modules** — `guest.py` and `work.py` import `from app.util import create_memory_str`, but `app/util.py` was removed. Function lives at `app.services.util._create_memory_str`. If centralized prompts fail, fallback crashes with ImportError.
+
+2. **Dead code: `send_prompt_to_llm.py`** — References old config structure (`_ollama['server_url']`). Never called anywhere. Should be deleted.
+
+3. **Queue system references in old docs** — Architecture docs and copilot instructions still reference async queues, workers, and priority dispatch. All of that is gone — dispatch is now synchronous.
+
+4. **Config loaded fresh on every request** — `_resolve_model_provider_options()` opens and parses `config.json` on every call. Should cache with optional hot-reload.
+
+5. **No streaming support** — All requests set `stream=False`. Config has stream options but they're never used.
+
+6. **`tool_choice` hardcoded to `"auto"`** — Callers can't force or disable tool calling. Should pass through from request.
+
+7. **Mode vs. model naming confusion** — `MultiTurnRequest.model` and `SingleTurnRequest.model` are actually mode names, not model names. Misleading field naming.
+
+8. **Anthropic uses OpenAI-compat endpoint** — Works but doesn't leverage Anthropic's native Messages API, which has richer tool support and better error handling.
+
+9. **No retry logic** — Transient provider failures (rate limits, timeouts) cause immediate 500s. No retry, backoff, or fallback.
+
+10. **No per-provider timeout config** — Single global timeout for all providers. Anthropic may need longer than Ollama for heavy inference.
+
+### Recommendations
+
+- Delete `send_prompt_to_llm.py` and fix or remove `guest.py`/`work.py`
+- Add config caching (reload on file change or periodic interval)
+- Pass `tool_choice` through from request instead of hardcoding
+- Add basic retry logic for transient provider failures
+- Consider streaming support for long responses
+- Update architecture docs to reflect sync direct dispatch

@@ -1,44 +1,94 @@
-# Stickynotes
+# Stickynotes Microservice
 
-Persistent, context-aware reminders for personal AI agents. Stickynotes are “naggy” by design: they only surface during direct agent interactions, never as unsolicited notifications. The goal is to gently but persistently remind the user of tasks, habits, or recurring events—without intruding on their attention outside of chat.
+Persistent, context-aware reminders. Stickynotes are "naggy" by design — they surface during agent interactions, never as push notifications. The goal is gentle but persistent accountability: notes repeat every turn until resolved or snoozed. Runs on `${STICKYNOTES_PORT}`.
 
-## Features
+**Migration status**: A Google Tasks-backed replacement exists in `services/googleapi/` (see `README_TASKS.md`) with a different API surface (`/tasks/stickynotes`, `/tasks/due`, etc.). The migration was started but never completed — the brain tool still points at this standalone SQLite service. The two implementations have incompatible APIs.
 
-- **Persistent Reminders**: Stickynotes repeat every turn until resolved or snoozed.
-- **Context-Only Surfacing**: Reminders only appear when the user interacts with the agent—not as push notifications.
-- **One-Time and Recurring**: Supports both one-off notes and periodic reminders (hourly, daily, weekly, monthly).
-- **Snooze and Resolve**: Temporarily suppress a note (snooze) or resolve it. Recurring notes “sleep” until the next scheduled trigger; one-time notes are deleted on resolve.
-- **API-Driven**: Exposed as a FastAPI + Uvicorn microservice, integrated with the “brain” orchestrator.
-- **SQLite Storage**: All stickynotes data is stored in `/shared/db/stickynotes.db`.
+**Current state**: Standalone SQLite service, no Google Tasks integration.
 
-## API Actions
+## Endpoints
 
-- `POST /create`: Add a stickynote.
-  - Required: `note` (text)
-  - Optional: `periodic` (hourly|daily|weekly|monthly), `date` (ISO timestamp)
-- `GET /resolve/{note_id}`: Remove a stickynote (or set recurring note to sleep until next trigger).
-  - Required: `note_id` (path parameter)
-- `POST /snooze/{note_id}`: Temporarily suppress a stickynote.
-  - Required: `note_id` (path parameter), `date` (ISO timestamp until which to snooze)
-- `GET /list`: Retrieve all stickynotes regardless of status.
-- `GET /check`: Get all active stickynotes that should be displayed to the user.
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/create` | Create a sticky note (requires `text`, `due`; optional `periodicity`, `user_id`) |
+| GET | `/list` | List all non-resolved notes for a user |
+| GET | `/check` | Get notes that are currently due or overdue |
+| GET | `/resolve/{note_id}` | Resolve a note (deletes one-time; advances recurring to next due date) |
+| POST | `/snooze/{note_id}` | Snooze a note for a duration (`snooze_time` as ISO 8601 duration) |
 
-## Workflow
+## How It Works
 
-- On every agent interaction, the brain hits the stickynotes service.
-- API returns an array of active stickynote metadata (or empty array if none).
-- Agent injects stickynotes as simulated tool output into the conversation, and logs them to ledger.
-- Stickynotes repeat each turn until resolved or snoozed.
-- No notifications are pushed outside of chat context.
+### Lifecycle
 
-## Storage
+1. **Create**: Note created with `text`, `due` datetime, optional `periodicity` (ISO 8601 interval like `R/P1D` for daily)
+2. **Check**: On every agent interaction, brain calls `/check?user_id=...` to get due notes
+3. **Surface**: Brain injects due notes as simulated tool calls into the conversation
+4. **Action**: User resolves or snoozes via the `stickynotes` LLM tool
+5. **Resolve**: One-time notes → status `resolved`, due cleared. Recurring notes → due advances by periodicity, stays `active`
+6. **Snooze**: Due date set to `now + snooze_duration`, status → `snoozed`
 
-- SQLite DB at `/shared/db/stickynotes.db`.
-- Each stickynote stores: id, note, periodic (nullable), date (next due or snooze-until), created_at, updated_at, and status.
+### Integration with Brain
 
-## Design Principles
+The brain tool (`app/tools/stickynotes.py`) calls this service at `http://stickynotes:4214`:
+- **LLM tool actions**: `create`, `list`, `snooze`, `resolve` — called when the LLM decides to manage notes
+- **Pre-injection** (`check_stickynotes()`): Called by multiturn before the LLM to surface due notes as simulated tool output
 
-- Never intrusive—no push, only gentle persistence on interaction.
-- Handles both recurring and one-off reminders.
-- Simple, transparent API that’s easy to extend.
-- Avoids silent errors or lost reminders by making every note visible until actioned.
+Notes are injected as `[assistant tool_call, tool result]` message pairs — the LLM sees them as if it had called the stickynotes tool itself.
+
+## Database Schema
+
+SQLite at `/shared/db/stickynotes/stickynotes.db` (WAL mode):
+
+```
+stickynotes (
+    id          TEXT PK (UUID),
+    text        TEXT NOT NULL,
+    status      ENUM (active, snoozed, resolved),
+    created_at  DATETIME WITH TZ,
+    updated_at  DATETIME WITH TZ,
+    user_id     TEXT (nullable, multi-tenant support),
+    due         DATETIME WITH TZ,
+    periodicity TEXT (nullable, ISO 8601 interval)
+)
+```
+
+## Date/Time Formats
+
+- **Due dates**: ISO 8601 naive datetime (e.g., `2026-02-27T09:00:00`)
+- **Periodicity**: ISO 8601 repeating interval (e.g., `R/P1D` for daily, `R/P7D` for weekly)
+- **Snooze duration**: ISO 8601 duration (e.g., `PT1H` for 1 hour, `P1D` for 1 day)
+
+## File Structure
+
+```
+app/
+├── app.py                          # FastAPI setup
+├── schemas.py                      # Pydantic models (StickyNoteCreate, StickyNoteResponse, etc.)
+├── setup.py                        # SQLAlchemy ORM + DB init
+├── routes/
+│   └── sticky_note_routes.py       # All endpoint definitions
+└── services/
+    ├── util.py                     # DB session management
+    └── sticky_note_service.py      # Core business logic
+```
+
+## Known Issues and Recommendations
+
+### Issues
+
+1. **Missing `Query()` on snooze endpoint** — `snooze_time` parameter in `/snooze/{note_id}` isn't declared as `Query(...)`. FastAPI may misinterpret it as a path parameter. Brain tool sends it correctly as a query param, so it works, but direct API calls may fail.
+
+2. **Timezone inconsistency** — Schema declares `DateTime(timezone=True)` but Pydantic model rejects timezone-aware datetimes. `datetime.now()` (naive) compared against tz-aware DB values. Works on most systems but fragile across timezone boundaries.
+
+3. **Status comparison uses string literal** — `StickyNoteORM.status != "resolved"` instead of `StatusEnum.resolved`. Works but fragile.
+
+4. **`/check` forces status to "active"** — Due notes returned with `status="active"` regardless of actual DB status. By design (snoozed notes past their snooze time should surface), but implicit.
+
+5. **Dead dependency** — `dateutils` in requirements.txt but never imported. Service uses `isodate.parse_duration()` instead.
+
+### Recommendations
+
+- Add `Query(...)` to `snooze_time` parameter
+- Standardize on naive datetimes throughout (remove `timezone=True` from schema)
+- Use `StatusEnum` for comparisons
+- Remove `dateutils` from requirements.txt

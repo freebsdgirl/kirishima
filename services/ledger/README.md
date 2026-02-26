@@ -1,675 +1,263 @@
 # Ledger Microservice
 
-A comprehensive persistent data store for the Kirishima system, managing message buffers, memories, topics, and summaries across platforms using SQLite. The ledger serves as the central repository for all conversational data and associated metadata.
+Persistent data store for all conversational data. Manages message buffers, memories, topics, summaries, and the context heatmap system. Everything is SQLite with WAL mode. Runs on `${LEDGER_PORT}`.
 
-## Architecture
-
-The ledger service operates as the persistent storage layer for:
-
-- **Message Buffers**: Complete conversation history with advanced synchronization
-- **Memory System**: Long-term knowledge storage with semantic organization
-- **Topic Management**: Conversation threading and categorization
-- **Summary Storage**: Temporal summary data with metadata
-- **Context Heatmap**: Dynamic keyword relevance tracking for contextual memory scoring
-
-## Core Features
-
-### Message Management
-
-- Stores all user, assistant, system, and tool messages with full metadata
-- Advanced deduplication and conflict resolution for message synchronization
-- Handles consecutive user messages (e.g., after server errors)
-- In-place editing of assistant messages when content changes
-- Platform-agnostic storage (API, Discord, iMessage, etc.)
-- Ensures message buffers always start with a user message
-- Configurable message history limits via `ledger.turns` in config
-
-### Memory System
-
-- Persistent storage of extracted memories with keywords and categories
-- Full-text search capabilities with multiple filter combinations
-- Topic association linking memories to conversation threads
-- Access tracking and usage analytics
-- Memory deduplication and management tools
-- Automated memory extraction from conversation scanning
-
-### Topic Management
-
-- UUID-based topic identification and storage
-- Topic-to-message and topic-to-memory relationships
-- Temporal topic assignment to message ranges
-- Recent topics discovery and analytics
-
-### Summary Management
-
-- Temporal summaries with typed periods (morning, afternoon, evening, night, daily, weekly, monthly)
-- Summary metadata including timestamps and classification
-- Summary creation, retrieval, and deletion endpoints
-
-### Context Heatmap System
-
-- Dynamic keyword relevance tracking for contextual memory retrieval
-- Weighted keyword scoring with decay and reinforcement mechanisms
-- Memory scoring based on keyword matches from current conversation context
-- Real-time heatmap updates with automatic memory rescoring
-- Context-aware memory retrieval based on conversation relevance
-
-## Summary System Details
-
-### Summary Types and Periods
-
-The summary system supports multiple temporal classifications:
-
-#### Time-Based Periods
-
-- **`morning`**: 06:00 - 11:59 (6 hours)
-- **`afternoon`**: 12:00 - 17:59 (6 hours)
-- **`evening`**: 18:00 - 23:59 (6 hours)
-- **`night`**: 00:00 - 05:59 (6 hours)
-
-#### Aggregate Periods
-
-- **`daily`**: Full 24-hour day summaries
-- **`weekly`**: 7-day period summaries
-- **`monthly`**: Calendar month summaries
-- **`periodic`**: Custom time range summaries
-
-### Summary Metadata Structure
-
-Each summary includes comprehensive metadata:
-
-```json
-{
-  "id": "uuid-summary-123",
-  "content": "Summary text content...",
-  "metadata": {
-    "timestamp_begin": "2025-07-18T06:00:00Z",
-    "timestamp_end": "2025-07-18T11:59:59Z", 
-    "summary_type": "morning"
-  }
-}
-```
-
-#### Metadata Fields
-
-- **`timestamp_begin`**: ISO timestamp marking summary period start
-- **`timestamp_end`**: ISO timestamp marking summary period end
-- **`summary_type`**: Enum value from supported period types
-- **Automatic Validation**: Ensures timestamp consistency and type validity
-
-### Summary Operations
-
-#### Creation (`POST /summaries/create`)
-
-- **Message-Based Generation**: Creates summaries from user message history
-- **Time Range Specification**: Flexible start/end timestamp configuration
-- **Content Analysis**: Extracts key themes, decisions, and important events
-- **Automatic Categorization**: Assigns appropriate summary type based on time range
-- **Duplicate Prevention**: Prevents overlapping summaries for same period
-
-#### Retrieval (`GET /summaries`)
-
-- **Filtered Queries**: Search by summary type, time range, or content
-- **Temporal Ordering**: Results sorted by timestamp for chronological analysis
-- **Metadata Inclusion**: Returns complete summary objects with all metadata
-- **Pagination Support**: Handles large summary collections efficiently
-
-#### Management
-
-- **Update Operations**: Modify summary content while preserving metadata
-- **Deletion (`DELETE /summaries/{id}`)**: Remove summaries with cascade handling
-- **Bulk Operations**: Process multiple summaries simultaneously
-
-### Summary Use Cases
-
-#### Contextual Memory
-
-- **Conversation Context**: Provides historical context for ongoing discussions
-- **Temporal Awareness**: Helps maintain awareness of when events occurred
-- **Pattern Recognition**: Identifies recurring themes across time periods
-
-#### Analytics and Insights
-
-- **Activity Patterns**: Analyzes communication patterns across different time periods
-- **Content Evolution**: Tracks how topics and interests change over time
-- **Productivity Metrics**: Measures engagement and activity levels
-
-#### Data Management
-
-- **Storage Optimization**: Compressed representation of large message volumes
-- **Quick Access**: Rapid retrieval of historical information without full message parsing
-- **Backup and Recovery**: Structured data for system recovery and migration
-
-## Context Heatmap System Details
-
-The context heatmap system provides dynamic keyword relevance tracking to identify the most contextually relevant memories for ongoing conversations. This system maintains a weighted keyword map that adjusts in real-time based on conversation patterns and automatically scores memories for contextual retrieval.
-
-### Heatmap Architecture
-
-#### Keyword Scoring System
-
-- **Weight Categories**: Keywords are classified into three weight levels:
-  - **High**: 1.0 score (most relevant to current conversation)
-  - **Medium**: 0.7 score (moderately relevant)
-  - **Low**: 0.5 score (background relevance)
-
-- **Score Dynamics**: Keyword scores are not static but evolve based on:
-  - **Reinforcement**: Same-weight keywords receive 10% boost when mentioned again
-  - **Adjustment**: Different-weight keywords gradually adjust toward new target scores
-  - **Decay**: Unused keywords decay by 0.08 per update cycle
-  - **Removal**: Keywords with scores below 0.1 are automatically removed
-
-#### Memory Scoring System
-
-- **Real-time Scoring**: All memories are automatically rescored when the heatmap updates
-- **Tag-based Calculation**: Memory scores are calculated as sum of matching keyword scores
-- **Dynamic Ranking**: Memories are ranked by their total heatmap score for contextual relevance
-- **Efficient Storage**: Memory scores are cached in the `heatmap_memories` table for fast retrieval
-
-### Heatmap Configuration
-
-```python
-# Default scoring weights
-DEFAULT_SCORES = {
-    "high": 1.0,
-    "medium": 0.7, 
-    "low": 0.5
-}
-
-# Adjustment parameters
-ADJUSTMENT_FACTOR = 0.1      # Gradual score adjustment rate
-DECAY_RATE = 0.08           # Unused keyword decay rate  
-MIN_SCORE = 0.1             # Minimum score before removal
-SAME_WEIGHT_ADJUSTMENT = 0.02  # Minimal drift for same weights
-```
-
-### Heatmap Database Schema
-
-#### heatmap_score Table
-
-```sql
-CREATE TABLE heatmap_score (
-    keyword TEXT PRIMARY KEY,
-    score REAL NOT NULL,
-    last_updated DATETIME NOT NULL DEFAULT (STRFTIME('%Y-%m-%d %H:%M:%f','now','localtime'))
-);
-```
-
-- Stores keyword-to-score mappings with update timestamps
-- Indexed on `score` and `last_updated` for efficient queries
-- Primary key on `keyword` ensures uniqueness
-
-#### heatmap_memories Table  
-
-```sql
-CREATE TABLE heatmap_memories (
-    memory_id TEXT PRIMARY KEY REFERENCES memories(id) ON DELETE CASCADE,
-    score REAL NOT NULL,
-    last_updated DATETIME NOT NULL DEFAULT (STRFTIME('%Y-%m-%d %H:%M:%f','now','localtime'))
-);
-```
-
-- Caches computed memory scores for fast retrieval
-- Foreign key relationship ensures data consistency
-- Cascade delete maintains referential integrity
-
-### Heatmap Use Cases
-
-#### Contextual Memory Retrieval
-
-- **Conversation Context**: Provides memories most relevant to current discussion topics
-- **Dynamic Ranking**: Memory relevance changes as conversation evolves
-- **Efficient Lookup**: Fast retrieval of top-N contextually relevant memories
-
-#### Conversational Intelligence
-
-- **Topic Tracking**: Identifies which topics are currently most important
-- **Context Switching**: Adapts to changing conversation focus automatically  
-- **Memory Prioritization**: Surfaces most relevant historical information
-
-#### System Integration
-
-- **Real-time Updates**: Other services can update heatmap via API calls
-- **Context Injection**: Contextual memories can be injected into LLM prompts
-- **Adaptive Learning**: System learns conversation patterns over time
-
-### Heatmap Development Tools
-
-#### Scripts
-
-- **`scripts/generate_heatmap_wordcloud.py`**: Creates visual word clouds from heatmap keyword scores
-  - Generates PNG visualizations with word sizes proportional to keyword relevance
-  - Includes keyword statistics and configurable dimensions
-  - Usage: `python generate_heatmap_wordcloud.py [-o output.png] [--show] [--stats-only]`
-
-- **`scripts/test_heatmap.py`**: Integration testing script for heatmap functionality
-  - Tests keyword updates, score retrieval, and memory ranking
-  - Validates API endpoints and response formats
-  - Usage: `python test_heatmap.py` (requires ledger service running)
-
-## API Endpoints
+## Endpoints
 
 ### Message Operations
 
-- `GET /user/{user_id}/messages` - Retrieve messages with time period filtering
-- `GET /active` - List all active user IDs in the database
-- `DELETE /user/{user_id}` - Delete user messages with period/date filtering
-- `POST /user/{user_id}/sync` - Advanced message buffer synchronization
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/user/{user_id}/messages` | Get messages (filter by period/date/timestamps) |
+| GET | `/user/{user_id}/messages/last` | Last message timestamp |
+| GET | `/user/{user_id}/messages/untagged` | Messages without topic assignment |
+| POST | `/user/{user_id}/sync` | Complex message buffer synchronization |
+| DELETE | `/user/{user_id}` | Delete messages (filter by period/date) |
+| GET | `/user/active` | List all active user IDs |
+
+### Sync Operations
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/sync/user` | User message sync |
+| POST | `/sync/assistant` | Assistant message sync |
+| POST | `/sync/tool` | Tool call sync |
+| GET | `/sync/get` | Get sync buffer (token-limited) |
 
 ### Memory Operations
 
-- `POST /memories` - Create new memory entries
-- `GET /memories/{memory_id}` - Retrieve specific memory with full details
-- `GET /memories` - List memories with pagination and filtering
-- `PATCH /memories` - Update existing memory content
-- `DELETE /memories/{memory_id}` - Delete memory and associated data
-- `GET /memories/search` - Advanced multi-parameter memory search
-- `POST /memories/scan` - Automated memory extraction from messages
-- `PATCH /memories/topic` - Assign topics to memories
-- `GET /memories/topic/{topic_id}` - Retrieve memories by topic
-- `POST /memories/dedup` - Memory deduplication utilities
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/memories` | Create memory (requires keywords or category) |
+| GET | `/memories` | List memories (paginated) |
+| GET | `/memories/by-id/{id}` | Get memory with full details |
+| PATCH | `/memories/by-id/{id}` | Update memory content/keywords/category |
+| DELETE | `/memories/by-id/{id}` | Delete memory (cascades) |
+| PATCH | `/memories/by-id/{id}/topic` | Assign topic to memory |
+| GET | `/memories/by-topic/{topic_id}` | Get memories by topic |
+| GET | `/memories/_search` | Advanced multi-parameter search |
+| POST | `/memories/_scan` | Auto-extract memories from messages via LLM |
+| GET | `/memories/_dedup` | Legacy deduplication |
+| GET | `/memories/_dedup_semantic` | Semantic dedup (timeframe or keyword grouping) |
+| POST | `/memories/_dedup_topic_based` | Two-phase topic consolidation + memory dedup |
 
 ### Topic Operations
 
-- `POST /topics` - Create new topics (with duplicate prevention)
-- `GET /topics` - Retrieve recent topics from message history
-- `GET /topics/{topic_id}` - Get specific topic details
-- `DELETE /topics/{topic_id}` - Delete topic and cascade relationships
-- `PATCH /topics/{topic_id}` - Assign topic to message timeframes
-- `GET /topics/{topic_id}/messages` - Retrieve messages associated with topic
-- `POST /topics/timeframe` - Get topic IDs within time ranges
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/topics` | List all topics |
+| POST | `/topics` | Create topic (dedup by name) |
+| GET | `/topics/{id}` | Get topic details |
+| DELETE | `/topics/{id}` | Delete topic (cascades) |
+| PATCH | `/topics/{id}` | Assign topic to messages in timeframe |
+| GET | `/topics/{id}/messages` | Get messages for topic |
+| GET | `/topics/_recent` | Recent topics |
+| POST | `/topics/_by-timeframe` | Topics with messages in time range |
+| POST | `/topics/_dedup_semantic` | Semantic topic deduplication via DBSCAN + LLM |
 
-### Summary Operation
+### Summary Operations
 
-- `POST /summaries` - Create new summaries with metadata
-- `GET /summaries` - Retrieve summaries with filtering
-- `DELETE /summaries/{summary_id}` - Delete specific summaries
-- `POST /summaries/create` - Generate summaries from message data
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/summary` | Retrieve summaries (filter by type, time, keywords) |
+| POST | `/summary` | Create summary record |
+| DELETE | `/summary` | Delete summaries |
+| POST | `/summary/create` | Generate summaries from message data |
 
 ### Context/Heatmap Operations
 
-- `GET /context/` - Retrieve contextually relevant memories based on heatmap scores
-- `POST /context/update_heatmap` - Update keyword heatmap with weighted keywords
-- `GET /context/top_memories` - Get top-scored memories with heatmap details
-- `GET /context/keyword_scores` - Get current keyword scores from heatmap
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/context/` | Get top contextually relevant memories |
+| POST | `/context/update_heatmap` | Update keyword weights, rescore all memories |
+| GET | `/context/top_memories` | Top-scored memories with scores |
+| GET | `/context/keyword_scores` | Current heatmap state |
 
 ## Database Schema
 
-### Core Tables
+### Tables
 
-- **`user_messages`**: Message storage with platform metadata, tool calls, and topic associations
-- **`memories`**: Core memory storage with access tracking and review status
-- **`memory_tags`**: Many-to-many keyword associations for memories
-- **`memory_category`**: One-to-one category assignments for memories
-- **`memory_topics`**: Many-to-many memory-to-topic relationships
-- **`topics`**: Topic definitions with names and creation timestamps
-- **`summaries`**: Temporal summary storage with metadata
-- **`heatmap_score`**: Dynamic keyword scoring for contextual relevance tracking
-- **`heatmap_memories`**: Cached memory scores based on keyword matches
-
-### Key Features
-
-- WAL journal mode for concurrent access
-- Foreign key constraints with proper cascading
-- Optimized indexes for common query patterns
-- Automatic timestamp management
-- UUID-based primary keys for distributed compatibility
-
-## Advanced Synchronization Logic
-
-The `/user/{user_id}/sync` endpoint implements sophisticated message synchronization:
-
-### Deduplication Rules
-
-1. **User Message Deduplication**: Identical consecutive user messages are deduplicated
-2. **Assistant Message Editing**: In-place updates when assistant content changes
-3. **Consecutive User Handling**: Resolves server error scenarios with multiple user messages
-4. **Platform-Specific Logic**: Different handling for API vs. external platform messages
-
-### Edge Case Handling
-
-- Server error recovery with message rollback
-- Tool call and function call preservation
-- Platform message ID tracking for external services
-- Content-based change detection for assistant edits
-
-## Memory Search, Scan, and Deduplication
-
-### Advanced Memory Search
-
-The memory search system (`GET /memories/search`) supports sophisticated multi-parameter queries using AND logic:
-
-#### Search Parameters
-
-- **Keywords**: Multi-keyword search with configurable minimum matches
-  - Supports progressive fallback (reduces minimum requirements if no matches found)
-  - Case-insensitive matching against memory tags
-  - Example: `["meeting", "project"]` with `min_keywords: 2`
-- **Category**: Single category filtering for organizational structure
-  - Exact match against memory category assignments
-  - Example: `"Work"`, `"Personal"`, `"Technical"`
-- **Topic Association**: Topic-based memory filtering
-  - Links memories to specific conversation threads
-  - Searches memories associated with a given topic UUID
-- **Time Ranges**: Temporal filtering with ISO timestamp support
-  - `created_after`: Return memories created after specified time
-  - `created_before`: Return memories created before specified time
-- **Memory ID**: Direct memory lookup (bypasses all other filters)
-  - Exact UUID match for specific memory retrieval
-
-#### Search Algorithm
-
-- **Intersection Logic**: All specified parameters must match (AND operation)
-- **Progressive Keyword Matching**: Automatically reduces minimum keyword requirements if no results
-- **Efficient Indexing**: Optimized SQL queries with proper database indexes
-- **Complete Data Return**: Returns full `MemoryEntry` objects with all associated data
-
-#### Example Search Request
-
-```json
-{
-  "keywords": ["meeting", "project", "deadline"],
-  "category": "Work", 
-  "min_keywords": 2,
-  "created_after": "2025-07-01T00:00:00",
-  "topic_id": "uuid-topic-123"
-}
+**`user_messages`** — Message buffer
+```
+id, user_id, platform, platform_msg_id, role, content, model,
+tool_calls (JSON), function_call (JSON), tool_call_id,
+topic_id (FK→topics), created_at, updated_at
 ```
 
-### Memory Scanning (`POST /memories/scan`)
-
-Automated memory extraction from conversation messages:
-
-#### Functionality
-
-- **Message Analysis**: Scans user message history for extractable knowledge
-- **Context-Aware Extraction**: Identifies facts, preferences, and important information
-- **Keyword Generation**: Automatically generates relevant tags for discovered memories
-- **Category Assignment**: Intelligently categorizes extracted memories
-- **Deduplication**: Prevents creation of duplicate memories during scanning
-
-#### Scan Parameters
-
-- **User ID**: Target user for message scanning
-- **Time Range**: Optional date range for message analysis
-- **Memory Threshold**: Minimum importance score for memory creation
-- **Category Hints**: Suggested categories for discovered memories
-
-### Memory Deduplication (`POST /memories/dedup`)
-
-Comprehensive deduplication system for memory management:
-
-#### Deduplication Types
-
-- **Content-Based**: Identifies memories with similar or identical text content
-- **Keyword-Based**: Finds memories sharing significant keyword overlap
-- **Topic-Based**: Groups memories associated with the same conversation topics
-- **Temporal**: Identifies memories created in close time proximity with similar content
-
-#### Deduplication Process
-
-1. **Similarity Analysis**: Compares memory content using text similarity algorithms
-2. **Keyword Intersection**: Calculates shared keyword percentages between memories
-3. **Confidence Scoring**: Assigns confidence scores to potential duplicates
-4. **Merge Suggestions**: Provides recommendations for memory consolidation
-5. **Safe Deletion**: Removes clear duplicates while preserving unique information
-
-#### Deduplication Options
-
-- **Automatic Mode**: Removes high-confidence duplicates automatically
-- **Interactive Mode**: Returns suggestions for manual review and approval
-- **Dry Run**: Analysis only, no actual deletions performed
-- **Threshold Configuration**: Adjustable similarity thresholds for duplicate detection
-
-## Deduplication System
-
-The ledger service provides comprehensive deduplication capabilities for both memories and topics, supporting multiple strategies and approaches.
-
-### Memory Deduplication
-
-#### Global Memory Deduplication (`/memories/_dedup_semantic`)
-
-**Method**: `GET` (with `dry_run` parameter)  
-**Purpose**: Global memory deduplication using timeframe or keyword grouping strategies.
-
-**Key Features**:
-
-- **Grouping Strategies**:
-  
-  - `timeframe`: Groups memories created within specified days (default: 7)
-  - `keyword`: Groups memories sharing minimum keyword matches (default: 2)
-- **LLM Integration**: Uses existing `dedup_memories.j2` prompt template for intelligent deduplication
-- **Dry Run Support**: `dry_run=true` shows groups without making changes
-- **Live Mode**: `dry_run=false` applies LLM recommendations with updates and deletions
-
-**Parameters**:
-
-- `dry_run` (bool): Preview mode vs. actual execution (default: true)
-- `grouping_strategy` (str): "timeframe" or "keyword" (default: "timeframe")
-- `min_keyword_matches` (int): Minimum shared keywords for grouping (default: 2)
-- `timeframe_days` (int): Days for timeframe grouping (default: 7)
-
-**Example**:
-
-```bash
-# Preview grouping
-curl "http://localhost:4203/memories/_dedup_semantic?dry_run=true&grouping_strategy=keyword&min_keyword_matches=3"
-
-# Execute deduplication
-curl "http://localhost:4203/memories/_dedup_semantic?dry_run=false&grouping_strategy=timeframe&timeframe_days=5"
+**`memories`** — Long-term knowledge store
+```
+id (UUID), memory (text), created_at, access_count, last_accessed, reviewed
 ```
 
-**Response Structure**:
-
-```json
-{
-  "strategy": "timeframe",
-  "groups_processed": 15,
-  "memory_count": 245,
-  "operations": {
-    "update": {"mem_id": {"memory": "consolidated text", "keywords": [...]}},
-    "delete": ["mem_id_1", "mem_id_2"]
-  },
-  "results": {
-    "updated": 8,
-    "deleted": 12,
-    "errors": []
-  },
-  "group_details": [...]
-}
+**`memory_tags`** — Keywords per memory (many-to-many)
+```
+memory_id (FK→memories), tag (lowercase), PK(memory_id, tag)
 ```
 
-#### Topic-Based Memory Deduplication (`/memories/_dedup_topic_based`)
+**`memory_category`** — Category per memory
+```
+memory_id (FK→memories), category, PK(memory_id, category)
+```
+Allowed categories: Health, Career, Family, Personal, Technical Projects, Social, Finance, Self-care, Environment, Hobbies, Admin, Philosophy
 
-**Method**: `POST`  
-**Purpose**: Comprehensive two-phase deduplication: topic consolidation followed by memory deduplication within consolidated topics.
-
-**Process Flow**:
-
-1. **Topic Similarity Analysis**: Uses sentence-transformers to find semantically similar topics
-2. **Topic Consolidation**: LLM determines which topics should be merged and optimal naming
-3. **Memory Chunking**: Groups memories by timeframe within consolidated topics  
-4. **Memory Deduplication**: LLM processes each memory chunk for deduplication
-
-**Key Features**:
-
-- **Semantic Topic Clustering**: Uses DBSCAN clustering with cosine similarity on topic names
-- **LLM Topic Merging**: Intelligent topic consolidation with naming optimization
-- **Timeframe Chunking**: Prevents token overflow by processing memories in temporal chunks
-- **Comprehensive Dry Run**: Complete cost analysis and planning without execution
-- **Token Management**: Configurable limits to control LLM usage and costs
-
-**Parameters**:
-
-- `topic_similarity_threshold` (float): Cosine similarity threshold for topic clustering (0.7-0.9, default: 0.8)
-- `max_topic_groups` (int): Maximum topic groups to consolidate (10-50, default: 20)
-- `max_memory_chunks` (int): Maximum memory chunks to process (20-100, default: 50)
-- `max_memories_per_chunk` (int): Maximum memories per LLM request (10-20, default: 15)
-- `chunk_days` (int): Days per timeframe chunk (3-14, default: 7)
-- `max_total_tokens` (int): Total token budget (50k-200k, default: 100k)
-- `dry_run` (bool): Analysis-only mode (default: false)
-
-**Example**:
-
-```bash
-# Dry run analysis
-curl -X POST "http://localhost:4203/memories/_dedup_topic_based?dry_run=true&max_topic_groups=10"
-
-# Execute full deduplication
-curl -X POST "http://localhost:4203/memories/_dedup_topic_based?topic_similarity_threshold=0.75&max_memory_chunks=30"
+**`memory_topics`** — Memory-to-topic links
+```
+memory_id (FK→memories), topic_id (FK→topics), PK(memory_id, topic_id)
 ```
 
-**Dry Run Response**:
-
-```json
-{
-  "status": "dry_run_complete",
-  "plan": {
-    "total_topics": 192,
-    "topic_groups_to_consolidate": 5,
-    "memory_chunks_to_deduplicate": 9,
-    "estimated_llm_requests": 14,
-    "estimated_total_tokens": 3735,
-    "cost_breakdown": {...}
-  },
-  "topic_consolidations": [...],
-  "memory_chunks": [...]
-}
+**`topics`** — Conversation topics
+```
+id (UUID), name, description, created_at
 ```
 
-### Topic Deduplication
-
-#### Semantic Topic Deduplication (`/topics/_dedup_semantic`)
-
-**Method**: `POST` (execution), `GET /topics/_dedup_semantic/preview` (preview)  
-**Purpose**: Standalone topic deduplication using semantic similarity and LLM decision-making.
-
-**Key Features**:
-
-- **Sentence-Transformers**: Uses all-MiniLM-L6-v2 model for topic name embeddings
-- **DBSCAN Clustering**: Groups semantically similar topics with configurable similarity thresholds
-- **LLM Merge Decisions**: GPT-4.1 analyzes topic clusters and determines optimal consolidation
-- **Memory Preservation**: Moves all memories from deleted topics to primary topics
-- **Topic Ranking**: Prioritizes topics with more memories for primary selection
-
-**Parameters**:
-
-- `semantic_similarity_threshold` (float): Cosine similarity threshold (0.6-0.85, default: 0.7)
-- `min_cluster_size` (int): Minimum topics per cluster (2-4, default: 2)
-- `max_clusters_to_process` (int): Processing limit (5-15, default: 10)
-- `min_memory_count` (int): Minimum memories per topic to consider (1-5, default: 1)
-- `max_topics` (int): Maximum topics to analyze (50-200, default: 100)
-
-**Example**:
-
-```bash
-# Preview what would be processed
-curl "http://localhost:4203/topics/_dedup_semantic/preview?max_topics=200&semantic_similarity_threshold=0.75"
-
-# Execute topic deduplication
-curl -X POST "http://localhost:4203/topics/_dedup_semantic?max_topics=200&max_clusters_to_process=15"
+**`summaries`** — Temporal summaries
+```
+id (UUID), summary (text), timestamp_begin, timestamp_end,
+summary_type (morning|afternoon|evening|night|daily|weekly|monthly)
 ```
 
-**Execution Response**:
-
-```json
-{
-  "status": "completed",
-  "topic_dedup_results": {
-    "processed_clusters": 10,
-    "results": [
-      {
-        "cluster_index": 0,
-        "cluster_size": 3,
-        "semantic_density": 0.908,
-        "avg_similarity": 0.908,
-        "merge_decision": {
-          "primary_topic_id": "uuid-1",
-          "primary_topic_name": "Consolidated Topic Name",
-          "merge_topic_ids": ["uuid-2", "uuid-3"],
-          "reasoning": "LLM explanation"
-        },
-        "merge_result": {
-          "primary_topic_id": "uuid-1",
-          "primary_topic_name": "Consolidated Topic Name", 
-          "deleted_topics": ["uuid-2", "uuid-3"],
-          "moved_memories": 6
-        }
-      }
-    ]
-  },
-  "stats": {
-    "topics_analyzed": 204,
-    "semantic_clusters_found": 24,
-    "clusters_processed": 10,
-    "topics_merged": 12,
-    "memories_moved": 17
-  }
-}
+**`heatmap_score`** — Keyword relevance tracking
+```
+keyword (PK), score (0.1–2.0), last_updated
 ```
 
-### Deduplication Dependencies
+**`heatmap_memories`** — Cached memory scores from heatmap
+```
+memory_id (PK, FK→memories), score, last_updated
+```
 
-**Required Packages**:
+All tables: WAL mode, foreign keys enabled, appropriate indexes.
 
-- `sentence-transformers`: Semantic similarity analysis
-- `scikit-learn`: Clustering algorithms (DBSCAN)
-- `numpy`: Numerical operations for embeddings
+## Key Systems
 
-**LLM Integration**:
+### Message Sync
 
-- Uses existing prompt templates in `/home/randi/.kirishima/prompts/ledger/`
-- Integrates with proxy service for OpenAI API calls
-- Supports configurable model selection (default: gpt-4.1)
+The sync system (`POST /user/{user_id}/sync`) handles complex message buffer management:
 
-**Safety Features**:
+- **Consecutive user messages**: After server errors, detects and deduplicates
+- **Non-API fast path**: Discord/iMessage messages appended directly
+- **API dedup logic**: Handles identical user messages, assistant edits (in-place update), and fallback append
+- **Buffer limiting**: Returns last N messages (configured by `ledger.turns`, default 15), ensures first message is always `user` role
+- **Field preservation**: tool_calls, function_call, tool_call_id maintained through sync
 
-- Transaction-based operations with rollback on errors
-- Comprehensive error logging and reporting
-- Dry run modes for cost estimation and planning
-- Configurable limits to prevent runaway operations
-- Graceful degradation when dependencies unavailable
+### Memory System
+
+**Creation**: Memory + keywords + optional category → UUID-based storage
+
+**Search** (`GET /memories/_search`): Multi-parameter AND logic:
+- `keywords` with progressive fallback (reduces `min_keywords` if no results)
+- `category` exact match
+- `topic_id` via memory_topics
+- `created_after`/`created_before` time range
+- `memory_id` direct lookup (bypasses all filters)
+- Updates `access_count` and `last_accessed` on retrieval
+
+**Scanning** (`POST /memories/_scan`): Auto-extracts memories from conversations:
+- Processes oldest untagged messages in batches of 30
+- LLM analyzes conversation → returns topics + memories as JSON
+- Creates topics, assigns to messages, creates memories with keywords/categories
+- Skips LOW priority memories
+
+**Deduplication**: Three approaches:
+- `_dedup_semantic`: Groups by timeframe or keyword overlap → LLM decides merges
+- `_dedup_topic_based`: Two-phase — DBSCAN topic clustering + timeframe memory chunking → LLM merges
+- `_dedup` (legacy): Various strategies
+
+### Context Heatmap
+
+Dynamic keyword relevance tracking for conversation-aware memory retrieval:
+
+**Scoring mechanics:**
+- Keywords weighted as high (1.0), medium (0.7), or low (0.5)
+- **Reinforcement**: Same-weight keywords get 10% boost on repeat mention
+- **Adjustment**: Different-weight keywords shift 10% toward new target
+- **Decay**: Unused keywords lose 0.08 per cycle
+- **Removal**: Below 0.1 score → deleted
+- **Clamping**: Scores bounded 0.1–2.0
+
+**Memory scoring**: Sum of matching keyword scores per memory. All memories rescored on every heatmap update. Cached in `heatmap_memories` for fast retrieval.
+
+### Summary System
+
+Time-period summaries of conversations:
+- **Periods**: morning (06-11), afternoon (12-17), evening (18-23), night (00-05)
+- **Aggregates**: daily, weekly, monthly
+- Generated from message data via LLM prompts
+
+## File Structure
+
+```
+app/
+├── app.py                          # FastAPI setup
+├── setup.py                        # Schema initialization
+├── util.py                         # DB connection helper
+├── routes/
+│   ├── user.py                     # Message endpoints
+│   ├── sync.py                     # Sync endpoints
+│   ├── memory.py                   # Memory CRUD + search/scan/dedup
+│   ├── topic.py                    # Topic CRUD + dedup
+│   ├── context.py                  # Heatmap endpoints
+│   └── summary.py                  # Summary endpoints
+└── services/
+    ├── user/                       # Message operations, sync logic
+    ├── memory/                     # Memory CRUD, search, scan, dedup (24 files)
+    ├── topic/                      # Topic operations (9 files)
+    ├── context/
+    │   └── heatmap.py              # Heatmap scoring engine
+    └── summary/                    # Summary generation (7 files)
+```
+
+## Integration
+
+| Service | How It Uses Ledger |
+|---------|-------------------|
+| **Brain** | Message sync, memory search, heatmap updates, summaries |
+| **API** (via brain) | Indirect — all messages flow through brain to ledger |
+
+Ledger also calls the API/proxy for LLM completions during memory scanning and deduplication operations.
 
 ## Configuration
 
 ```json
 {
-  "db": {
-    "ledger": "/path/to/ledger.db"
-  },
-  "ledger": {
-    "turns": 15  // Default message history limit
-  },
-  "tracing_enabled": false
+    "db": { "ledger": "/path/to/ledger.db" },
+    "ledger": { "turns": 15 },
+    "timeout": 120,
+    "tracing_enabled": false
 }
 ```
 
-## Technical Notes
+## Known Issues and Recommendations
 
-### Performance Considerations
+### Issues
 
-- SQLite WAL mode enables concurrent read/write operations
-- Prepared statements and connection pooling for efficiency
-- Indexed queries for common access patterns
-- Background task support for expensive operations
+1. **Commented-out background tasks** — Multiple references to `background_tasks.add_task(create_summaries, ...)` in sync code, all commented out. Either complete or remove.
 
-### Data Integrity
+2. **Tool sync incomplete** — `sync/tool.py` defines structure but minimal processing. Tool-generated insights aren't integrated with memory/topic systems.
 
-- Foreign key constraints prevent orphaned data
-- Transaction-based operations ensure consistency
-- Validation at API and database levels
-- Graceful degradation for missing optional data
+3. **Assistant sync hardcodes user_id from config** — `sync/assistant.py:22` reads user_id from config instead of accepting from request. Only works for single-user.
 
-### Platform Integration
+4. **Heatmap rescoring is synchronous** — `_recalculate_memory_scores()` blocks on every heatmap update. Could be slow with many memories.
 
-- Platform-agnostic message storage with metadata preservation
-- Cross-platform user ID normalization
-- Tool call and function call serialization support
-- Extensible message schema for future platform additions
+5. **Memory access_count inconsistent** — Only updated during search operations. Direct GET by ID doesn't update it.
 
-## Dependencies
+6. **Summary keyword search not implemented** — Route accepts `keywords` parameter but silently ignores it.
 
-- FastAPI for REST API framework
-- SQLite3 for persistent storage
-- Pydantic for data validation and serialization
-- Shared middleware for tracing and logging
+7. **No connection pooling** — New SQLite connection per operation. Fine for current scale but not ideal.
+
+8. **No transaction wrapping on scan operations** — Memory scan creates topics, assigns messages, creates memories without explicit transactions. Partial failures leave inconsistent state.
+
+9. **Period range uses magic numbers** — Morning=6-11, afternoon=12-17, etc. hardcoded. Should be named constants.
+
+10. **No rate limiting on expensive operations** — Memory scan, dedup, semantic operations consume LLM tokens with no limits.
+
+11. **Heatmap tolerance check is arbitrary** — `abs(current_score - base_score) < 0.2` for "same weight" detection. Magic number with unclear semantics.
+
+### Recommendations
+
+- Wrap scan/dedup operations in explicit transactions
+- Move heatmap rescoring to background task
+- Implement summary keyword filtering (feature is plumbed but non-functional)
+- Make time period boundaries configurable constants
+- Track access_count consistently across all retrieval paths
+- Add rate limiting or token budgets for LLM-consuming operations

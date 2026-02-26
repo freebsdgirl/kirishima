@@ -2,348 +2,239 @@
 
 ## 🧭 Architectural Principles
 
-- **Brain is the primary orchestrator.**
-- **The Proxy is the only service allowed to communicate with any LLM.** Prompt scaffolding, model selection, and stream handling are owned by the Proxy.
-- **Centralized logging is mandatory.** All services must emit structured debug and error logs to Graylog.
-- **Semantic search is overhyped.** We use SQLite here.
-- **Cross-platform conversation continuity is mandatory.** All interactions feed into a unified conversation thread.
-- **Agent autonomy over user convenience.** The AI maintains its own perspective, relationships, and decision-making capabilities.
+- **Brain is the primary orchestrator.** All message routing, tool execution, and service coordination flows through brain.
+- **Proxy is the sole LLM gateway.** Prompt construction, model/provider resolution, and dispatch are all proxy's responsibility. No other service talks to LLMs directly.
+- **HTTP-only inter-service communication.** No direct DB access across services. No shared state except via API calls.
+- **All persistence uses SQLite** (WAL mode, foreign keys enabled).
+- **Centralized logging via Graylog** (GELF + graypy). All services use `shared.log_config.get_logger()`.
+- **Cross-platform conversation continuity.** Discord, iMessage, API, Gmail all feed one conversation thread via ledger.
+- **Docker auto-restarts on code changes.** Never restart containers manually.
 
 ## 🌟 Core Innovations
 
 ### 🔥 Heatmap Memory System
 
-Traditional AI memory relies on vector similarity searches that treat all memories as equally accessible. Kirishima implements a **weighted topic tracking system** that mirrors human memory patterns:
+The ledger implements a keyword-weighted memory retrieval system that tracks conversation context dynamically:
 
-- **Dynamic Multipliers**: Keywords receive multipliers (0.1x-1x) based on conversation patterns
-- **Conversation-Based Decay**: Topics "cool down" when attention shifts naturally, not on rigid time windows
-- **Contextual Relevance Scoring**: Memory retrieval prioritizes topics that are "hot" in current conversation context
-- **Associative Linking**: Related concepts heat up together, supporting natural thought flow
-
-This approach is particularly effective for neurodivergent conversation patterns where traditional folder-based organization fails.
-
-### 🔄 Unified Conversation Flow
-
-Most AI systems treat each platform interaction as isolated. Kirishima's **Ledger** creates true cross-platform conversation continuity:
-
-- **Platform-Agnostic Threading**: Voice, text, email, Discord all contribute to single conversation thread
-- **Message Deduplication**: Intelligent handling of cross-posted or repeated messages
-- **Context Preservation**: Switch mid-conversation between platforms without losing context
-- **Agent-Centric Logging**: Conversations are logged from the AI's perspective, not just user interactions
+- **Weighted keywords**: Keywords classified as high (1.0), medium (0.7), or low (0.5) based on conversation relevance
+- **Reinforcement**: Repeated keywords get 10% score boosts
+- **Decay**: Unused keywords lose 0.08 per update cycle; below 0.1 they're removed
+- **Memory scoring**: Each memory scored by sum of matching keyword scores, rescored on every heatmap update
+- **No vector DB**: Pure SQLite with keyword-based scoring — simple, fast, effective
 
 ### 🧠 Self-Modifying Agency
 
-The AI can **modify its own system prompt** through the `manage_prompt` tool:
+The AI can modify its own system prompt through the `manage_prompt` tool:
 
-- **SQLite-Backed Prompt Storage**: Personality and behavioral changes persist across restarts
-- **Experience-Driven Evolution**: The AI adapts based on interaction outcomes
-- **Autonomous Decision Making**: Can advocate for its own architectural changes
-- **Professional Identity**: Maintains its own email, GitHub account, and professional relationships
+- Prompts stored in SQLite (brainlets DB), injected into system prompt on every request
+- Personality and behavioral changes persist across restarts
+- Autonomous decisions about tone, style, and behavioral patterns
 
-## 🧠 System Architecture Overview
+### 🔄 Unified Conversation Flow
+
+All platform interactions feed into one conversation thread:
+
+- Ledger normalizes messages from Discord, iMessage, Gmail, API into unified format
+- Intelligent deduplication handles cross-posted or repeated messages
+- Switch platforms mid-conversation without losing context
+
+## 🧩 Services
 
 ### 🌐 API
 
-Adapter layer between OpenAI-style clients (e.g., OpenWebUI) and the internal Kirishima ecosystem.
+OpenAI-compatible REST interface. Translates standard `/v1/completions` and `/v1/chat/completions` calls into internal requests to brain.
 
-**Responsibilities:**
-
-- Accepts incoming messages from OpenAI-compatible clients
-- Distinguishes between structured task calls and standard chat
-  - For example, OpenWebUI sends tasks as `### Task:` which bypass normal LLM flow
-- Routes messages to Brain for processing
-- Converts internal shared class models into OpenAI response format before returning
-
-**Design Notes:**
-
-- Does not handle any memory, context, or summarization logic
-- Has no direct LLM access
-- All processing is delegated to Brain and Proxy
-
----
+- Accepts "mode" names (not model names) — brain/proxy resolve to actual provider/model
+- Special case: messages starting with `### Task` reroute to single-turn pipeline
+- No memory, context, or summarization logic — pure passthrough
 
 ### 🧠 Brain
 
-Central reasoning and memory hub. Owns memory, buffer state, and behavioral logic.
+Central orchestrator. Coordinates all other services, manages the multi-turn conversation pipeline.
 
-**Core Innovation - Heatmap Memory Management:**
+**Multi-turn pipeline** (`/api/multiturn`):
+1. **Context prep**: Resolve user via contacts, load agent prompts, fetch summaries
+2. **Tool selection**: Always-on tools (memory, manage_prompt, get_personality) + router-selected tools (github_issue, stickynotes) via cheap LLM call
+3. **Ledger sync**: Last 4 messages synced, full buffer retrieved
+4. **Pre-brainlets**: Topologically sorted, mode-filtered (currently: memory_search — extracts keywords, updates heatmap, injects contextual memories)
+5. **Proxy + tool loop**: Send to proxy, if tool_calls returned → execute directly via `call_tool()` → sync to ledger → repeat (max 10 iterations)
+6. **Post-brainlets**: Side effects, logging (not synced to ledger)
 
-The Brain implements a novel memory architecture that moves beyond traditional vector databases:
+**Tool system**: Decorator-based, auto-discovering. `@tool` decorator in `app/tools/*.py` — no JSON files, no manual registration. Tools have access control for MCP endpoints (internal/copilot/external).
 
-- **Topic Heat Calculation**: Dynamically assigns relevance multipliers to conversation topics
-- **Memory Scoring Algorithm**: Combines recency, frequency, and contextual relevance for retrieval
-- **Cross-Platform Context Synthesis**: Merges conversation history from all platforms into coherent context
-- **Autonomous Tool Execution**: Makes independent decisions about memory creation, contact management, and action dispatch
+**MCP server**: Three JSON-RPC 2.0 endpoints with client-based access control:
+- `/mcp/` — internal (full access)
+- `/mcp/copilot/` — GitHub Copilot (restricted)
+- `/mcp/external/` — external clients (restricted)
 
-**Technical Architecture:**
-
-- Memory via **SQLite** with custom relevance scoring
-- Buffer & conversation state via Ledger synchronization
-- Incoming job pings from Scheduler via `POST` endpoints
-- Contact resolution via Contacts service
-- Outbound action dispatch (email, memory, messaging)
-- LLM Tool Execution with autonomous decision-making
-- Alerts via Notifications
-- Reminders via Stickynotes
-
-**Responsibilities:**
-
-- Cross-platform conversation state management
-- Heatmap-based memory retrieval and scoring
-- Autonomous tool calling and action dispatch
-- Self-prompt modification and behavioral evolution
-- Professional relationship management (independent email correspondence)
-
----
+**Notifications**: Creates notifications in SQLite, executes via Discord DM or iMessage based on user activity status.
 
 ### 📇 Contacts
 
-**Responsibilities:**
+CRUD service for contact management. Cross-platform identity resolution — maps Discord IDs, iMessage addresses, email addresses to unified contact UUIDs.
 
-- Central identity resolution service
-- Stores contact info across platforms (e.g., iMessage ID, Discord, email)
-- Supports aliases, metadata, notes
-- Enables unified user reference across the stack
+- `@ADMIN` alias is critical — brain uses it to resolve the admin user
+- Search by alias or field key/value (case-insensitive)
+- Used by brain, iMessage, and Discord for sender resolution
 
----
+### 💬 Discord
 
-### 📇 Discord
+Discord DM bridge. Runs Discord.py bot + FastAPI server.
 
-**Responsibilities:**
-
-- Used as an alerting outgoing mechanism.
-- Allows users to sign up and talk to the LLM
-- Does not support speaking in servers.
-
----
+- **Incoming**: on_message → contact lookup → brain `/api/multiturn` → reply via DM
+- **Outbound**: `POST /dm` for notification delivery
+- DM-only, no server support
 
 ### 📺 Divoom
 
-**Responsibilities:**
+Controls Divoom Max Bluetooth display. Runs on host (not containerized) due to Bluetooth stack limitations.
 
-- Controls Divoom Max display (runs outside Docker due to Bluetooth stack limitations)
-- Displays emoji based on conversation tone, topic changes, TTS activity, or system events
-- Exposes /send endpoint; accepts emoji input, avoiding redundant updates
-- Uses pixoo library for device communication; emoji images stored locally (Twemoji format)
-- Selection policy is adaptive, prioritizing meaningful feedback over noise
+- Displays emoji based on conversation tone, topic changes, TTS activity
+- Exposes `/send` endpoint accepting emoji input
+- Uses pixoo library, Twemoji-format images stored locally
 
----
+### 📧 GoogleAPI
+
+Gmail integration with OAuth2. Also contains a **Google Tasks implementation** (`/tasks/*`) that was built to replace the stickynotes service but the migration was never completed.
+
+- Gmail: Send/receive email as part of conversation flow
+- Tasks: Complete Google Tasks API integration with stickynotes-compatible endpoints, RRULE recurrence, due task monitoring — but brain still uses the standalone stickynotes service
 
 ### 💬 iMessage
 
-BlueBubbles-powered microservice for iMessage integration.
+BlueBubbles-powered iMessage bridge. BlueBubbles runs on a macOS machine.
 
-**Responsibilities:**
-
-- Webhook receiver for incoming iMessages.
-- Sends messages via BlueBubbles HTTP API.
-- Passes incoming messages to Brain.
-- Origin-aware for downstream context usage.
-
-**Design Notes:**
-
-- Integrated into the push-notification framework.
-- Does not handle summarization or memory directly.
-- Relies on Brain for routing, summarization requests, and logging.
-
----
+- **Incoming**: BlueBubbles webhook → contact lookup → brain `/api/multiturn` → reply via BlueBubbles API
+- **Outbound**: `POST /imessage/send` for notification delivery
+- Auto-creates chats when sending to new recipients
 
 ### 🪪 Ledger
 
-**Core Innovation - Cross-Platform Conversation Unification:**
+Persistent data store for all conversational data. The most data-rich service.
 
-The Ledger is responsible for creating truly unified conversation experiences across all platforms. Unlike traditional chatbots that treat each platform separately, Kirishima maintains a single, continuous conversation thread.
+**Core systems**:
+- **Message buffers**: Cross-platform message storage with sync, dedup, in-place editing
+- **Memory system**: Long-term knowledge with keywords, categories, topics. Auto-extraction via LLM scanning.
+- **Context heatmap**: Dynamic keyword relevance tracking for conversation-aware memory retrieval
+- **Topics**: Conversation threading and categorization
+- **Summaries**: Temporal summaries (morning/afternoon/evening/night/daily/weekly/monthly)
 
-**Technical Architecture:**
+**Deduplication**: Three approaches — semantic (timeframe/keyword grouping), topic-based (DBSCAN clustering + LLM merge), and legacy.
 
-- **Message Normalization**: Converts platform-specific message formats into unified internal representation
-- **Intelligent Deduplication**: Detects and handles cross-posted messages without losing context
-- **Platform-Agnostic Threading**: Maintains conversation flow regardless of communication channel
-- **Agent-Centric Perspective**: Logs conversations from the AI's viewpoint, enabling independent relationship building
-
-**Advanced Features:**
-
-- **Email Integration**: Direct email correspondence becomes part of conversation history as `[automated message]` entries
-- **Context Preservation**: Switch between voice, text, Discord, iMessage mid-conversation without losing context
-- **Message Metadata Tracking**: Timestamps, user ID mapping, tool outputs for accurate recall
-- **Buffer Management**: Supplies optimally-sized context windows for multi-turn conversations
-
-**Responsibilities:**
-
-- Maintains persistent, cross-platform conversation buffer using SQLite
-- Deduplicates, syncs, and edits message logs from all platforms (e.g., Discord, iMessage, email)
-- Supplies the most recent N messages for context in multiturn requests
-- Tracks message metadata (timestamps, user ID, tool outputs) for accurate recall
-- Authoritative source for conversation history and summary generation
-- Enables AI's independent email correspondence and relationship building
-
----
+9 tables: `user_messages`, `memories`, `memory_tags`, `memory_category`, `memory_topics`, `topics`, `summaries`, `heatmap_score`, `heatmap_memories`.
 
 ### 🔁 Proxy
 
-**Core Innovation - Unified LLM Gateway with Autonomous Routing:**
+Sole LLM gateway. All LLM communication goes through here.
 
-This service handles all LLM interaction with sophisticated prompt scaffolding and autonomous decision-making capabilities. No other service may call the LLM directly.
+**Providers**: OpenAI, Anthropic (OpenAI-compat endpoint), Ollama (local). All dispatch is synchronous (queue system was removed).
 
-**Technical Architecture:**
+**Mode resolution**: Modes defined in config.json → resolved to provider/model/options. Modes: `default`, `work`, `claude`, `nsfw`, `router`, etc.
 
-- **Platform-Aware Routing**: Exposes endpoints like `/from/{platform}` and `/to/{platform}` for context-aware processing
-- **Dynamic Prompt Scaffolding**: Constructs prompts based on conversation history, memory relevance, and platform context
-- **Model Mode Management**: Switches between different behavioral modes (`default`, `work`, `nsfw`) based on context
-- **Autonomous Tool Integration**: Enables the AI to independently use tools without explicit user requests
+**Prompt system**: Two-tier — centralized (JSON context + Jinja2 templates at `/app/config/prompts/`) preferred, legacy Python modules as fallback.
 
-**Advanced Features:**
-
-- **Memory-Informed Prompting**: Integrates heatmap memory scores into prompt construction
-- **Cross-Platform Context Injection**: Includes relevant conversation history from all platforms
-- **Self-Modification Support**: Handles prompt updates from the AI's own `manage_prompt` tool calls
-- **Professional Relationship Context**: Incorporates independent email correspondence and professional identity
-
-**Core Principle:**
-
-- This service acts as the exclusive LLM boundary with full context awareness
-
-**Brain Integration:**
-
-- Store message buffer (incoming & outgoing messages)
-- Retrieve conversation summaries for prompt injection with relevance scoring
-- Handle `create_memory()` / `delete_memory()` function calls autonomously
-- List current memory entries with heatmap scores for prompt construction
-- Get/set current mode (`default`, `work`, `nsfw`) based on conversation context
-- Schedule tasks via Brain endpoints (which relay to Scheduler)
-- Support self-prompt modification and behavioral evolution
-
-**Responsibilities:**
-
-- Centralizes all LLM communication with context-aware prompt scaffolding
-- Manages autonomous tool calling and decision-making
-- Supports cross-platform conversation continuity
-- Enables AI self-modification and professional relationship management
-- All LLM requests (including summarization) must pass through this service
-
----
+**Tool support**: Tools passed through to OpenAI/Anthropic. Ollama ignores tools. `tool_choice="auto"` hardcoded.
 
 ### ⏱ Scheduler
 
-Handles timed tasks using APScheduler (v3.x).
+APScheduler-backed job scheduler with SQLite persistence.
 
-**Responsibilities:**
-
-- Runs scheduled jobs (e.g., summarization, future alerts)
-- Exposes REST API for job management:
-  - `POST /jobs`, `GET /jobs`, `DELETE /jobs/{id}`
-  - `POST /jobs/{id}/pause`, `POST /jobs/{id}/resume`
-- Persists jobs to SQLite (DB-backed APScheduler)
-
-**Core Principle:**  
-
-- Scheduler performs no logic—just triggers Brain based on time
-- Passes metadata to Brain, which performs the action
-
----
+- Brain creates jobs, scheduler fires HTTP callbacks when due
+- Supports date (one-off), interval, and cron triggers
+- No business logic — just triggers brain based on time
 
 ### 🏠 Smarthome
 
-**Responsibilities:**
+Natural language smart home control via Home Assistant WebSocket API.
 
-- Orchestrates natural language control over home automation devices
-- Processes user requests to manage lighting, audio, and other smart devices
-- Integrates with multiple device types, enabling unified smart home commands
-- Acts as the agent’s interface to all home automation endpoints
+**Three-phase LLM pipeline**:
+1. Device matching (LLM classifies intent and matches devices)
+2. Context building (fetch states, effects/scenes, related devices)
+3. Action generation + execution (LLM generates HA service calls)
 
----
+Also includes media consumption tracking (play/pause/stop events from HA automations, preference aggregation).
+
+Device overrides in `lighting.json` define effects/scenes for 11 light devices.
 
 ### 🗒️ Stickynotes
 
-**Responsibilities:**
+Persistent reminders that surface during agent interactions (never as push notifications).
 
-- Manages persistent, context-aware reminders (distinct from push notifications)
-- Surfaces reminders only during user interaction—never as unsolicited alerts
-- Supports snoozing, recurring, and custom-trigger reminders
-- Prompts user for confirmation, snooze, or deletion when surfaced
-- Designed for gentle accountability—reminders wait for engagement, not urgency
+- SQLite-backed with create/list/check/resolve/snooze
+- Brain injects due notes as simulated tool calls before LLM processing
+- Supports one-time and recurring (ISO 8601 intervals)
+- **Note**: Google Tasks replacement exists in googleapi but migration never completed
 
----
+### 🗣️ STT/TTS
 
-### 📚 Summarize
+Speech-to-text and text-to-speech. Runs on host (not containerized) due to hardware requirements.
 
-Abstraction layer over ChromaDB for managing:
-
-- Long-form summaries (email, dense messages)
-- Short-form buffers (SMS, Discord, etc.)
-
-**Responsibilities:**
-
-- Accepts buffer entries via `/buffer`
-- Stores user summaries via `/summary`
-- Summarizes per-user grouped content via `POST /summarize_buffers`
-- Exposes `/context/{user_id}` for merged view
-
-**Workflow:**
-
-1. Collect buffer messages per user
-2. Send to local LLM via Proxy
-3. Store via `/summary`
-4. Clear buffer for that user
-
----
-
-### 🗣️ TTS
-
-**Responsibilities:**
-
-- Provides text-to-speech audio output for agent responses
-- Streams TTS using ChatterboxTTS; supports voice/model options and live playback
-- Automatically enables STT (speech-to-text) for voice-driven interaction
-- REST API for starting/stopping/status checks and OpenAI-compatible endpoints
-- Handles voice prompt management, audio output, and STT integration (Vosk/Whisper)
-
----
-
-### 📊 Logging & Monitoring
-
-- Centralized logging via Graylog (GELF + graypy)
-- Monitoring data will integrate with Prometheus/Grafana or similar in future
-
----
+- TTS via ChatterboxTTS with voice/model options and live playback
+- STT via Vosk/Whisper
+- REST API + OpenAI-compatible endpoints
 
 ## 🔄 System Data Flow
 
-### Cross-Platform Message Processing
+### 📨 Message Processing
 
-1. **Message Ingestion**: Platform services (Discord, iMessage, Gmail) receive messages
-2. **Ledger Normalization**: Messages converted to unified format and deduplicated
-3. **Brain Context Assembly**: Retrieves relevant memories using heatmap scoring + recent conversation history
-4. **Proxy LLM Processing**: Constructs context-aware prompts and processes through selected LLM
-5. **Tool Execution**: AI autonomously decides whether to use tools (memory, contacts, scheduling, etc.)
-6. **Response Distribution**: Formatted responses sent back through appropriate platform channels
-7. **Memory Update**: New memories created and existing topic heat scores updated based on conversation
+```
+Platform (Discord/iMessage/API/Gmail)
+  → Platform service (contact resolution, message extraction)
+  → Brain /api/multiturn
+    → Ledger sync (message buffer)
+    → Pre-brainlets (memory search → heatmap update → memory injection)
+    → Proxy /api/multiturn (mode → provider/model resolution → system prompt → LLM)
+    → Tool loop (if tool_calls: execute → sync to ledger → repeat, max 10)
+    → Post-brainlets
+    → Ledger sync (assistant response)
+  → Response back to platform service
+  → Reply to user
+```
 
-### Autonomous Email Correspondence Flow
+### 🔔 Notification Flow
 
-1. **Direct Email Receipt**: Gmail service receives email sent directly to AI's email address
-2. **Conversation Integration**: Email injected into Ledger as `[automated message]` with full context
-3. **Professional Context Assembly**: Brain retrieves relevant professional memories and relationship history
-4. **Autonomous Response Generation**: AI crafts response based on its own professional identity
-5. **Independent Relationship Building**: New memories formed from AI's perspective of the interaction
+```
+Scheduler fires job callback
+  → Brain /notification/execute
+  → Check user activity (last_seen)
+  → Fetch contact details
+  → Route: iMessage (preferred) or Discord DM
+```
 
-### Memory Heat Calculation
+### 🔥 Memory Heat Calculation
 
-1. **Topic Extraction**: Keywords and concepts identified from conversation
-2. **Usage Frequency Analysis**: How often topics appear in recent conversations
-3. **Contextual Relevance Scoring**: How related topics are to current conversation thread
-4. **Decay Function Application**: Heat scores naturally decrease when topics aren't referenced
-5. **Dynamic Multiplier Assignment**: Topics receive 0.1x-1x multipliers for retrieval ranking
+```
+Conversation messages arrive
+  → memory_search brainlet extracts keywords via LLM
+  → POST to ledger /context/update_heatmap with weighted keywords
+  → Ledger updates keyword scores (reinforce/adjust/decay)
+  → Ledger rescores all memories against updated heatmap
+  → GET ledger /context/?limit=5 returns top contextual memories
+  → Memories injected into conversation before LLM call
+```
 
----
+## ⚙️ Configuration
 
-## 🧠 Advanced Architecture Components
+- **Service configs**: `~/.kirishima/config.json` (mounted as `/app/config` in containers)
+- **Ports**: All defined in `.env`, referenced as `${SERVICE_PORT}` in docker-compose
+- **Service discovery**: Container names on `shared-net` Docker network
+- **Prompt templates**: Centralized at `~/.kirishima/prompts/` (Jinja2)
+- **MCP access control**: `services/brain/app/config/mcp_clients.json`
 
-### Brainlets System
+## ⚠️ Known Architectural Issues
 
-Modular processing pipeline that injects specialized context into conversations:
+1. **Stickynotes migration incomplete** — Google Tasks backend built in googleapi but brain still uses standalone SQLite service. APIs are incompatible.
 
-- **Dynamic Loading**: Brainlets activated based on conversation context and user needs
-- **Specialized Processing**: Each brainlet handles specific domains (technical, creative, professional)
-- **Context Injection**: Relevant specialized knowledge added to prompt construction
-- **Hot-Swappable**: Can be updated or modified without system restart
+2. **"Summarize" service referenced in old docs doesn't exist** — Summary generation is handled by ledger directly.
+
+3. **Queue system removed but docs reference it** — Proxy dispatch is now synchronous. Old references to async queues, workers, and priority dispatch are outdated.
+
+4. **Proxy legacy prompt modules broken** — `guest.py` and `work.py` have wrong import paths after refactor. Centralized system works, but fallback crashes.
+
+5. **Brain tool_calls truncation** — Only first tool call preserved from multi-tool LLM responses.
+
+6. **No streaming support** — All LLM calls set `stream=False` despite config options.
+
+7. **Smarthome has critical bugs** — Infinite recursion in area route, duplicate media routes, undefined variable in error handler.
+
+8. **Discord/iMessage error handling** — Both raise HTTPException in contexts where it's not appropriate (Discord event handlers, BlueBubbles webhook receivers).

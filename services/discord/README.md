@@ -1,40 +1,89 @@
-# Di## Features
+# Discord Microservice
 
-- **POST /dm**: Send direct messages via FastAPI endpoint
-- Handles direct message events, ignores bots, and manages command processing
-- Forwards Discord messages to the core "brain" service via HTTP (use /chat/completions endpoint via the proxy)
-- Supports user registration and contact linking, syncing Discord users to the contacts microservice
-- Includes robust error logging and handlingicroservice
+Bridges Discord DMs with the Kirishima system. Runs a Discord.py bot alongside a FastAPI server for outbound DM sending. DM-only — does not operate in servers. Runs on `${DISCORD_PORT}`.
 
-This microservice bridges Discord direct messaging with the Kirishima system. It exposes FastAPI endpoints and uses a Discord.py bot to process, send, and relay Discord DMs.
+## Endpoints
 
-## Features
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/dm` | Send a DM to a Discord user by user ID |
+| GET | `/health` | Bot connection status (ready, logged in) |
 
-- Sends DMs via FastAPI POST endpoints
-- Handles direct message events, ignores bots, and manages command processing
-- Forwards Discord messages to the core “brain” service via HTTP (use /chat/completions endpoint via the proxy)
-- Supports user registration and contact linking, syncing Discord users to the contacts microservice
-- Includes robust error logging and handling
+## How It Works
 
-## Registration
+### Incoming Messages (Discord → Brain)
 
-- Users can register or update their contact info via DM commands (e.g., `register`)
-- Registration is only available in DMs and will either create a new contact or update an existing one, syncing Discord info to the contacts microservice
+```
+Discord user sends DM
+  → on_message event fires
+  → look up contact by discord_id via contacts service (GET /search?key=discord_id&value={id})
+  → build MultiTurnRequest (model="discord", platform="discord", user_id=contact.id)
+  → POST to brain /api/multiturn
+  → send brain's response back via ctx.send()
+```
 
-## Integration
+- Only processes DMs (ignores server messages, bot messages)
+- Each message is sent as a single user message — brain/ledger handle conversation history
+- Contact must already exist in the contacts service
 
-- All message forwarding and response logic must use the /chat/completions endpoint via the proxy
-- Utility functions handle Discord/contact lookups and synchronization
+### Outbound DMs (Brain → Discord)
+
+Used by the notification system:
+
+```
+brain /notification/execute
+  → POST /dm with {user_id: discord_user_id, content: "notification text"}
+  → bot.fetch_user(user_id)
+  → user.send(content)
+```
+
+Request model: `SendDMRequest(user_id: int, content: str)`
+
+## File Structure
+
+```
+app/
+├── app.py                      # FastAPI setup, bot startup
+├── core/
+│   ├── bot.py                  # BotManager: Discord bot config, lifecycle
+│   └── events.py               # on_message, on_ready, on_error handlers
+├── routes/
+│   ├── dm.py                   # POST /dm endpoint
+│   └── health.py               # GET /health endpoint
+└── services/
+    ├── message_handler.py      # Core: contact lookup → brain forwarding → reply
+    ├── contacts.py             # Contact resolution + creation helpers
+    └── dm.py                   # DM sending implementation
+```
 
 ## Dependencies
 
-- FastAPI
-- Discord.py
-- httpx
-- Shared config and logging modules
-- Contacts microservice
+- **Contacts service**: Resolves Discord user ID → Kirishima contact ID
+- **Brain service**: Processes messages via `/api/multiturn`
+- **Discord.py**: Bot framework for message events and DM sending
 
-## Maintenance Notes
+## Known Issues and Recommendations
 
-- All legacy endpoints must be refactored to use the proxy API
-- Confirm all contact sync operations are functional after any API or structure changes
+### Issues
+
+1. **HTTPException raised in Discord event handler** — `message_handler.py` raises FastAPI HTTPException inside `on_message`, which Discord.py doesn't understand. These exceptions are swallowed silently. Should catch and send a Discord error message instead.
+
+2. **Registration command not implemented** — README previously claimed `register` command exists but no `@bot.command` decorators are defined anywhere. Contact creation methods exist in `contacts.py` but are never called.
+
+3. **`awaiting_response` set is dead code** — `bot.py` initializes an `awaiting_response` set and `events.py` checks it, but nothing ever adds to or removes from the set. Feature is non-functional.
+
+4. **Model hardcoded as "discord"** — `message_handler.py:89` sends `model="discord"` to brain. Unclear how proxy resolves this — should probably be a real mode name like `"default"`.
+
+5. **Contact lookup failure blocks all processing** — If a Discord user has no contact record, message processing fails with no user-friendly feedback. Should auto-create or send a helpful error DM.
+
+6. **Timeout inconsistency** — `message_handler.py` reads timeout from config.json, but `contacts.py` hardcodes 60s.
+
+7. **No conversation history sent** — Each message sent as single-turn to brain. This works because brain/ledger handle history, but means the Discord service has no context for error recovery.
+
+### Recommendations
+
+- Replace HTTPException in event handlers with Discord message responses
+- Either implement the registration command or remove references to it
+- Remove dead `awaiting_response` code
+- Fix model name to use a real mode
+- Add graceful handling for unknown Discord users

@@ -187,7 +187,7 @@ Three JSON-RPC 2.0 endpoints with client-based access control:
 - **`/mcp/copilot/`** — GitHub Copilot (`github_issue`, `get_personality`)
 - **`/mcp/external/`** — External clients (`memory`, and future tools)
 
-Access control configured in `app/config/mcp_clients.json`. Tool-level errors are returned as successful MCP responses with `isError=True` (not JSON-RPC errors) to prevent McpError on client side.
+Access control configured in `/app/config/mcp_clients.json` (host path `~/.kirishima/mcp_clients.json`). Tool-level errors are returned as successful MCP responses with `isError=True` (not JSON-RPC errors) to prevent McpError on client side.
 
 ## Notification System
 
@@ -233,8 +233,6 @@ app/
 │   ├── delete.py               # Delete notifications (internal only)
 │   ├── callback.py             # Execute pending notifications
 │   └── util.py                 # Discord/iMessage send helpers
-└── config/
-    └── mcp_clients.json        # Access control for MCP client types
 ```
 
 ## Service Dependencies

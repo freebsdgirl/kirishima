@@ -17,7 +17,7 @@ Public API:
 import importlib
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from shared.log_config import get_logger
 
@@ -63,25 +63,11 @@ def _discover_tools() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Client access control (reads mcp_clients.json)
+# Client access control (reads /app/config/mcp_clients.json)
 # ---------------------------------------------------------------------------
-def _resolve_config_file(filename: str) -> Optional[Path]:
-    """Locate a config file by checking several candidate paths."""
-    module_dir = Path(__file__).resolve().parent
-    candidates = [
-        (module_dir.parent / "config" / filename).resolve(),
-        Path("/app/app/config") / filename,
-        Path("/app/config") / filename,
-    ]
-    for p in candidates:
-        if p.exists():
-            return p
-    return None
-
-
 def _load_client_registry() -> Dict[str, Any]:
-    path = _resolve_config_file("mcp_clients.json")
-    if not path:
+    path = Path("/app/config/mcp_clients.json")
+    if not path.exists():
         logger.warning("mcp_clients.json not found; defaulting to allow-all for 'internal'")
         return {"internal": {"allowed_tools": ["*"], "restricted_tools": []}}
     try:

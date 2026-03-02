@@ -220,7 +220,7 @@ Items 1-3 are the foundation. Item 4 builds on 1. Items 5-10 are independent and
 - `services/brain/app/routes/mcp.py` — MCP server endpoints
 - `services/brain/app/services/mcp_client/client.py` — MCP client for external servers
 - `services/brain/app/config/mcp_tools.json` — most complete tool definitions (metadata source for migration)
-- `services/brain/app/config/mcp_clients.json` — client access control (keep)
+- `/app/config/mcp_clients.json` (host path `~/.kirishima/mcp_clients.json`) — client access control (keep)
 - `services/brain/app/brainlets/` — brainlet implementations
 
 **Proxy service:**

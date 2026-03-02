@@ -219,7 +219,7 @@ Conversation messages arrive
 - **Ports**: All defined in `.env`, referenced as `${SERVICE_PORT}` in docker-compose
 - **Service discovery**: Container names on `shared-net` Docker network
 - **Prompt templates**: Centralized at `~/.kirishima/prompts/` (Jinja2)
-- **MCP access control**: `services/brain/app/config/mcp_clients.json`
+- **MCP access control**: `/app/config/mcp_clients.json` (host path `~/.kirishima/mcp_clients.json`)
 
 ## ⚠️ Known Architectural Issues
 

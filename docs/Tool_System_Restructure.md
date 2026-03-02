@@ -315,7 +315,7 @@ This string can be injected into the system prompt when the tool is available. L
 ### Keep:
 | File/Directory | Why |
 |---|---|
-| `brain/app/config/mcp_clients.json` | Admin-level client access control (read by new registry) |
+| `/app/config/mcp_clients.json` | Admin-level client access control (read by new registry; host path `~/.kirishima/mcp_clients.json`) |
 | `brain/app/services/mcp_client/client.py` | MCPClient for external MCP servers |
 | `brain/app/services/mcp_client/util.py` | Format conversion utilities |
 | `brain/app/routes/mcp.py` | MCP server endpoints (simplified to use new registry) |
@@ -510,7 +510,7 @@ For each tool:
 - `services/brain/app/tools/` old files (8 files with raw dict returns, pre-MCP era). These are replaced by the new decorator-based files in the same path.
 
 **Keep:**
-- `services/brain/app/config/mcp_clients.json` — client access control
+- `/app/config/mcp_clients.json` (host path `~/.kirishima/mcp_clients.json`) — client access control
 - `services/brain/app/services/mcp_client/` — MCPClient for external MCP servers
 - `services/brain/app/routes/mcp.py` — MCP server endpoints (simplified to use new registry)
 - `services/stickynotes/` — the microservice itself stays, just no brain-side tool wrapper for now

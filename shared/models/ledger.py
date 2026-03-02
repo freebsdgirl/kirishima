@@ -1081,12 +1081,14 @@ class UserMessagesRequest(BaseModel):
         date (Optional[str]): Date filter in YYYY-MM-DD format
         start (Optional[str]): Start timestamp filter
         end (Optional[str]): End timestamp filter
+        turns (Optional[int]): Number of most recent turns to return
     """
     user_id: str = Field(..., description="The unique identifier of the user whose messages are to be retrieved.")
     period: Optional[str]   = Field(None, description="Time period filter (morning, afternoon, evening, night)")
     date: Optional[str]     = Field(None, description="Date filter in YYYY-MM-DD format")
     start: Optional[str]    = Field(None, description="Start timestamp filter")
     end: Optional[str]      = Field(None, description="End timestamp filter")
+    turns: Optional[int]    = Field(None, description="Number of most recent turns to return")
 
     model_config = {
         "json_schema_extra": {
@@ -1104,6 +1106,10 @@ class UserMessagesRequest(BaseModel):
                     "date": "2023-10-01",
                     "start": "2023-10-01 12:00:00",
                     "end": "2023-10-01 18:00:00"
+                },
+                {
+                    "user_id": "user-789",
+                    "turns": 5
                 }
             ]
         }
@@ -1302,3 +1308,30 @@ class DeleteUserMessagesRequest(BaseModel):
     user_id: str
     period: Optional[str] = None
     date: Optional[str] = None
+
+
+class UserMessageEditRequest(BaseModel):
+    """
+    Request model for editing message content by row ID.
+    """
+    content: str = Field(..., description="Updated message content")
+
+
+class UserMessageEditResponse(BaseModel):
+    """
+    Response model for a successful message edit operation.
+    """
+    row_id: int = Field(..., description="Edited row ID in user_messages")
+    user_id: str = Field(..., description="Owner of the edited row")
+    role: str = Field(..., description="Role of the edited row")
+    before_content: str = Field(..., description="Content before edit")
+    after_content: str = Field(..., description="Content after edit")
+    updated_at: str = Field(..., description="Updated timestamp after edit")
+
+
+class UserMessagesDeleteFromResponse(BaseModel):
+    """
+    Response model for deleting user messages from an anchor row onward.
+    """
+    deleted: int = Field(..., description="Number of deleted rows")
+    first_deleted_row_id: int = Field(..., description="Anchor row ID used for deletion")

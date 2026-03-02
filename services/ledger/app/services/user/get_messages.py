@@ -28,8 +28,12 @@ def _get_user_messages(request: UserMessagesRequest) -> List[CanonicalUserMessag
     date = request.date
     start = request.start
     end = request.end
+    turns = request.turns
     
-    logger.debug(f"Fetching messages for user {user_id} (date={date}, period={period}, start={start}, end={end})")
+    logger.debug(
+        f"Fetching messages for user {user_id} "
+        f"(date={date}, period={period}, start={start}, end={end}, turns={turns})"
+    )
 
     # Default date logic
     if period and not date:
@@ -61,7 +65,35 @@ def _get_user_messages(request: UserMessagesRequest) -> List[CanonicalUserMessag
                     msg["function_call"] = json.loads(msg["function_call"])
                 except Exception:
                     msg["function_call"] = None
+
         messages = [CanonicalUserMessage(**msg) for msg in raw_messages]
+
+        # Optional turn-based mode:
+        # A turn starts at role=user and includes following non-user rows until the next user row.
+        # In turn mode, return raw rows for selected turns (including tool rows/tool-call rows).
+        if turns is not None:
+            if turns <= 0:
+                raise ValueError("Invalid turns value. turns must be greater than 0.")
+
+            grouped_turns: List[List[CanonicalUserMessage]] = []
+            current_turn: List[CanonicalUserMessage] = []
+
+            for msg in messages:
+                if msg.role == "user":
+                    if current_turn:
+                        grouped_turns.append(current_turn)
+                    current_turn = [msg]
+                    continue
+
+                if current_turn:
+                    current_turn.append(msg)
+
+            if current_turn:
+                grouped_turns.append(current_turn)
+
+            selected_turns = grouped_turns[-turns:]
+            return [turn_msg for turn in selected_turns for turn_msg in turn]
+
         # Filter out tool messages and assistant messages with empty content
         messages = [
             msg for msg in messages

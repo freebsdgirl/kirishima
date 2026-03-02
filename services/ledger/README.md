@@ -11,6 +11,8 @@ Persistent data store for all conversational data. Manages message buffers, memo
 | GET | `/user/{user_id}/messages` | Get messages (filter by period/date/timestamps) |
 | GET | `/user/{user_id}/messages/last` | Last message timestamp |
 | GET | `/user/{user_id}/messages/untagged` | Messages without topic assignment |
+| PATCH | `/user/{user_id}/messages/{row_id}` | Edit one message row's content (user/assistant only) |
+| DELETE | `/user/{user_id}/messages/from/{row_id}` | Delete all rows from row_id onward (inclusive) |
 | POST | `/user/{user_id}/sync` | Complex message buffer synchronization |
 | DELETE | `/user/{user_id}` | Delete messages (filter by period/date) |
 | GET | `/user/active` | List all active user IDs |

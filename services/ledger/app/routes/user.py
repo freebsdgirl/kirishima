@@ -26,7 +26,10 @@ from shared.models.ledger import (
     UserUntaggedMessagesRequest,
     UserLastMessageRequest,
     RawUserMessage,
-    UserSyncRequest
+    UserSyncRequest,
+    UserMessageEditRequest,
+    UserMessageEditResponse,
+    UserMessagesDeleteFromResponse,
 )
 
 from shared.log_config import get_logger
@@ -38,9 +41,11 @@ from app.services.user.get_active import _get_active_users
 from app.services.user.get_untagged_messages import _get_user_untagged_messages
 from app.services.user.get_last_timestamp import _get_last_message_timestamp
 from app.services.user.sync import _sync_user_buffer_helper
+from app.services.user.edit_message import _edit_user_message_content
+from app.services.user.delete_from import _delete_user_messages_from_row
 
 from typing import Optional, List
-from fastapi import APIRouter, Path, Query, Body, BackgroundTasks
+from fastapi import APIRouter, Path, Query, Body, BackgroundTasks, HTTPException, status
 
 router = APIRouter()
 
@@ -73,6 +78,7 @@ def get_user_messages(
     date: Optional[str] = Query(None, description="Date in YYYY-MM-DD format. Defaults to today unless time is 00:00, then yesterday."),
     start: Optional[str] = Query(None, description="Start timestamp (ISO 8601, e.g. '2025-06-29T00:00:00'). If provided, overrides period/date filtering."),
     end: Optional[str] = Query(None, description="End timestamp (ISO 8601, e.g. '2025-06-29T23:59:59'). If provided, overrides period/date filtering."),
+    turns: Optional[int] = Query(None, ge=1, description="Return the most recent N turns (user + optional tool rows + assistant)."),
 ) -> List[CanonicalUserMessage]:
     """
     Retrieve messages for a specific user, optionally filtered by time period, date, or explicit start/end timestamps.
@@ -82,7 +88,8 @@ def get_user_messages(
         period=period,
         date=date,
         start=start,
-        end=end
+        end=end,
+        turns=turns,
     )
     return _get_user_messages(request)
 
@@ -149,6 +156,37 @@ def sync_user_buffer(
     """
     request = UserSyncRequest(user_id=user_id, snapshot=snapshot)
     return _sync_user_buffer_helper(request)
+
+
+@router.patch("/{user_id}/messages/{row_id}", response_model=UserMessageEditResponse)
+def edit_user_message(
+    payload: UserMessageEditRequest,
+    user_id: str = Path(...),
+    row_id: int = Path(..., ge=1),
+) -> UserMessageEditResponse:
+    """
+    Edit a user/assistant message row's content for a specific user.
+    """
+    try:
+        return _edit_user_message_content(user_id=user_id, row_id=row_id, content=payload.content)
+    except LookupError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.delete("/{user_id}/messages/from/{row_id}", response_model=UserMessagesDeleteFromResponse)
+def delete_user_messages_from_row(
+    user_id: str = Path(...),
+    row_id: int = Path(..., ge=1),
+) -> UserMessagesDeleteFromResponse:
+    """
+    Delete all message rows from a specific row ID onward for a specific user.
+    """
+    try:
+        return _delete_user_messages_from_row(user_id=user_id, row_id=row_id)
+    except LookupError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
 
 @router.get("/active")

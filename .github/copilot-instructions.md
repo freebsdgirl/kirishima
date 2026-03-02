@@ -60,152 +60,152 @@ logger = get_logger(f"brain.{__name__}")
 # Copilot Instructions for the Kirishima Codebase
 
 ## Overview & Architecture
-- **Kirishima** is a modular, multi-service personal assistant system. The core orchestrator is the `brain` service, which routes, recalls, and manages context, backed by microservices for memory, messaging, scheduling, reminders, and more.
-- Services communicate via HTTP APIs, with strict boundaries: e.g., `brain` never talks to LLMs directly, but always via `proxy` or `api`.
-- All persistent data (messages, memories, topics, summaries) is stored in SQLite databases, one per service.
-- Most services run in Docker containers. Notable exceptions: `stt_tts` (speech) and `divoom` (Bluetooth display) run outside Docker due to hardware constraints.
+- **Kirishima** is a modular, multi-service personal assistant system. `brain` is the primary orchestrator — all message routing, tool execution, and service coordination flows through it.
+- **Proxy is the sole LLM gateway.** No other service talks to LLMs directly.
+- Services communicate via HTTP only. No direct DB access across services.
+- All persistent data is stored in SQLite (WAL mode, foreign keys enabled), one DB per service.
+- **Configuration**: Centralized at `~/.kirishima/config.json`, mounted as `/app/config` in containers. Ports are defined in `.env` and referenced as `${SERVICE_PORT}` in docker-compose.
+- Most services run in Docker. **Exceptions**: `stt_tts` and `divoom` run on the host due to hardware constraints (audio, Bluetooth).
+- Centralized logging via Graylog (GELF + graypy) — all services use `shared.log_config.get_logger()`.
 
 ## Microservices (see `services/` directory)
-- **brain**: Orchestrates chat, memory, tool invocation, notifications, and scheduler jobs. Implements modular "brainlets" for pre/post-processing. All cross-service coordination flows through here.
-- **proxy**: LLM gateway. Handles prompt construction, model/provider resolution, and async queueing for OpenAI/Anthropic/Ollama. Prompts are built using Jinja templates and provider/mode-specific modules in `app/prompts/`. Implements provider-specific queues and workers for parallel processing.
-- **ledger**: Comprehensive persistent data store for messages, memories, topics, summaries, and contextual heatmaps. Implements advanced message synchronization with deduplication, in-place editing, and conflict resolution. Features include: multi-parameter memory search with AND logic filtering, topic-based conversation threading, temporal summary management, platform-agnostic storage across API/Discord/iMessage with tool call preservation, and dynamic keyword heatmap system for contextual memory scoring.
-- **contacts**: Manages user/contact info and cross-platform IDs.
-- **scheduler**: Triggers jobs and reminders, often by calling endpoints on `brain`.
-- **api**: OpenAI-compatible REST API front-end, handles prompt routing and model modes.
-- **discord**: Bridges Discord DMs to the system, syncing users and forwarding messages via `brain`.
-- **imessage**: Integrates with BlueBubbles to send/receive iMessages, forwarding to `brain`.
-- **googleapi**: Gmail integration providing email sending, receiving, searching, and monitoring with OAuth2 authentication.
-- **stickynotes**: Persistent, context-aware reminders surfaced only during agent interaction.
-- **smarthome**: Handles device/entity discovery and natural language smart home requests.
-- **divoom** (not containerized): Bluetooth emoji/status display, run on host for hardware access.
-- **stt_tts** (not containerized): Speech-to-text and text-to-speech stack, run on host for audio hardware.
-- **ollama**, **ollama-webui**: LLM model hosting and web UI (details in respective directories).
+
+- **brain**: Central orchestrator. Handles multi-turn conversation pipeline, tool execution, brainlets, notifications, scheduler callbacks, and the MCP server. Never talks to LLMs directly.
+- **proxy**: Sole LLM gateway. Synchronous dispatch to OpenAI, Anthropic (OpenAI-compat endpoint), or Ollama. Handles prompt construction via a two-tier system (centralized JSON+Jinja2 preferred, legacy Python modules as fallback). **The old async queue system has been fully removed — dispatch is now direct HTTP.**
+- **ledger**: Persistent data store for all conversational data: message buffers, memories, topics, summaries, and the context heatmap. Most data-rich service.
+- **contacts**: CRUD for contact info and cross-platform identity resolution. The `@ADMIN` alias is critical — brain uses it to resolve the admin user.
+- **scheduler**: APScheduler-backed job scheduler with SQLite persistence. Fires HTTP callbacks to brain when jobs are due. No business logic of its own.
+- **api**: OpenAI-compatible REST front-end. Translates `/v1/completions` and `/v1/chat/completions` calls into internal brain requests. Uses **modes** (not model names) in the `model` field.
+- **discord**: Discord DM bridge. Receives DMs → contacts lookup → brain `/api/multiturn` → reply. Exposes `POST /dm` for outbound notification delivery.
+- **imessage**: BlueBubbles-powered iMessage bridge. Webhook receiver for incoming messages → brain. Exposes `POST /imessage/send` for outbound delivery.
+- **googleapi**: Gmail + Google Calendar integration with OAuth2. Also contains a Google Tasks implementation (`/tasks/*`) built to replace stickynotes, but **the migration was never completed** — brain still uses the standalone stickynotes service. The two APIs are incompatible.
+- **stickynotes**: Persistent, context-aware reminders surfaced during agent interactions (never as push notifications). SQLite-backed with create/list/check/resolve/snooze. Brain injects due notes as simulated tool calls before LLM processing.
+- **smarthome**: Natural language smart home control via Home Assistant WebSocket API. Three-phase LLM pipeline: device matching → context building → action generation + execution. Includes media consumption tracking.
+- **divoom** (not containerized): Controls a Divoom Max Bluetooth display via `pixoo-client`. Exposes `POST /send` accepting `{"emoji": "..."}`. Run with `uvicorn divoom:app` on the host.
+- **stt_tts** (not containerized): Speech-to-text (Vosk/Whisper) and text-to-speech (ChatterboxTTS). Three-component system: controller (port 4208), TTS service (port 4210), STT service. OpenAI-compatible `/v1/audio/speech` endpoint.
+- **ollama**, **ollama-webui**: Local LLM model hosting and web UI.
 
 ## Developer Workflows
-- **Run/build**: Use `docker-compose` for local development. Each service has its own Dockerfile and can be run independently for debugging. `stt_tts` and `divoom` must be run manually on the host.
-- **Testing**: No monolithic test runner; test each service in isolation. Use HTTP requests (e.g., with `httpx` or curl) to exercise endpoints.
-- **Debugging**: Logs are written per-service. Check logs in each container for troubleshooting. Most errors are surfaced as HTTP 4xx/5xx with detailed logs.
-- **Configuration**: All service configs are in `/app/config/config.json` (or similar per-service). Model/provider mappings for LLMs are in `proxy`'s config.
+- **Run/build**: `docker-compose up` for containerized services. `stt_tts` and `divoom` run manually on the host.
+- **Testing**: No monolithic test runner. Exercise endpoints with `httpx` or curl.
+- **Debugging**: Per-service logs in containers. Errors surfaced as HTTP 4xx/5xx with detailed log messages.
+- **Adding a tool**: Create `services/brain/app/tools/my_tool.py` with the `@tool` decorator. Docker auto-restarts and the tool is live — no registration required.
+- **Adding a brainlet**: Create `services/brain/app/brainlets/my_brainlet.py`, import it in `__init__.py`, and add a config entry to brain's `config.json`.
 
 ## Project-Specific Patterns
-- **Prompt Construction**: Prompts for LLMs are not hardcoded; they're built from context (memories, summaries, time, etc.) and rendered via Jinja templates. See `services/proxy/app/prompts/`.
-- **Memory & Message Flow**: All user/assistant/system/tool messages are logged in `ledger`. Memories are extracted and stored via dedicated endpoints, not inline in chat logic.
-- **Service Boundaries**: Never bypass service APIs (e.g., don't access another service's DB directly). Always use HTTP endpoints for cross-service data.
-- **Error Handling**: All HTTP errors are logged and surfaced as FastAPI `HTTPException` with appropriate status codes and details.
-- **Extensibility**: To add a new integration, create a new service and expose its API. Register it in the main config and orchestrate via `brain`.
+- **Prompt Construction**: Two-tier system in proxy. Centralized: JSON context files at `/app/config/prompts/proxy/contexts/{provider}-{mode}.json` + Jinja2 templates at `/app/config/prompts/proxy/templates/`. Legacy fallback: Python modules at `app/prompts/{provider}-{mode}.py`. The dispatcher tries centralized first.
+- **Memory & Message Flow**: All messages are logged in ledger. Memory extraction happens via `POST /memories/_scan` (LLM-driven), not inline in chat logic.
+- **Service Boundaries**: Never access another service's DB directly. Always use HTTP endpoints.
+- **Error Handling**: Log and surface as `HTTPException`. Do not raise `HTTPException` inside Discord/webhook event handlers — those contexts don't handle it gracefully.
+- **Self-Modifying Agency**: The AI can modify its own system prompt via the `manage_prompt` tool. Prompts stored in a SQLite brainlets DB, injected into every request.
+
+## Brain Service Details
+
+### Multi-Turn Pipeline (`/api/multiturn`)
+1. **Context prep**: Resolve user via contacts (`@ADMIN` fallback), load agent prompts, fetch summaries from ledger
+2. **Tool selection**: Always-on tools (`memory`, `manage_prompt`, `get_personality`) + router-selected tools (cheap `gpt-4.1-nano` call via `router` mode selects from `github_issue`, `stickynotes`)
+3. **Ledger sync**: Last 4 messages synced; full buffer retrieved
+4. **Pre-brainlets**: Topologically sorted (Kahn's algorithm), mode-filtered. Currently active: **memory_search** — extracts keywords → updates heatmap → injects top contextual memories
+5. **Proxy + tool loop** (max 10 iterations): POST to proxy → if tool_calls returned → `call_tool()` (direct function call) → sync to ledger → repeat
+6. **Post-brainlets**: Side effects/logging, NOT synced to ledger
+
+### Tool System
+Decorator-based, auto-discovering. Tools live in `app/tools/*.py`, decorated with `@tool`. No JSON files, no manual registration. At import time `__init__.py` scans all files and registers them.
+
+```python
+@tool(
+    name="my_tool",
+    description="Does a thing",
+    parameters={...},
+    persistent=True,      # Log to ledger
+    always=True,          # Always sent to LLM (vs. routed via router)
+    clients=["internal"], # MCP access control
+    guidance="Extra context injected into system prompt",
+)
+async def my_tool(parameters: dict) -> ToolResponse:
+    return ToolResponse(result={"status": "ok"})
+```
+
+Built-in tools: `get_personality` (always), `manage_prompt` (always), `memory` (always), `github_issue` (routed), `stickynotes` (routed).
+
+### MCP Server
+Three JSON-RPC 2.0 endpoints with client-based access control:
+- `/mcp/` — internal (full access)
+- `/mcp/copilot/` — GitHub Copilot (`github_issue`, `get_personality`)
+- `/mcp/external/` — external clients (`memory` and future tools)
+
+Access control configured in `app/config/mcp_clients.json`.
 
 ## Ledger Service Technical Details
 
-### Database Architecture
-The ledger service uses SQLite with WAL mode and foreign key constraints for data integrity. Core tables include:
-- **`user_messages`**: Platform-agnostic message storage with tool call support and topic associations
-- **`memories`**: Long-term knowledge with access tracking (`access_count`, `last_accessed`, `reviewed` status)
-- **`memory_tags`**: Many-to-many keyword associations for semantic search
-- **`memory_category`**: One-to-one category assignments per memory
-- **`memory_topics`**: Many-to-many memory-to-topic relationships for conversation threading
-- **`topics`**: UUID-based topic storage with names and creation timestamps
-- **`summaries`**: Temporal summary storage with metadata (`timestamp_begin`, `timestamp_end`, `summary_type`)
-- **`heatmap_score`**: Dynamic keyword scoring for contextual relevance (score, last_updated)
-- **`heatmap_memories`**: Cached memory scores based on keyword matches for fast contextual retrieval
+### Database Schema (9 tables)
+- **`user_messages`**: Platform-agnostic message storage with `tool_calls`, `function_call`, `tool_call_id`, `topic_id`
+- **`memories`**: Long-term knowledge with `access_count`, `last_accessed`, `reviewed`
+- **`memory_tags`**: Many-to-many keyword associations (lowercase)
+- **`memory_category`**: One-to-one category per memory (Health, Career, Family, Personal, Technical Projects, Social, Finance, Self-care, Environment, Hobbies, Admin, Philosophy)
+- **`memory_topics`**: Many-to-many memory-to-topic links
+- **`topics`**: UUID-based with name and description
+- **`summaries`**: `summary_type` ∈ {morning, afternoon, evening, night, daily, weekly, monthly}
+- **`heatmap_score`**: Keyword → score (0.1–2.0), last_updated
+- **`heatmap_memories`**: Cached memory scores for fast contextual retrieval
 
-### Message Synchronization Logic
-The `/user/{user_id}/sync` endpoint implements complex synchronization rules:
-1. **Deduplication**: Identical consecutive user messages are removed
-2. **Assistant Editing**: In-place content updates when assistant responses change
-3. **Consecutive User Handling**: Resolves server error scenarios with message rollback
-4. **Platform Logic**: Different handling for API vs. external platform messages (Discord, iMessage)
-5. **Tool Call Preservation**: Maintains `tool_calls`, `function_call`, and `tool_call_id` data
-6. **Buffer Integrity**: Ensures buffers always start with user messages
+### Message Sync (`POST /user/{user_id}/sync`)
+- Non-API fast path: Discord/iMessage messages appended directly
+- API path: deduplication, in-place assistant edits, consecutive-user rollback
+- Buffer always starts with a `user` role message; capped at `ledger.turns` (default 15)
+- `tool_calls`, `function_call`, `tool_call_id` preserved through sync
 
-### Memory Search System
-Advanced search capabilities with multiple combined filters using AND logic:
-- **Keywords**: Multi-keyword matching with configurable minimum thresholds and progressive fallback
-- **Categories**: Single category filtering for organizational structure
-- **Topic Association**: Search memories linked to specific conversation topics
-- **Time Filtering**: Created before/after timestamp ranges for temporal queries
-- **Memory ID**: Direct lookup bypassing other filters
-- **Search Algorithm**: Intersection-based filtering ensuring all conditions match, with efficient indexing
+### Memory Search (`GET /memories/_search`)
+Multi-parameter AND logic: keywords (with progressive `min_keywords` fallback) + category + topic_id + time range. All conditions must match.
 
-### Context Heatmap System  
-Dynamic keyword relevance tracking for contextual memory scoring:
-- **Weight Categories**: Keywords classified as "high" (1.0), "medium" (0.7), or "low" (0.5) scores
-- **Score Evolution**: Keywords adjust based on reinforcement (10% boost), decay (0.08 per cycle), and removal (below 0.1)
-- **Memory Scoring**: Real-time calculation of memory relevance as sum of matching keyword scores
-- **Contextual Retrieval**: `/context/` endpoint provides most relevant memories based on current heatmap
-- **API Endpoints**: `/context/update_heatmap` (POST), `/context/top_memories` (GET), `/context/keyword_scores` (GET)
-- **Use Cases**: Conversation context injection, dynamic memory prioritization, adaptive learning patterns
+### Context Heatmap
+- Keywords weighted as high (1.0), medium (0.7), or low (0.5)
+- Reinforcement: same-weight repeat → +10%. Different weight → shift 10% toward new target.
+- Decay: −0.08 per cycle; removed below 0.1. Clamped 0.1–2.0.
+- All memories rescored on every heatmap update (synchronous — can be slow at scale)
+- Endpoints: `POST /context/update_heatmap`, `GET /context/` (top memories), `GET /context/top_memories`, `GET /context/keyword_scores`
 
-### Configuration Parameters
-- **`ledger.turns`**: Default message history limit (default: 15)
-- **`db.ledger`**: SQLite database file path
-- **`tracing_enabled`**: Optional distributed tracing support
-
-### Key Utilities
-- **`_open_conn()`**: Standard SQLite connection with WAL mode and foreign keys enabled
-- **`get_period_range()`**: Time period parsing for temporal filtering (night, morning, afternoon, evening, day)
-- **`_find_or_create_topic()`**: Topic deduplication preventing duplicate names
-- **`ensure_first_user()`**: Message buffer validation ensuring user-first ordering
-
-### Data Models
-- **`RawUserMessage`**: Incoming message format with platform metadata
-- **`CanonicalUserMessage`**: Server-side canonical format with IDs and timestamps
-- **`MemoryEntry`**: Unified memory model supporting creation, search, and updates
-- **`MemorySearchParams`**: Multi-parameter search request with combinatorial logic
-- **`Summary`** with **`SummaryMetadata`**: Temporal summary storage with typed periods
+### Memory Deduplication
+Three approaches available: semantic (timeframe/keyword grouping via `GET /memories/_dedup_semantic`), topic-based (DBSCAN clustering + LLM merge via `POST /memories/_dedup_topic_based`), and legacy (`GET /memories/_dedup`).
 
 ## LLM Mode/Model/Provider System
-The proxy service implements a sophisticated multi-provider LLM system with three key concepts:
 
-### **Modes**
-- **Purpose**: Abstract configurations that map to specific use cases (e.g., "default", "work", "claude", "nsfw")
-- **Configuration**: Defined in `config.json` under `llm.mode.{mode_name}`
-- **Usage**: Services request by mode name, not by specific model/provider
-- **Example modes**: `default` (gpt-4o), `work` (gpt-4.1), `claude` (claude-sonnet-4-20250514), `nsfw` (nemo:latest)
+### Modes
+Abstract configs defined in `config.json` under `llm.mode.{mode_name}`. Services send the mode name in the `model` field — proxy resolves to actual provider/model/options. Falls back to `default` if mode not found.
 
-### **Providers**
-- **Supported**: `openai`, `anthropic`, `ollama`
-- **Implementation**: Each provider has its own queue, worker, and request/response models
-- **Queues**: `openai_queue`, `anthropic_queue`, `ollama_queue` in `proxy/app/queue/router.py`
-- **Workers**: Provider-specific functions (`send_to_openai()`, `send_to_anthropic()`, `send_to_ollama()`) in `proxy/app/queue/worker.py`
-- **Models**: `OpenAIRequest/Response`, `AnthropicRequest/Response`, `OllamaRequest/Response` in `shared/models/proxy.py`
+Current modes: `default` (gpt-4.1, openai), `work` (gpt-4o, openai), `claude` (claude-sonnet-4-20250514, anthropic), `nsfw` (nemo:latest, ollama), `router` (gpt-4.1-nano, openai).
 
-### **Model Resolution**
-- **Function**: `resolve_model_provider_options(mode)` in `proxy/app/util.py`
-- **Process**: Mode → (provider, model, options) → Provider-specific queue
-- **Fallback**: Falls back to "default" mode if requested mode not found
-- **API Keys**: Retrieved from config.json per provider (`openai.api_key`, `anthropic.api_key`)
+### Providers
+Supported: `openai`, `anthropic`, `ollama`. **All dispatch is synchronous direct HTTP — the old async queue system was removed.** Provider dispatch functions live in `proxy/app/services/`: `send_to_openai.py`, `send_to_anthropic.py`, `send_to_ollama.py`. Anthropic uses the OpenAI-compatible endpoint. Ollama uses instruct-style `[INST]` formatting and ignores tools.
 
-### **Prompt Modules**
-- **Naming Convention**: `{provider}-{mode}.py` (e.g., `openai-default.py`, `anthropic-default.py`, `ollama-nsfw.py`)
-- **Location**: `services/proxy/app/prompts/`
-- **Dispatcher**: `app/prompts/dispatcher.py` tries `{provider}-{mode}`, then `{provider}-default`, then `openai-default`
-- **Function**: Each module exports `build_prompt(request)` that returns context for Jinja rendering
+### Model Resolution
+`_resolve_model_provider_options(mode)` in `proxy/app/services/util.py`. Reads `config.json` fresh on each call (no caching).
 
-### **Adding New Providers**
-1. **Add mode to config.json**: Define provider, model, and options
-2. **Create request/response models**: Add to `shared/models/proxy.py`
-3. **Add queue**: Create new queue in `proxy/app/queue/router.py`
-4. **Implement worker**: Add `send_to_{provider}()` function in `proxy/app/queue/worker.py`
-5. **Update APIs**: Add provider support to `proxy/app/api/multiturn.py` and `singleturn.py`
-6. **Create prompt module**: Copy existing prompt file (e.g., `cp openai-default.py provider-default.py`)
-7. **Start worker**: Add to app startup in `proxy/app/app.py`
+### Prompt System (Two-Tier)
+1. **Centralized** (preferred): JSON context files at `~/.kirishima/prompts/proxy/contexts/{provider}-{mode}.json` + Jinja2 templates at `~/.kirishima/prompts/proxy/templates/`. Context available to templates: `memories`, `summaries`, `time`, `agent_prompt`, `username`, `platform`.
+2. **Legacy fallback**: Python modules at `proxy/app/prompts/{provider}-{mode}.py` exporting `build_prompt(request)`. **`guest.py` and `work.py` are broken** (wrong import paths after refactor) — if centralized lookup fails for those, the fallback crashes.
 
-### **Request Flow**
-1. Service requests with mode (e.g., `{"model": "claude"}`)
-2. `resolve_model_provider_options()` maps mode → (anthropic, claude-sonnet-4-20250514, options)
-3. Dispatcher finds appropriate prompt module (`anthropic-default.py`)
-4. Request routed to provider-specific queue (`anthropic_queue`)
-5. Worker sends to provider API endpoint
-6. Response normalized back to `ProxyResponse`
+### Adding a New Mode
+1. Add entry to `config.json` under `llm.mode` with `provider`, `model`, `options`
+2. Add a centralized context JSON at `~/.kirishima/prompts/proxy/contexts/{provider}-{mode}.json`
+3. That's it — no queue, no worker, no registration needed
+
+## Known Architectural Issues (do not paper over these)
+1. **Queue system is gone** — Any doc/comment referencing `openai_queue`, `anthropic_queue`, `ollama_queue`, or async workers is outdated. Dispatch is synchronous.
+2. **Stickynotes migration incomplete** — Google Tasks backend exists in `googleapi` (`README_TASKS.md`) but brain still calls the standalone SQLite service. APIs are incompatible.
+3. **Legacy proxy prompt modules broken** — `guest.py` and `work.py` have wrong import paths. Centralized system works; fallback crashes with `ImportError`.
+4. **Brain tool_calls truncation** — `multiturn.py` takes only the first tool call from multi-tool LLM responses. Subsequent calls are silently dropped.
+5. **Smarthome has bugs** — Infinite recursion in the area route, duplicate media routes, undefined variable in error handler.
+6. **No streaming** — All LLM calls use `stream=False` regardless of config options.
 
 ## Examples & References
-- See `/home/randi/kirishima/README.md` for the big-picture vision and service table.
-- See `/home/randi/kirishima/services/brain/README.md` for orchestration and endpoint details.
-- See `/home/randi/kirishima/services/proxy/README.md` for LLM prompt and queueing logic.
-- See `/home/randi/kirishima/services/ledger/README.md` for message/memory schema and API.
-- Prompt modules: `services/proxy/app/prompts/`
-- Config examples: `shared/config.json.example`, per-service `config.json`
+- Architecture: `docs/Full Architecture.md`
+- Brain pipeline & tools: `services/brain/README.md`
+- Proxy prompt & provider system: `services/proxy/README.md`
+- Ledger schema & API: `services/ledger/README.md`
+- Centralized prompt templates: `~/.kirishima/prompts/`
+- Config: `~/.kirishima/config.json`
 
 ---
 
-If you are unsure about a workflow or pattern, check the relevant service's README or config file for details. When in doubt, prefer explicit, API-driven integration and keep logic modular.
+When in doubt, check the relevant service README. Prefer explicit HTTP-driven integration and keep logic modular.

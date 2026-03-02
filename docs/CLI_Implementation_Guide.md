@@ -18,6 +18,10 @@ A local terminal client with two paths:
 
 The separation is about what enters the conversation thread and what doesn't. Checking the heatmap shouldn't pollute the agent's context. Searching memories for debugging shouldn't create a ledger entry.
 
+Operational assumptions for this system:
+- Single-user deployment
+- One active client session at a time (no concurrent clients/background writers)
+
 ### Non-goals
 
 - Replacing OpenWebUI as the primary chat UI
@@ -58,6 +62,7 @@ The CLI only knows two endpoints:
 - **Brain is the gateway for all introspection.** Ledger is the source of truth for conversation history, but the CLI never talks to ledger directly. It asks brain via JSON-RPC (e.g., `history.recent`), and brain queries ledger and returns the data.
 - **No session-local message buffer needed.** Ledger tracks conversation history. The CLI is stateless for chat — it sends a message, waits for the response, then asks brain for the trace.
 - **Admin commands are synchronous request/response.** No async job IDs needed.
+- **CLI never sends `user_id`.** Brain resolves the effective user internally using `get_admin_user_id()` from `app.util` for ledger-backed admin/history operations.
 
 ---
 
@@ -162,7 +167,7 @@ These are the admin commands to implement. **The specific endpoints and services
 | `/mode <name>` | Set LLM mode |
 | `/tools` | List available tools |
 | `/context` | Show current context window / keyword scores |
-| `/history [n]` | Show last N conversation entries from ledger, each labeled with its row ID |
+| `/history [n]` | Show last N conversation turns from ledger (turn = user message + tool call/results + assistant response) |
 | `/history delete-from <row_id>` | Delete everything from this row ID onward (inclusive). Truncates forward — keeps conversation structure intact. Use `/history` first to see row IDs. |
 | `/history edit <row_id> <text>` | Modify the content of a specific entry (content only, doesn't change role or structure) |
 | `/heatmap` | Show keyword heatmap state |
@@ -199,7 +204,7 @@ These are the admin commands to implement. **The specific endpoints and services
 - Create the `cli/` directory with all files from section 3
 - `cli/__init__.py` — empty
 - `cli/config.py` — load the `.env` file from the project root to get service ports (same `.env` Docker uses). All connections are `localhost:<port>`. Fall back to env vars if `.env` isn't found. Fall back to hardcoded default ports as a last resort.
-- `cli/main.py` — argument parser (`argparse`) for `--api-url`, `--brain-url`, `--ledger-url`, `--config`. Start a REPL loop that reads input, checks if it starts with `/`, and routes accordingly. For now, `/` commands just print "not implemented yet".
+- `cli/main.py` — argument parser (`argparse`) for `--api-url`, `--brain-url`, `--config`. Start a REPL loop that reads input, checks if it starts with `/`, and routes accordingly. For now, `/` commands just print "not implemented yet".
 - `cli/client.py` — two clients: `openai.OpenAI` for chat, `jsonrpcclient` + `httpx` for admin commands. The CLI only ever talks to api and brain. See sections 4 and step 1.2 for examples.
 
 #### Step 1.2 — Chat send/receive
@@ -220,7 +225,7 @@ These are the admin commands to implement. **The specific endpoints and services
 
 #### Step 1.3 — Ledger trace rendering
 
-- After each chat response, call brain via JSON-RPC (e.g., `history.recent`) to get the full trace. The query strategy: get everything after the most recent user entry in ledger — this includes all tool calls, tool results, and the final assistant response from that turn. The CLI never talks to ledger directly — brain handles that.
+- After each chat response, call brain via JSON-RPC (`history.recent`) to get the full trace for the most recent turn. A turn is: user message + any tool calls/results + final assistant response. The CLI never talks to ledger directly — brain handles that.
 - `cli/render.py` — format conversation entries by role:
   - `user` — plain text
   - `assistant` — highlighted/styled text
@@ -242,7 +247,7 @@ These are the admin commands to implement. **The specific endpoints and services
 
 ### Phase 2: Admin Endpoint + Core Commands
 
-**Goal**: Brain has a `/admin/command` endpoint. CLI can query system state without polluting conversation history.
+**Goal**: Brain has a `/admin/rpc` endpoint. CLI can query system state without polluting conversation history.
 
 #### Step 2.1 — Brain admin endpoint
 
@@ -267,7 +272,7 @@ Commands to implement (in priority order):
 4. `tools.list` — return available tools
 5. `context.get` — return context window state
 6. `heatmap.get` — return keyword heatmap
-7. `history.get` — return recent ledger entries (with tool calls)
+7. `history.recent` — return recent conversation turns (with tool calls/results grouped into each turn)
 8. `memory.search` — search memories
 9. `memory.get` — get a specific memory by ID
 10. `memory.create` — create a new memory
@@ -361,6 +366,37 @@ Start with `openai`, `jsonrpcclient`, `httpx`, `python-dotenv`, and `rich`. `jso
 
 ## 9. Notes for the Implementor
 
-1. **Trace rendering**: The `history.recent` JSON-RPC method in brain needs to query ledger for recent entries including tool calls. The implementor should check what ledger endpoints exist for querying by timestamp or message ID range (look at ledger's `/sync/` and `/context/` routes) and build the brain-side handler accordingly.
+1. **Trace rendering**: The `history.recent` JSON-RPC method in brain should return *turns*, not raw rows. Response shape should be:
+   - `turns`: list ordered newest-first
+   - each turn contains:
+     - `anchor_row_id`: row ID of the `user` row that starts the turn
+     - `rows`: raw ledger rows in that turn (user/tool/assistant), each with original `row_id`
+     - `summary`: optional compact line for list view
+   - `count`: number of turns returned
 
-2. **Service health checks**: All services mount `/ping` via `shared/routes.py`. The `services` handler in brain should ping each known service and return the status map.
+   Turn grouping rule for single-user flow:
+   - Start a new turn at each `role=user` row
+   - Include all following `tool`/`tool_call` rows
+   - End at next `assistant` row
+   - If the most recent turn is incomplete (e.g., only user row), still return it as partial
+   - Brain determines `user_id` internally via `get_admin_user_id()`; CLI does not pass user identifiers.
+
+2. **History mutation endpoints (new in brain admin RPC)**:
+   - These admin RPC methods require **new ledger HTTP endpoints**. Brain should proxy to ledger over HTTP; do not add direct DB access in brain.
+   - Brain determines `user_id` internally via `get_admin_user_id()` from `app.util` before calling ledger.
+   - Follow ledger's existing naming and file layout conventions (`services/ledger/app/routes/user.py` + `services/ledger/app/services/user/*`):
+     - Route pattern should stay under the user message surface (`/user/{user_id}/...`)
+     - Keep route handlers thin and push logic into service-layer helpers, matching current ledger style
+   - `history.edit(row_id, content)`:
+     - Validate row exists
+     - Allow editing `user` and `assistant` rows only
+     - Reject edits to `tool` / `tool_call` rows
+     - Update content in ledger by row ID
+     - Return edited row metadata + before/after preview
+   - `history.delete_from(row_id)`:
+     - Validate row exists
+     - Delete all rows with `id >= row_id` for the single user
+     - Return deleted row count and first deleted row ID
+   - Both methods should return JSON-RPC errors with `data.service="ledger"` and status code details when ledger operations fail.
+
+3. **Service health checks**: All services mount `/ping` via `shared/routes.py`. The `services` handler in brain should ping each known service and return the status map.

@@ -78,6 +78,8 @@ def _memory_patch(memory: MemoryEntry):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Database error: {str(e)}"
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
         raise HTTPException(

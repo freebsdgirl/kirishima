@@ -9,6 +9,21 @@ from datetime import datetime
 
 from fastapi import HTTPException, status
 
+ALLOWED_CATEGORIES = [
+    "Health",
+    "Career",
+    "Family",
+    "Personal",
+    "Technical Projects",
+    "Social",
+    "Finance",
+    "Self-care",
+    "Environment",
+    "Hobbies",
+    "Admin",
+    "Philosophy",
+]
+
 
 def _memory_add_keywords(memory_id: str, keywords: list):
     """
@@ -40,17 +55,11 @@ def _memory_add_category(memory_id: str, category: str):
         memory_id (str): The unique identifier of the memory entry.
         category (str): The category to associate with the memory.
     """
-
-    allowed_categories = [
-        "Health", "Career", "Family", "Personal", "Technical Projects",
-        "Social", "Finance", "Self-care", "Environment", "Hobbies",
-        "Admin", "Philosophy"
-    ]
-    if category not in allowed_categories:
+    if category not in ALLOWED_CATEGORIES:
         logger.debug(f"Invalid category: {category}.")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid category: {category}. Allowed categories are: {', '.join(allowed_categories)}"
+            detail=f"Invalid category: {category}. Allowed categories are: {', '.join(ALLOWED_CATEGORIES)}"
         )
     with _open_conn() as conn:
         cursor = conn.cursor()
@@ -118,6 +127,13 @@ def _memory_add(memory: MemoryEntry):
             detail="At least one of keywords or category must be provided."
         )
 
+    if memory.category and memory.category not in ALLOWED_CATEGORIES:
+        logger.debug(f"Invalid category: {memory.category}.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid category: {memory.category}. Allowed categories are: {', '.join(ALLOWED_CATEGORIES)}"
+        )
+
     try:
         memory_id = _memory_add_memory(memory.memory)
 
@@ -136,6 +152,8 @@ def _memory_add(memory: MemoryEntry):
 
         logger.debug(f"Memory added with ID: {memory_id}, keywords: {memory.keywords}, category: {memory.category}, memory: {memory.memory}")
         return {"status": "memory created", "id": memory_id}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error adding memory: {e}")
         raise HTTPException(

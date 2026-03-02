@@ -18,6 +18,43 @@ logger = get_logger(f"brain.{__name__}")
 _LEDGER_PORT = os.getenv("LEDGER_PORT", "4203")
 _LEDGER_BASE = f"http://ledger:{_LEDGER_PORT}"
 _TIMEOUT = 60
+_ALLOWED_CATEGORIES = [
+    "Health",
+    "Career",
+    "Family",
+    "Personal",
+    "Technical Projects",
+    "Social",
+    "Finance",
+    "Self-care",
+    "Environment",
+    "Hobbies",
+    "Admin",
+    "Philosophy",
+]
+
+
+def _format_ledger_http_error(err: httpx.HTTPError) -> str:
+    if isinstance(err, httpx.HTTPStatusError):
+        response = err.response
+        detail = None
+        try:
+            payload = response.json()
+            if isinstance(payload, dict):
+                detail = payload.get("detail") or payload.get("message")
+        except Exception:
+            pass
+
+        if not detail:
+            text = response.text.strip()
+            detail = text or str(err)
+
+        return f"Ledger {response.status_code}: {detail}"
+
+    if isinstance(err, httpx.RequestError):
+        return f"Ledger connection error: {err}"
+
+    return f"Ledger HTTP error: {err}"
 
 
 @tool(
@@ -43,6 +80,7 @@ _TIMEOUT = 60
             },
             "category": {
                 "type": "string",
+                "enum": _ALLOWED_CATEGORIES,
                 "description": "Category filter for search or category for new memory",
             },
             "topic_id": {
@@ -134,7 +172,7 @@ async def _search(params: dict) -> ToolResponse:
             resp.raise_for_status()
             data = resp.json()
     except httpx.HTTPError as e:
-        return ToolResponse(error=f"Ledger HTTP error: {e}")
+        return ToolResponse(error=_format_ledger_http_error(e))
 
     # Compact format for token efficiency: id|timestamp|memory_text
     memories = data.get("memories", [])
@@ -163,7 +201,7 @@ async def _create(params: dict) -> ToolResponse:
             resp.raise_for_status()
             return ToolResponse(result=resp.json())
     except httpx.HTTPError as e:
-        return ToolResponse(error=f"Ledger HTTP error: {e}")
+        return ToolResponse(error=_format_ledger_http_error(e))
 
 
 async def _update(params: dict) -> ToolResponse:
@@ -185,7 +223,7 @@ async def _update(params: dict) -> ToolResponse:
             resp.raise_for_status()
             return ToolResponse(result=resp.json())
     except httpx.HTTPError as e:
-        return ToolResponse(error=f"Ledger HTTP error: {e}")
+        return ToolResponse(error=_format_ledger_http_error(e))
 
 
 async def _delete(params: dict) -> ToolResponse:
@@ -199,7 +237,7 @@ async def _delete(params: dict) -> ToolResponse:
             resp.raise_for_status()
             return ToolResponse(result=resp.json())
     except httpx.HTTPError as e:
-        return ToolResponse(error=f"Ledger HTTP error: {e}")
+        return ToolResponse(error=_format_ledger_http_error(e))
 
 
 async def _list(params: dict) -> ToolResponse:
@@ -215,7 +253,7 @@ async def _list(params: dict) -> ToolResponse:
             resp.raise_for_status()
             return ToolResponse(result=resp.json())
     except httpx.HTTPError as e:
-        return ToolResponse(error=f"Ledger HTTP error: {e}")
+        return ToolResponse(error=_format_ledger_http_error(e))
 
 
 async def _get(params: dict) -> ToolResponse:
@@ -229,7 +267,7 @@ async def _get(params: dict) -> ToolResponse:
             resp.raise_for_status()
             return ToolResponse(result=resp.json())
     except httpx.HTTPError as e:
-        return ToolResponse(error=f"Ledger HTTP error: {e}")
+        return ToolResponse(error=_format_ledger_http_error(e))
 
 
 # ---------------------------------------------------------------------------

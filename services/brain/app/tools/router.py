@@ -13,6 +13,7 @@ Usage:
 """
 
 import json
+import os
 from typing import Dict, List
 
 import httpx
@@ -66,11 +67,14 @@ async def route_tools(
     if recent_context:
         prompt_text = f"Recent conversation context:\n{recent_context}\n\n{prompt_text}"
 
+    proxy_port = os.getenv("PROXY_PORT", "4205")
+    router_url = f"http://proxy:{proxy_port}/api/singleturn"
+
     try:
         # Call proxy singleturn with the cheap router mode
         async with httpx.AsyncClient(timeout=30) as client:
             response = await client.post(
-                "http://proxy:4201/singleturn",
+                router_url,
                 json={
                     "model": mode,
                     "prompt": prompt_text,
@@ -102,5 +106,13 @@ async def route_tools(
 
     except Exception as e:
         # On any failure, include all routed tools (safe fallback)
-        logger.warning("Tool router failed (%s); including all %d routed tools", e, len(catalog))
+        logger.warning(
+            "Tool router failed (%s: %s) url=%s catalog_size=%d message_len=%d; including all %d routed tools",
+            e.__class__.__name__,
+            e,
+            router_url,
+            len(catalog),
+            len(user_message or ""),
+            len(catalog),
+        )
         return list(catalog.keys())

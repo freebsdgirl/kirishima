@@ -211,36 +211,42 @@ class KirishimaChatApp(App[None]):
         first_prefix = f"{label} "
         width = 120
         if self._transcript is not None and self._transcript.size.width > 0:
-            width = self._transcript.size.width
-        first_width = max(1, width - len(first_prefix))
-        next_width = max(1, width)
+            # RichLog width includes frame; subtract 2 to target inner content width.
+            width = max(20, self._transcript.size.width - 2)
 
         paragraphs = message.splitlines() or [""]
-        logical_lines: list[str] = []
+        visual_lines: list[str] = []
         for p_idx, paragraph in enumerate(paragraphs):
-            first_chunks = textwrap.wrap(
-                paragraph,
-                width=first_width if p_idx == 0 else next_width,
-                replace_whitespace=False,
-                drop_whitespace=False,
-                break_long_words=True,
-                break_on_hyphens=False,
-            )
-            if not first_chunks:
-                first_chunks = [""]
             if p_idx == 0:
-                logical_lines.append(first_chunks[0])
-                if len(first_chunks) > 1:
-                    logical_lines.extend(first_chunks[1:])
+                wrapped = textwrap.wrap(
+                    paragraph,
+                    width=width,
+                    initial_indent=first_prefix,
+                    subsequent_indent="",
+                    replace_whitespace=False,
+                    drop_whitespace=True,
+                    break_long_words=True,
+                    break_on_hyphens=False,
+                )
+                if not wrapped:
+                    wrapped = [first_prefix]
             else:
-                logical_lines.extend(first_chunks)
+                wrapped = textwrap.wrap(
+                    paragraph,
+                    width=width,
+                    replace_whitespace=False,
+                    drop_whitespace=True,
+                    break_long_words=True,
+                    break_on_hyphens=False,
+                )
+                if not wrapped:
+                    wrapped = [""]
+            visual_lines.extend(wrapped)
 
-        for idx, chunk in enumerate(logical_lines):
-            if idx == 0:
-                line = Text(first_prefix + chunk, style=bg)
+        for idx, chunk in enumerate(visual_lines):
+            line = Text(chunk, style=bg)
+            if idx == 0 and chunk.startswith(first_prefix):
                 line.stylize(f"bold bright_magenta {bg}", 0, len(label))
-            else:
-                line = Text(chunk, style=bg)
             pad = width - line.cell_len
             if pad > 0:
                 line.append(" " * pad, style=bg)

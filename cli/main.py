@@ -1,19 +1,10 @@
 from __future__ import annotations
 
 import argparse
-import sys
-import time
 
 from cli.client import ChatClient
 from cli.config import CliConfig
-from cli.render import render_assistant_reply, render_error, render_help
-
-try:
-    from prompt_toolkit import PromptSession
-    from prompt_toolkit.key_binding import KeyBindings
-except ImportError:
-    PromptSession = None
-    KeyBindings = None
+from cli.tui import KirishimaChatApp
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -32,111 +23,16 @@ def main() -> int:
     try:
         chat_client = ChatClient(config.api_base_url)
     except Exception as exc:
-        render_error(str(exc))
+        print(f"error> {exc}")
         return 1
 
-    prompt_session = _build_prompt_session()
-    current_model = config.default_model
-    print(f"Kirishima CLI chat mode. API: {config.api_base_url} | model: {current_model}")
-    if prompt_session is None:
-        print("tip> install prompt_toolkit for Shift+Enter multiline input support.")
-    print("Type /help for local commands.")
-
-    while True:
-        raw = _read_line(prompt_session)
-        if raw is None:
-            break
-
-        message = raw.strip()
-        if not message:
-            continue
-
-        if message.startswith("/"):
-            if message == "/help":
-                render_help()
-                continue
-            if message == "/clear":
-                print("\033[2J\033[H", end="")
-                continue
-            if message == "/exit":
-                break
-            if message == "/mode":
-                print(f"mode> {current_model}")
-                continue
-            if message.startswith("/mode "):
-                next_mode = message[len("/mode ") :].strip()
-                if not next_mode:
-                    render_error("Mode name is required.")
-                else:
-                    current_model = next_mode
-                    print(f"mode> set to {current_model}")
-                continue
-
-            print("Admin commands not implemented yet.")
-            continue
-
-        started = time.perf_counter()
-        try:
-            result = chat_client.send_chat(message=message, model=current_model)
-        except Exception as exc:
-            render_error(str(exc))
-            continue
-
-        elapsed = time.perf_counter() - started
-        render_assistant_reply(
-            text=result.text,
-            duration_s=elapsed,
-            usage=result.usage,
-            model=current_model,
-        )
-
+    app = KirishimaChatApp(
+        chat_client=chat_client,
+        default_model=config.default_model,
+        api_base_url=config.api_base_url,
+    )
+    app.run(mouse=False)
     return 0
-
-
-def _build_prompt_session():
-    if PromptSession is None or KeyBindings is None:
-        return None
-
-    key_bindings = KeyBindings()
-
-    @key_bindings.add("enter")
-    def _(event):
-        event.current_buffer.validate_and_handle()
-
-    try:
-        @key_bindings.add("s-enter")
-        def _(event):
-            event.current_buffer.insert_text("\n")
-    except ValueError:
-        # Some terminals/prompt_toolkit builds don't expose Shift+Enter distinctly.
-        pass
-
-    @key_bindings.add("escape", "enter")
-    def _(event):
-        event.current_buffer.insert_text("\n")
-
-    return PromptSession(multiline=True, key_bindings=key_bindings)
-
-
-def _read_line(prompt_session):
-    if prompt_session is None:
-        try:
-            return input("you> ")
-        except KeyboardInterrupt:
-            print()
-            return ""
-        except EOFError:
-            print("\nExiting.")
-            return None
-
-    try:
-        return prompt_session.prompt("you> ")
-    except KeyboardInterrupt:
-        print()
-        return ""
-    except EOFError:
-        print("\nExiting.")
-        return None
 
 
 if __name__ == "__main__":

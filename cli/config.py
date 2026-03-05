@@ -7,6 +7,7 @@ from typing import Any
 
 
 DEFAULT_API_PORT = "4200"
+DEFAULT_LEDGER_PORT = "4203"
 DEFAULT_MODEL = "default"
 
 
@@ -19,6 +20,7 @@ def _clean_env_value(value: str | None) -> str | None:
 @dataclass(frozen=True)
 class CliConfig:
     api_base_url: str
+    ledger_base_url: str
     default_model: str
     env_file: str
 
@@ -29,6 +31,8 @@ class CliConfig:
 
         api_url_arg = getattr(args, "api_url", None)
         api_port_arg = getattr(args, "api_port", None)
+        ledger_url_arg = getattr(args, "ledger_url", None)
+        ledger_port_arg = getattr(args, "ledger_port", None)
         if api_url_arg:
             api_base_url = api_url_arg.rstrip("/")
         else:
@@ -41,6 +45,18 @@ class CliConfig:
             )
             api_base_url = f"http://localhost:{api_port}/v1"
 
+        if ledger_url_arg:
+            ledger_base_url = ledger_url_arg.rstrip("/")
+        else:
+            ledger_port = (
+                str(ledger_port_arg)
+                if ledger_port_arg
+                else _clean_env_value(os.getenv("LEDGER_PORT"))
+                or dotenv_values.get("LEDGER_PORT")
+                or DEFAULT_LEDGER_PORT
+            )
+            ledger_base_url = f"http://localhost:{ledger_port}"
+
         default_model = (
             _clean_env_value(getattr(args, "model", None))
             or _clean_env_value(os.getenv("LLM_MODEL_NAME"))
@@ -50,6 +66,7 @@ class CliConfig:
 
         return cls(
             api_base_url=api_base_url,
+            ledger_base_url=ledger_base_url,
             default_model=default_model,
             env_file=env_file,
         )

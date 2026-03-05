@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 from typing import Any
+
+import httpx
 
 
 @dataclass(frozen=True)
@@ -15,6 +18,18 @@ class ChatUsage:
 class ChatResult:
     text: str
     usage: ChatUsage
+
+
+@dataclass(frozen=True)
+class LedgerMessage:
+    id: int
+    role: str
+    content: str
+    tool_calls: dict[str, Any] | None
+    function_call: dict[str, Any] | None
+    tool_call_id: str | None
+    created_at: str
+    model: str | None
 
 
 class ChatClient:
@@ -67,3 +82,64 @@ def _normalize_content(content: Any) -> str:
                     parts.append(str(text))
         return "\n".join(parts).strip()
     return str(content)
+
+
+class LedgerClient:
+    def __init__(self, ledger_base_url: str):
+        self._base_url = ledger_base_url.rstrip("/")
+
+    async def get_recent_messages(self) -> list[LedgerMessage]:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            response = await client.get(f"{self._base_url}/sync/get")
+            response.raise_for_status()
+            payload = response.json()
+        return [_to_ledger_message(item) for item in payload]
+
+    async def stream_messages(self, poll_ms: int = 250, heartbeat_s: int = 15):
+        params = {"poll_ms": poll_ms, "heartbeat_s": heartbeat_s}
+        async with httpx.AsyncClient(timeout=None) as client:
+            async with client.stream("GET", f"{self._base_url}/user/stream", params=params) as response:
+                response.raise_for_status()
+                event_name: str | None = None
+                data_lines: list[str] = []
+                async for line in response.aiter_lines():
+                    if line == "":
+                        if event_name and data_lines:
+                            yield event_name, "\n".join(data_lines)
+                        event_name = None
+                        data_lines = []
+                        continue
+                    if line.startswith(":"):
+                        continue
+                    if line.startswith("event:"):
+                        event_name = line.split(":", 1)[1].strip()
+                        continue
+                    if line.startswith("data:"):
+                        data_lines.append(line.split(":", 1)[1].lstrip())
+                        continue
+
+
+def _to_ledger_message(payload: dict[str, Any]) -> LedgerMessage:
+    tool_calls = payload.get("tool_calls")
+    if isinstance(tool_calls, str):
+        try:
+            tool_calls = json.loads(tool_calls)
+        except Exception:
+            tool_calls = None
+    function_call = payload.get("function_call")
+    if isinstance(function_call, str):
+        try:
+            function_call = json.loads(function_call)
+        except Exception:
+            function_call = None
+
+    return LedgerMessage(
+        id=int(payload.get("id", 0)),
+        role=str(payload.get("role", "")),
+        content=str(payload.get("content") or ""),
+        tool_calls=tool_calls if isinstance(tool_calls, dict) else None,
+        function_call=function_call if isinstance(function_call, dict) else None,
+        tool_call_id=payload.get("tool_call_id"),
+        created_at=str(payload.get("created_at") or ""),
+        model=payload.get("model"),
+    )

@@ -1,15 +1,18 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import textwrap
 import time
 
 from rich.markup import escape as escape_markup
+from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical
 from textual.widgets import RichLog, Static, TextArea
 
-from cli.client import ChatClient
+from cli.client import ChatClient, LedgerClient, LedgerMessage, _to_ledger_message
 
 
 class KirishimaChatApp(App[None]):
@@ -36,16 +39,27 @@ class KirishimaChatApp(App[None]):
     }
     """
 
-    def __init__(self, chat_client: ChatClient, default_model: str, api_base_url: str):
+    def __init__(
+        self,
+        chat_client: ChatClient,
+        default_model: str,
+        api_base_url: str,
+        ledger_base_url: str,
+    ):
         super().__init__()
         self.chat_client = chat_client
+        self.ledger_client = LedgerClient(ledger_base_url)
         self.current_model = default_model
         self.api_base_url = api_base_url
+        self.ledger_base_url = ledger_base_url
         self._transcript: RichLog | None = None
         self._compose: TextArea | None = None
         self._status: Static | None = None
         self._send_task: asyncio.Task | None = None
-        self._has_chat_turns = False
+        self._stream_task: asyncio.Task | None = None
+        self._seen_message_ids: set[int] = set()
+        self._has_rows = False
+        self._last_rendered_kind: str | None = None
 
     def compose(self) -> ComposeResult:
         with Vertical(id="layout"):
@@ -53,7 +67,7 @@ class KirishimaChatApp(App[None]):
             yield TextArea(id="compose")
             yield Static(id="status")
 
-    def on_mount(self) -> None:
+    async def on_mount(self) -> None:
         self._transcript = self.query_one("#transcript", RichLog)
         self._compose = self.query_one("#compose", TextArea)
         self._status = self.query_one("#status", Static)
@@ -62,9 +76,12 @@ class KirishimaChatApp(App[None]):
         self._compose.border_title = "[bold blue]Message (Enter=newline, Ctrl+S=send)[/]"
         self._transcript.border_title = "[bold blue]Kirishima[/]"
         self._write_system(
-            f"Connected to {self.api_base_url} | mode={self.current_model} | Ctrl+S to send"
+            f"API {self.api_base_url} | Ledger {self.ledger_base_url} | mode={self.current_model} | Ctrl+S to send"
         )
+        self._set_status("Loading recent history...")
+        await self._load_recent_history()
         self._set_status("Ready")
+        self._stream_task = asyncio.create_task(self._consume_ledger_stream())
 
     async def action_send_message(self) -> None:
         if self._compose is None:
@@ -98,7 +115,6 @@ class KirishimaChatApp(App[None]):
                 await self._handle_command(message)
                 return
 
-            self._write_user(message)
             self._set_status("Sending...")
             started = time.perf_counter()
 
@@ -107,8 +123,6 @@ class KirishimaChatApp(App[None]):
                 None, self.chat_client.send_chat, message, self.current_model
             )
             elapsed = time.perf_counter() - started
-            self._write_spacer()
-            self._write_assistant(result.text or "[empty response]")
             self._set_status(
                 f"{elapsed:.2f}s | model={self.current_model} | "
                 f"prompt={_or_dash(result.usage.prompt_tokens)} "
@@ -123,6 +137,10 @@ class KirishimaChatApp(App[None]):
                 self._compose.text = message
                 self._compose.focus()
 
+    async def on_unmount(self) -> None:
+        if self._stream_task and not self._stream_task.done():
+            self._stream_task.cancel()
+
     async def _handle_command(self, message: str) -> None:
         if message == "/help":
             self._write_system(
@@ -132,7 +150,8 @@ class KirishimaChatApp(App[None]):
         if message == "/clear":
             if self._transcript is not None:
                 self._transcript.clear()
-            self._has_chat_turns = False
+            self._has_rows = False
+            self._last_rendered_kind = None
             self._set_status("Cleared")
             return
         if message == "/exit":
@@ -153,23 +172,109 @@ class KirishimaChatApp(App[None]):
 
         self._write_system("Admin commands not implemented yet.")
 
+    async def _load_recent_history(self) -> None:
+        try:
+            messages = await self.ledger_client.get_recent_messages()
+        except Exception as exc:
+            self._write_error(f"History preload failed: {exc}")
+            return
+        for msg in messages:
+            self._append_ledger_message(msg)
+
+    async def _consume_ledger_stream(self) -> None:
+        while True:
+            try:
+                async for event_name, data in self.ledger_client.stream_messages():
+                    if event_name != "message":
+                        continue
+                    try:
+                        payload = json.loads(data)
+                    except Exception:
+                        self._write_error(f"Invalid stream payload: {data[:160]}")
+                        continue
+                    msg = _to_ledger_message(payload)
+                    self._append_ledger_message(msg)
+            except Exception as exc:
+                self._write_error(f"Ledger stream disconnected: {exc}")
+                self._set_status("Ledger stream disconnected; retrying...")
+                await asyncio.sleep(1.0)
+
     def _set_status(self, text: str) -> None:
         if self._status is not None:
             self._status.update(text)
 
     def _write_user(self, message: str) -> None:
-        if self._has_chat_turns:
+        if self._has_rows:
             self._write_spacer()
-        self._write(
-            f"[bold bright_magenta]\\[user][/bold bright_magenta] {escape_markup(message)}"
-        )
-        self._has_chat_turns = True
+        bg = "on #4a4a4a"
+        label = "[user]"
+        first_prefix = f"{label} "
+        width = 120
+        if self._transcript is not None and self._transcript.size.width > 0:
+            width = self._transcript.size.width
+        first_width = max(1, width - len(first_prefix))
+        next_width = max(1, width)
+
+        paragraphs = message.splitlines() or [""]
+        logical_lines: list[str] = []
+        for p_idx, paragraph in enumerate(paragraphs):
+            first_chunks = textwrap.wrap(
+                paragraph,
+                width=first_width if p_idx == 0 else next_width,
+                replace_whitespace=False,
+                drop_whitespace=False,
+                break_long_words=True,
+                break_on_hyphens=False,
+            )
+            if not first_chunks:
+                first_chunks = [""]
+            if p_idx == 0:
+                logical_lines.append(first_chunks[0])
+                if len(first_chunks) > 1:
+                    logical_lines.extend(first_chunks[1:])
+            else:
+                logical_lines.extend(first_chunks)
+
+        for idx, chunk in enumerate(logical_lines):
+            if idx == 0:
+                line = Text(first_prefix + chunk, style=bg)
+                line.stylize(f"bold bright_magenta {bg}", 0, len(label))
+            else:
+                line = Text(chunk, style=bg)
+            pad = width - line.cell_len
+            if pad > 0:
+                line.append(" " * pad, style=bg)
+            self._write(line)
+        self._has_rows = True
+        self._last_rendered_kind = "user"
 
     def _write_assistant(self, message: str) -> None:
+        if self._has_rows:
+            self._write_spacer()
         self._write(
             f"[bold bright_cyan]\\[kirishima][/bold bright_cyan] {escape_markup(message)}"
         )
-        self._has_chat_turns = True
+        self._has_rows = True
+        self._last_rendered_kind = "assistant"
+
+    def _write_tool_call(self, tool_calls: dict[str, object]) -> None:
+        fn_name = "unknown"
+        args = ""
+        if tool_calls.get("function") and isinstance(tool_calls["function"], dict):
+            fn_name = str(tool_calls["function"].get("name") or fn_name)
+            args = str(tool_calls["function"].get("arguments") or "")
+        self._write(
+            f"[bold orange3]\\[tool][/bold orange3] "
+            f"{escape_markup(fn_name)}"
+            + (f" {escape_markup(args)}" if args else "")
+        )
+        self._has_rows = True
+        self._last_rendered_kind = "tool_call"
+
+    def _write_tool_output(self, message: str, tool_call_id: str | None) -> None:
+        self._write(escape_markup(message))
+        self._has_rows = True
+        self._last_rendered_kind = "tool"
 
     # Future tool rendering note:
     # Add a `_write_tool` formatter with an orange label, e.g. `[bold orange3][tool][/bold orange3]`,
@@ -190,6 +295,28 @@ class KirishimaChatApp(App[None]):
 
     def _write_spacer(self) -> None:
         self._write("")
+
+    def _append_ledger_message(self, msg: LedgerMessage) -> None:
+        if msg.id and msg.id in self._seen_message_ids:
+            return
+        if msg.id:
+            self._seen_message_ids.add(msg.id)
+
+        if msg.role == "user":
+            self._write_user(msg.content)
+            return
+        if msg.role == "assistant":
+            if msg.tool_calls:
+                if self._last_rendered_kind in {"user", "tool", "tool_call"}:
+                    self._write_spacer()
+                self._write_tool_call(msg.tool_calls)
+            elif msg.content:
+                self._write_assistant(msg.content)
+            return
+        if msg.role == "tool":
+            self._write_tool_output(msg.content, msg.tool_call_id)
+            return
+        self._write_system(f"{msg.role}: {msg.content}")
 
 
 def _or_dash(value: int | None) -> str:

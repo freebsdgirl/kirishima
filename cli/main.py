@@ -12,6 +12,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--env-file", default=".env", help="Path to .env file")
     parser.add_argument("--api-port", type=int, help="API service port (localhost)")
     parser.add_argument("--api-url", help="Full API base URL (e.g. http://localhost:4200/v1)")
+    parser.add_argument("--ledger-port", type=int, help="Ledger service port (localhost)")
+    parser.add_argument("--ledger-url", help="Full ledger base URL (e.g. http://localhost:4203)")
     parser.add_argument("--model", help="Default mode/model for the chat session")
     return parser
 
@@ -30,6 +32,7 @@ def main() -> int:
         chat_client=chat_client,
         default_model=config.default_model,
         api_base_url=config.api_base_url,
+        ledger_base_url=config.ledger_base_url,
     )
     app.run(mouse=False)
     return 0

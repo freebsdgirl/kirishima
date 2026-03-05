@@ -9,6 +9,7 @@ Persistent data store for all conversational data. Manages message buffers, memo
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/user/{user_id}/messages` | Get messages (filter by period/date/timestamps) |
+| GET | `/user/stream` | Stream new message rows live via SSE (single-user config user_id) |
 | GET | `/user/{user_id}/messages/last` | Last message timestamp |
 | GET | `/user/{user_id}/messages/untagged` | Messages without topic assignment |
 | PATCH | `/user/{user_id}/messages/{row_id}` | Edit one message row's content (user/assistant only) |

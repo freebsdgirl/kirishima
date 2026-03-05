@@ -43,11 +43,34 @@ from app.services.user.get_last_timestamp import _get_last_message_timestamp
 from app.services.user.sync import _sync_user_buffer_helper
 from app.services.user.edit_message import _edit_user_message_content
 from app.services.user.delete_from import _delete_user_messages_from_row
+from app.services.user.stream import _stream_user_message_events
 
 from typing import Optional, List
-from fastapi import APIRouter, Path, Query, Body, BackgroundTasks, HTTPException, status
+from fastapi import APIRouter, Path, Query, Body, BackgroundTasks, HTTPException, status, Request
+from fastapi.responses import StreamingResponse
 
 router = APIRouter()
+
+@router.get("/stream")
+async def stream_user_messages(
+    request: Request,
+    poll_ms: int = Query(250, description="Polling interval in milliseconds"),
+    heartbeat_s: int = Query(15, description="Heartbeat interval in seconds"),
+):
+    if poll_ms < 100 or poll_ms > 2000:
+        raise HTTPException(status_code=400, detail="poll_ms must be between 100 and 2000")
+    if heartbeat_s < 5 or heartbeat_s > 60:
+        raise HTTPException(status_code=400, detail="heartbeat_s must be between 5 and 60")
+
+    return StreamingResponse(
+        _stream_user_message_events(request=request, poll_ms=poll_ms, heartbeat_s=heartbeat_s),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 @router.delete("/{user_id}", response_model=DeleteSummary)
 def delete_user_buffer(

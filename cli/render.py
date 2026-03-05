@@ -26,6 +26,10 @@ def render_help() -> None:
     print("  /mode <name>  Set mode for subsequent chat requests")
     print("  /clear        Clear terminal")
     print("  /exit         Exit CLI")
+    print("Input shortcuts:")
+    print("  Enter         Send message")
+    print("  Shift+Enter   Insert newline (prompt_toolkit)")
+    print("  Alt+Enter     Insert newline fallback (prompt_toolkit)")
     print("  /...          Admin commands not implemented yet")
 
 

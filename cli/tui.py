@@ -45,13 +45,15 @@ class KirishimaChatApp(App[None]):
         default_model: str,
         api_base_url: str,
         ledger_base_url: str,
+        user_id: str,
     ):
         super().__init__()
         self.chat_client = chat_client
-        self.ledger_client = LedgerClient(ledger_base_url)
+        self.ledger_client = LedgerClient(ledger_base_url, user_id=user_id)
         self.current_model = default_model
         self.api_base_url = api_base_url
         self.ledger_base_url = ledger_base_url
+        self.user_id = user_id
         self._transcript: RichLog | None = None
         self._compose: TextArea | None = None
         self._status: Static | None = None
@@ -76,7 +78,7 @@ class KirishimaChatApp(App[None]):
         self._compose.border_title = "[bold blue]Message (Enter=newline, Ctrl+S=send)[/]"
         self._transcript.border_title = "[bold blue]Kirishima[/]"
         self._write_system(
-            f"API {self.api_base_url} | Ledger {self.ledger_base_url} | mode={self.current_model} | Ctrl+S to send"
+            f"API {self.api_base_url} | Ledger {self.ledger_base_url} | user={self.user_id} | mode={self.current_model} | Ctrl+S to send"
         )
         self._set_status("Loading recent history...")
         await self._load_recent_history()
@@ -144,7 +146,7 @@ class KirishimaChatApp(App[None]):
     async def _handle_command(self, message: str) -> None:
         if message == "/help":
             self._write_system(
-                "Commands: /help, /mode, /mode <name>, /clear, /exit | Send: Ctrl+S"
+                "Commands: /help, /mode, /mode <name>, /history [n], /clear, /exit | Send: Ctrl+S"
             )
             return
         if message == "/clear":
@@ -168,6 +170,36 @@ class KirishimaChatApp(App[None]):
             self.current_model = next_mode
             self._write_system(f"mode set to {self.current_model}")
             self._set_status(f"Mode={self.current_model}")
+            return
+        if message == "/history" or message.startswith("/history "):
+            turns = 15
+            if message.startswith("/history "):
+                raw_turns = message[len("/history ") :].strip()
+                if not raw_turns:
+                    self._write_error("Usage: /history [n]")
+                    return
+                try:
+                    turns = int(raw_turns)
+                except ValueError:
+                    self._write_error("Usage: /history [n]")
+                    return
+                if turns <= 0:
+                    self._write_error("History turns must be >= 1.")
+                    return
+            self._set_status(f"Loading history (turns={turns})...")
+            try:
+                messages = await self.ledger_client.get_history_turns(turns=turns)
+            except Exception as exc:
+                self._write_error(f"History load failed: {exc}")
+                self._set_status("History load failed")
+                return
+            self._write_spacer()
+            self._write_system(f"[history] last {turns} turns")
+            for msg in messages:
+                self._append_ledger_message(msg, dedupe=False)
+            if self._transcript is not None:
+                self._transcript.scroll_end(animate=False)
+            self._set_status(f"History loaded ({turns} turns)")
             return
 
         self._write_system("Admin commands not implemented yet.")
@@ -302,8 +334,8 @@ class KirishimaChatApp(App[None]):
     def _write_spacer(self) -> None:
         self._write("")
 
-    def _append_ledger_message(self, msg: LedgerMessage) -> None:
-        if msg.id and msg.id in self._seen_message_ids:
+    def _append_ledger_message(self, msg: LedgerMessage, dedupe: bool = True) -> None:
+        if dedupe and msg.id and msg.id in self._seen_message_ids:
             return
         if msg.id:
             self._seen_message_ids.add(msg.id)

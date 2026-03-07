@@ -7,6 +7,26 @@
 - Scope: Text-based terminal client for chatting with the agent, inspecting state, and debugging
 - Replaces: `docs/CLI_Client_Design_and_Roadmap.md` (Codex draft — kept for reference)
 
+### Current Progress (2026-03-07)
+
+Completed:
+- Textual split-pane CLI is active (`cli/tui.py`).
+- Chat send path uses API `/v1/chat/completions` (OpenAI-compatible), mode selected client-side.
+- Ledger preload at startup is implemented (no blank-slate startup).
+- Live ledger stream is implemented via `GET /user/stream` (SSE), and transcript updates from ledger events.
+- Tool activity is visible in transcript rendering (tool call + tool output).
+- `/history [n]` is implemented in CLI and reloads recent turn-based history from ledger.
+
+Not done yet:
+- Brain `POST /admin/rpc` command path (JSON-RPC) is not implemented.
+- CLI command registry + admin command routing from this guide is not implemented.
+- Service introspection/admin commands (`/services`, `/tools`, `/memory ...`, `/context`, `/heatmap`, etc.) are not implemented.
+- Reconnect catch-up/resume behavior for ledger stream is not implemented.
+
+Notes:
+- Current implementation intentionally connects CLI directly to ledger (default `http://localhost:4203`) for history/streaming.
+- `mode.get` / `mode.set` currently remain client-local session behavior.
+
 ---
 
 ## 1. What This Is

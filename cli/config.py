@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 from pathlib import Path
 import os
 from typing import Any
@@ -21,6 +22,7 @@ def _clean_env_value(value: str | None) -> str | None:
 class CliConfig:
     api_base_url: str
     ledger_base_url: str
+    user_id: str
     default_model: str
     env_file: str
 
@@ -28,6 +30,7 @@ class CliConfig:
     def from_sources(cls, args: Any) -> "CliConfig":
         env_file = str(getattr(args, "env_file", ".env"))
         dotenv_values = _load_dotenv(env_file)
+        kirishima_config_values = _load_kirishima_config()
 
         api_url_arg = getattr(args, "api_url", None)
         api_port_arg = getattr(args, "api_port", None)
@@ -63,10 +66,16 @@ class CliConfig:
             or dotenv_values.get("LLM_MODEL_NAME")
             or DEFAULT_MODEL
         )
+        user_id = _clean_env_value(str(kirishima_config_values.get("user_id", ""))) or ""
+        if not user_id:
+            raise RuntimeError(
+                "Missing user_id in ~/.kirishima/config.json (or KIRISHIMA_CONFIG target file)."
+            )
 
         return cls(
             api_base_url=api_base_url,
             ledger_base_url=ledger_base_url,
+            user_id=user_id,
             default_model=default_model,
             env_file=env_file,
         )
@@ -100,3 +109,16 @@ def _parse_dotenv_fallback(env_path: Path) -> dict[str, str]:
         key, raw_value = stripped.split("=", 1)
         values[key.strip()] = _clean_env_value(raw_value) or ""
     return values
+
+
+def _load_kirishima_config() -> dict[str, Any]:
+    config_path = Path(
+        _clean_env_value(os.getenv("KIRISHIMA_CONFIG")) or str(Path.home() / ".kirishima" / "config.json")
+    )
+    if not config_path.exists():
+        return {}
+    try:
+        raw = json.loads(config_path.read_text())
+    except Exception:
+        return {}
+    return raw if isinstance(raw, dict) else {}

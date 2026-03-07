@@ -85,12 +85,23 @@ def _normalize_content(content: Any) -> str:
 
 
 class LedgerClient:
-    def __init__(self, ledger_base_url: str):
+    def __init__(self, ledger_base_url: str, user_id: str):
         self._base_url = ledger_base_url.rstrip("/")
+        self._user_id = user_id
 
     async def get_recent_messages(self) -> list[LedgerMessage]:
         async with httpx.AsyncClient(timeout=20.0) as client:
             response = await client.get(f"{self._base_url}/sync/get")
+            response.raise_for_status()
+            payload = response.json()
+        return [_to_ledger_message(item) for item in payload]
+
+    async def get_history_turns(self, turns: int = 15) -> list[LedgerMessage]:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            response = await client.get(
+                f"{self._base_url}/user/{self._user_id}/messages",
+                params={"turns": turns},
+            )
             response.raise_for_status()
             payload = response.json()
         return [_to_ledger_message(item) for item in payload]

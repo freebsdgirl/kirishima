@@ -33,6 +33,7 @@ def main() -> int:
         default_model=config.default_model,
         api_base_url=config.api_base_url,
         ledger_base_url=config.ledger_base_url,
+        user_id=config.user_id,
     )
     app.run(mouse=False)
     return 0

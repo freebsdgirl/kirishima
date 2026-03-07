@@ -2,17 +2,15 @@ from __future__ import annotations
 
 import asyncio
 import json
-import textwrap
 import time
 
-from rich.markup import escape as escape_markup
-from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical
 from textual.widgets import RichLog, Static, TextArea
 
 from cli.client import ChatClient, LedgerClient, LedgerMessage, _to_ledger_message
+from cli.transcript_renderer import TranscriptRenderer
 
 
 class KirishimaChatApp(App[None]):
@@ -59,9 +57,7 @@ class KirishimaChatApp(App[None]):
         self._status: Static | None = None
         self._send_task: asyncio.Task | None = None
         self._stream_task: asyncio.Task | None = None
-        self._seen_message_ids: set[int] = set()
-        self._has_rows = False
-        self._last_rendered_kind: str | None = None
+        self._renderer: TranscriptRenderer | None = None
 
     def compose(self) -> ComposeResult:
         with Vertical(id="layout"):
@@ -77,6 +73,7 @@ class KirishimaChatApp(App[None]):
         self._compose.focus()
         self._compose.border_title = "[bold blue]Message (Enter=newline, Ctrl+S=send)[/]"
         self._transcript.border_title = "[bold blue]Kirishima[/]"
+        self._renderer = TranscriptRenderer(self._write, self._content_width)
         self._write_system(
             f"API {self.api_base_url} | Ledger {self.ledger_base_url} | user={self.user_id} | mode={self.current_model} | Ctrl+S to send"
         )
@@ -146,14 +143,14 @@ class KirishimaChatApp(App[None]):
     async def _handle_command(self, message: str) -> None:
         if message == "/help":
             self._write_system(
-                "Commands: /help, /mode, /mode <name>, /history [n], /clear, /exit | Send: Ctrl+S"
+                "Commands: /help, /mode, /mode <name>, /history <n>, /clear, /exit | Send: Ctrl+S"
             )
             return
         if message == "/clear":
             if self._transcript is not None:
                 self._transcript.clear()
-            self._has_rows = False
-            self._last_rendered_kind = None
+            if self._renderer is not None:
+                self._renderer.reset_state()
             self._set_status("Cleared")
             return
         if message == "/exit":
@@ -172,34 +169,7 @@ class KirishimaChatApp(App[None]):
             self._set_status(f"Mode={self.current_model}")
             return
         if message == "/history" or message.startswith("/history "):
-            turns = 15
-            if message.startswith("/history "):
-                raw_turns = message[len("/history ") :].strip()
-                if not raw_turns:
-                    self._write_error("Usage: /history [n]")
-                    return
-                try:
-                    turns = int(raw_turns)
-                except ValueError:
-                    self._write_error("Usage: /history [n]")
-                    return
-                if turns <= 0:
-                    self._write_error("History turns must be >= 1.")
-                    return
-            self._set_status(f"Loading history (turns={turns})...")
-            try:
-                messages = await self.ledger_client.get_history_turns(turns=turns)
-            except Exception as exc:
-                self._write_error(f"History load failed: {exc}")
-                self._set_status("History load failed")
-                return
-            self._write_spacer()
-            self._write_system(f"[history] last {turns} turns")
-            for msg in messages:
-                self._append_ledger_message(msg, dedupe=False)
-            if self._transcript is not None:
-                self._transcript.scroll_end(animate=False)
-            self._set_status(f"History loaded ({turns} turns)")
+            await self._handle_history_command(message)
             return
 
         self._write_system("Admin commands not implemented yet.")
@@ -231,130 +201,64 @@ class KirishimaChatApp(App[None]):
                 self._set_status("Ledger stream disconnected; retrying...")
                 await asyncio.sleep(1.0)
 
+    async def _handle_history_command(self, message: str) -> None:
+        turns = 15
+        if message.startswith("/history "):
+            raw_turns = message[len("/history ") :].strip()
+            if not raw_turns:
+                self._write_error("Usage: /history <n>")
+                return
+            try:
+                turns = int(raw_turns)
+            except ValueError:
+                self._write_error("Usage: /history <n>")
+                return
+            if turns <= 0:
+                self._write_error("History turns must be >= 1.")
+                return
+        self._set_status(f"Loading history (turns={turns})...")
+        try:
+            messages = await self.ledger_client.get_history_turns(turns=turns)
+        except Exception as exc:
+            self._write_error(f"History load failed: {exc}")
+            self._set_status("History load failed")
+            return
+        self._write_spacer()
+        self._write_system(f"[history] last {turns} turns")
+        for msg in messages:
+            self._append_ledger_message(msg, dedupe=False)
+        if self._transcript is not None:
+            self._transcript.scroll_end(animate=False)
+        self._set_status(f"History loaded ({turns} turns)")
+
     def _set_status(self, text: str) -> None:
         if self._status is not None:
             self._status.update(text)
 
-    def _write_user(self, message: str) -> None:
-        if self._has_rows:
-            self._write_spacer()
-        bg = "on #4a4a4a"
-        label = "[user]"
-        first_prefix = f"{label} "
-        width = 120
-        if self._transcript is not None and self._transcript.size.width > 0:
-            # RichLog width includes frame; subtract 2 to target inner content width.
-            width = max(20, self._transcript.size.width - 2)
-
-        paragraphs = message.splitlines() or [""]
-        visual_lines: list[str] = []
-        for p_idx, paragraph in enumerate(paragraphs):
-            if p_idx == 0:
-                wrapped = textwrap.wrap(
-                    paragraph,
-                    width=width,
-                    initial_indent=first_prefix,
-                    subsequent_indent="",
-                    replace_whitespace=False,
-                    drop_whitespace=True,
-                    break_long_words=True,
-                    break_on_hyphens=False,
-                )
-                if not wrapped:
-                    wrapped = [first_prefix]
-            else:
-                wrapped = textwrap.wrap(
-                    paragraph,
-                    width=width,
-                    replace_whitespace=False,
-                    drop_whitespace=True,
-                    break_long_words=True,
-                    break_on_hyphens=False,
-                )
-                if not wrapped:
-                    wrapped = [""]
-            visual_lines.extend(wrapped)
-
-        for idx, chunk in enumerate(visual_lines):
-            line = Text(chunk, style=bg)
-            if idx == 0 and chunk.startswith(first_prefix):
-                line.stylize(f"bold bright_magenta {bg}", 0, len(label))
-            pad = width - line.cell_len
-            if pad > 0:
-                line.append(" " * pad, style=bg)
-            self._write(line)
-        self._has_rows = True
-        self._last_rendered_kind = "user"
-
-    def _write_assistant(self, message: str) -> None:
-        if self._has_rows:
-            self._write_spacer()
-        self._write(
-            f"[bold bright_cyan]\\[kirishima][/bold bright_cyan] {escape_markup(message)}"
-        )
-        self._has_rows = True
-        self._last_rendered_kind = "assistant"
-
-    def _write_tool_call(self, tool_calls: dict[str, object]) -> None:
-        fn_name = "unknown"
-        args = ""
-        if tool_calls.get("function") and isinstance(tool_calls["function"], dict):
-            fn_name = str(tool_calls["function"].get("name") or fn_name)
-            args = str(tool_calls["function"].get("arguments") or "")
-        self._write(
-            f"[bold orange3]\\[tool][/bold orange3] "
-            f"{escape_markup(fn_name)}"
-            + (f" {escape_markup(args)}" if args else "")
-        )
-        self._has_rows = True
-        self._last_rendered_kind = "tool_call"
-
-    def _write_tool_output(self, message: str, tool_call_id: str | None) -> None:
-        self._write(escape_markup(message))
-        self._has_rows = True
-        self._last_rendered_kind = "tool"
-
-    # Future tool rendering note:
-    # Add a `_write_tool` formatter with an orange label, e.g. `[bold orange3][tool][/bold orange3]`,
-    # once tool-call rows are added to the transcript.
-
     def _write_error(self, message: str) -> None:
-        self._write(f"[bold red]\\[error][/bold red] {escape_markup(message)}")
+        if self._renderer is not None:
+            self._renderer.write_error(message)
 
     def _write_system(self, message: str) -> None:
-        self._write(
-            f"[bold dodger_blue2]\\[system][/bold dodger_blue2] "
-            f"[dim]{escape_markup(message)}[/]"
-        )
+        if self._renderer is not None:
+            self._renderer.write_system(message)
 
     def _write(self, line: str) -> None:
         if self._transcript is not None:
             self._transcript.write(line, scroll_end=True)
 
     def _write_spacer(self) -> None:
-        self._write("")
+        if self._renderer is not None:
+            self._renderer.write_spacer()
+
+    def _content_width(self) -> int:
+        if self._transcript is not None and self._transcript.size.width > 0:
+            return max(20, self._transcript.size.width - 2)
+        return 120
 
     def _append_ledger_message(self, msg: LedgerMessage, dedupe: bool = True) -> None:
-        if dedupe and msg.id and msg.id in self._seen_message_ids:
-            return
-        if msg.id:
-            self._seen_message_ids.add(msg.id)
-
-        if msg.role == "user":
-            self._write_user(msg.content)
-            return
-        if msg.role == "assistant":
-            if msg.tool_calls:
-                if self._last_rendered_kind in {"user", "tool", "tool_call"}:
-                    self._write_spacer()
-                self._write_tool_call(msg.tool_calls)
-            elif msg.content:
-                self._write_assistant(msg.content)
-            return
-        if msg.role == "tool":
-            self._write_tool_output(msg.content, msg.tool_call_id)
-            return
-        self._write_system(f"{msg.role}: {msg.content}")
+        if self._renderer is not None:
+            self._renderer.append_ledger_message(msg, dedupe=dedupe)
 
 
 def _or_dash(value: int | None) -> str:

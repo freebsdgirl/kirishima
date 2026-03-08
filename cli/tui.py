@@ -3,13 +3,23 @@ from __future__ import annotations
 import asyncio
 import json
 import time
+from typing import Any
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical
 from textual.widgets import RichLog, Static, TextArea
 
-from cli.client import ChatClient, LedgerClient, LedgerMessage, _to_ledger_message
+from cli.client import (
+    AdminClient,
+    AdminError,
+    AdminRpcError,
+    ChatClient,
+    LedgerClient,
+    LedgerMessage,
+    _to_ledger_message,
+)
+from cli.commands import parse_command
 from cli.transcript_renderer import TranscriptRenderer
 
 
@@ -42,14 +52,17 @@ class KirishimaChatApp(App[None]):
         chat_client: ChatClient,
         default_model: str,
         api_base_url: str,
+        brain_base_url: str,
         ledger_base_url: str,
         user_id: str,
     ):
         super().__init__()
         self.chat_client = chat_client
+        self.admin_client = AdminClient(brain_base_url)
         self.ledger_client = LedgerClient(ledger_base_url, user_id=user_id)
         self.current_model = default_model
         self.api_base_url = api_base_url
+        self.brain_base_url = brain_base_url
         self.ledger_base_url = ledger_base_url
         self.user_id = user_id
         self._transcript: RichLog | None = None
@@ -58,6 +71,7 @@ class KirishimaChatApp(App[None]):
         self._send_task: asyncio.Task | None = None
         self._stream_task: asyncio.Task | None = None
         self._renderer: TranscriptRenderer | None = None
+        self._last_error: AdminError | None = None
 
     def compose(self) -> ComposeResult:
         with Vertical(id="layout"):
@@ -75,7 +89,7 @@ class KirishimaChatApp(App[None]):
         self._transcript.border_title = "[bold blue]Kirishima[/]"
         self._renderer = TranscriptRenderer(self._write, self._content_width)
         self._write_system(
-            f"API {self.api_base_url} | Ledger {self.ledger_base_url} | user={self.user_id} | mode={self.current_model} | Ctrl+S to send"
+            f"API {self.api_base_url} | Brain {self.brain_base_url} | Ledger {self.ledger_base_url} | user={self.user_id} | mode={self.current_model} | Ctrl+S to send"
         )
         self._set_status("Loading recent history...")
         await self._load_recent_history()
@@ -141,25 +155,30 @@ class KirishimaChatApp(App[None]):
             self._stream_task.cancel()
 
     async def _handle_command(self, message: str) -> None:
-        if message == "/help":
+        command = parse_command(message)
+
+        if command.kind == "local" and command.name == "help":
             self._write_system(
-                "Commands: /help, /mode, /mode <name>, /history <n>, /clear, /exit | Send: Ctrl+S"
+                "Commands: /help, /mode, /mode <name>, /history <n>, /tools, /context, /heatmap, /last-error, /clear, /exit | Send: Ctrl+S"
             )
             return
-        if message == "/clear":
+        if command.kind == "local" and command.name == "clear":
             if self._transcript is not None:
                 self._transcript.clear()
             if self._renderer is not None:
                 self._renderer.reset_state()
             self._set_status("Cleared")
             return
-        if message == "/exit":
+        if command.kind == "local" and command.name == "exit":
             self.exit()
             return
-        if message == "/mode":
+        if command.kind == "local" and command.name == "last-error":
+            self._show_last_error()
+            return
+        if command.kind == "local" and command.name == "mode" and message == "/mode":
             self._write_system(f"mode={self.current_model}")
             return
-        if message.startswith("/mode "):
+        if command.kind == "local" and command.name == "mode" and message.startswith("/mode "):
             next_mode = message[len("/mode ") :].strip()
             if not next_mode:
                 self._write_error("Mode name is required.")
@@ -168,11 +187,14 @@ class KirishimaChatApp(App[None]):
             self._write_system(f"mode set to {self.current_model}")
             self._set_status(f"Mode={self.current_model}")
             return
-        if message == "/history" or message.startswith("/history "):
+        if command.kind == "ledger" and command.name == "history":
             await self._handle_history_command(message)
             return
+        if command.kind == "admin" and command.method is not None:
+            await self._handle_admin_command(command.name, command.method, command.params or {})
+            return
 
-        self._write_system("Admin commands not implemented yet.")
+        self._write_error(f"Unknown command: {message}")
 
     async def _load_recent_history(self) -> None:
         try:
@@ -231,6 +253,35 @@ class KirishimaChatApp(App[None]):
             self._transcript.scroll_end(animate=False)
         self._set_status(f"History loaded ({turns} turns)")
 
+    async def _handle_admin_command(self, command_name: str, method: str, params: dict[str, object]) -> None:
+        self._set_status(f"Running {method}...")
+        started = time.perf_counter()
+        try:
+            result = await self.admin_client.send_admin(method, params)
+        except AdminRpcError as exc:
+            self._cache_error(exc.code, exc.message, exc.data)
+            self._write_admin_error(exc.code, exc.message, exc.data)
+            self._set_status(f"{method} failed")
+            return
+        except Exception as exc:
+            self._cache_error(-32000, str(exc), None)
+            self._write_error(str(exc))
+            self._set_status(f"{method} failed")
+            return
+
+        elapsed = time.perf_counter() - started
+        self._last_error = None
+        self._write_spacer()
+        if command_name == "tools":
+            self._render_tools_result(result)
+        elif command_name == "context":
+            self._render_context_result(result)
+        elif command_name == "heatmap":
+            self._render_heatmap_result(result)
+        else:
+            self._write_system(f"{method} completed")
+        self._set_status(f"{elapsed:.2f}s | {method}")
+
     def _set_status(self, text: str) -> None:
         if self._status is not None:
             self._status.update(text)
@@ -250,6 +301,87 @@ class KirishimaChatApp(App[None]):
     def _write_spacer(self) -> None:
         if self._renderer is not None:
             self._renderer.write_spacer()
+
+    def _cache_error(self, code: int, message: str, data: dict[str, Any] | None) -> None:
+        self._last_error = AdminError(code=code, message=message, data=data)
+
+    def _show_last_error(self) -> None:
+        if self._last_error is None:
+            self._write_system("No cached error.")
+            return
+        self._write_admin_error(
+            self._last_error.code,
+            self._last_error.message,
+            self._last_error.data,
+        )
+
+    def _write_admin_error(self, code: int, message: str, data: dict[str, Any] | None) -> None:
+        service = ""
+        status_code = ""
+        if data:
+            if data.get("service"):
+                service = f" service={data['service']}"
+            if data.get("status_code") is not None:
+                status_code = f" status={data['status_code']}"
+        self._write_error(f"[rpc {code}] {message}{service}{status_code}")
+
+    def _render_tools_result(self, result: dict[str, Any]) -> None:
+        self._write_system("[tools]")
+        tools = result.get("tools")
+        if not isinstance(tools, list) or not tools:
+            self._write_system("No tools registered.")
+            return
+        for tool in tools:
+            if not isinstance(tool, dict):
+                continue
+            name = str(tool.get("name") or "unknown")
+            description = str(tool.get("description") or "").strip()
+            flags: list[str] = []
+            if tool.get("always"):
+                flags.append("always")
+            if tool.get("persistent"):
+                flags.append("persistent")
+            clients = tool.get("clients")
+            if isinstance(clients, list) and clients:
+                flags.append("clients=" + ",".join(str(item) for item in clients))
+            flag_text = f" [{' | '.join(flags)}]" if flags else ""
+            self._write(f"[bold bright_cyan]{name}[/bold bright_cyan]{flag_text}")
+            if description:
+                self._write(f"  {description}")
+
+    def _render_context_result(self, result: dict[str, Any]) -> None:
+        self._write_system("[context] top memories")
+        memories = result.get("memories")
+        if isinstance(memories, list) and memories:
+            for index, memory in enumerate(memories, start=1):
+                self._write(f"{index:>2}. {str(memory)}")
+        else:
+            self._write("No contextual memories found.")
+
+        self._write_spacer()
+        self._write_system("[context] top keyword scores")
+        self._render_score_lines(result.get("scores"), limit=10)
+
+    def _render_heatmap_result(self, result: dict[str, Any]) -> None:
+        self._write_system("[heatmap]")
+        self._render_score_lines(result.get("scores"), limit=None)
+
+    def _render_score_lines(self, scores_payload: object, limit: int | None) -> None:
+        if not isinstance(scores_payload, dict) or not scores_payload:
+            self._write("No keyword scores found.")
+            return
+        entries = sorted(
+            (
+                (str(keyword), float(score))
+                for keyword, score in scores_payload.items()
+            ),
+            key=lambda item: item[1],
+            reverse=True,
+        )
+        if limit is not None:
+            entries = entries[:limit]
+        for keyword, score in entries:
+            self._write(f"{keyword:<24} {score:.3f}")
 
     def _content_width(self) -> int:
         if self._transcript is not None and self._transcript.size.width > 0:

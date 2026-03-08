@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
+from uuid import uuid4
 from typing import Any
 
 import httpx
@@ -18,6 +19,21 @@ class ChatUsage:
 class ChatResult:
     text: str
     usage: ChatUsage
+
+
+@dataclass(frozen=True)
+class AdminError:
+    code: int
+    message: str
+    data: dict[str, Any] | None = None
+
+
+class AdminRpcError(RuntimeError):
+    def __init__(self, code: int, message: str, data: dict[str, Any] | None = None):
+        super().__init__(message)
+        self.code = code
+        self.message = message
+        self.data = data or None
 
 
 @dataclass(frozen=True)
@@ -128,6 +144,56 @@ class LedgerClient:
                     if line.startswith("data:"):
                         data_lines.append(line.split(":", 1)[1].lstrip())
                         continue
+
+
+class AdminClient:
+    def __init__(self, brain_base_url: str):
+        self._base_url = brain_base_url.rstrip("/")
+
+    async def send_admin(self, method: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+        request_id = str(uuid4())
+        payload = {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "method": method,
+            "params": params or {},
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=20.0) as client:
+                response = await client.post(f"{self._base_url}/admin/rpc", json=payload)
+        except httpx.HTTPError as exc:
+            raise RuntimeError(f"Admin RPC request failed: {exc}") from exc
+
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            raise RuntimeError(
+                f"Admin RPC HTTP error: {exc.response.status_code} {exc.response.text}"
+            ) from exc
+
+        try:
+            rpc_response = response.json()
+        except ValueError as exc:
+            raise RuntimeError("Admin RPC returned invalid JSON.") from exc
+
+        if rpc_response.get("jsonrpc") != "2.0":
+            raise RuntimeError("Admin RPC returned an invalid protocol response.")
+        if rpc_response.get("id") != request_id:
+            raise RuntimeError("Admin RPC response ID did not match the request.")
+
+        error = rpc_response.get("error")
+        if isinstance(error, dict):
+            raise AdminRpcError(
+                code=int(error.get("code", -32603)),
+                message=str(error.get("message") or "Admin RPC error"),
+                data=error.get("data") if isinstance(error.get("data"), dict) else None,
+            )
+
+        result = rpc_response.get("result")
+        if not isinstance(result, dict):
+            raise RuntimeError("Admin RPC returned a non-object result.")
+        return result
 
 
 def _to_ledger_message(payload: dict[str, Any]) -> LedgerMessage:

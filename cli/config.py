@@ -8,6 +8,7 @@ from typing import Any
 
 
 DEFAULT_API_PORT = "4200"
+DEFAULT_BRAIN_PORT = "4201"
 DEFAULT_LEDGER_PORT = "4203"
 DEFAULT_MODEL = "default"
 
@@ -21,6 +22,7 @@ def _clean_env_value(value: str | None) -> str | None:
 @dataclass(frozen=True)
 class CliConfig:
     api_base_url: str
+    brain_base_url: str
     ledger_base_url: str
     user_id: str
     default_model: str
@@ -34,6 +36,8 @@ class CliConfig:
 
         api_url_arg = getattr(args, "api_url", None)
         api_port_arg = getattr(args, "api_port", None)
+        brain_url_arg = getattr(args, "brain_url", None)
+        brain_port_arg = getattr(args, "brain_port", None)
         ledger_url_arg = getattr(args, "ledger_url", None)
         ledger_port_arg = getattr(args, "ledger_port", None)
         if api_url_arg:
@@ -47,6 +51,18 @@ class CliConfig:
                 or DEFAULT_API_PORT
             )
             api_base_url = f"http://localhost:{api_port}/v1"
+
+        if brain_url_arg:
+            brain_base_url = brain_url_arg.rstrip("/")
+        else:
+            brain_port = (
+                str(brain_port_arg)
+                if brain_port_arg
+                else _clean_env_value(os.getenv("BRAIN_PORT"))
+                or dotenv_values.get("BRAIN_PORT")
+                or DEFAULT_BRAIN_PORT
+            )
+            brain_base_url = f"http://localhost:{brain_port}"
 
         if ledger_url_arg:
             ledger_base_url = ledger_url_arg.rstrip("/")
@@ -74,6 +90,7 @@ class CliConfig:
 
         return cls(
             api_base_url=api_base_url,
+            brain_base_url=brain_base_url,
             ledger_base_url=ledger_base_url,
             user_id=user_id,
             default_model=default_model,

@@ -18,6 +18,12 @@ Central orchestrator for the Kirishima system. Routes messages, manages context,
 | POST | `/mode/{mode}` | Set active model mode |
 | GET | `/mode` | Get current mode |
 
+### Admin
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/admin/rpc` | JSON-RPC admin/introspection endpoint for CLI commands |
+
 ### Notifications
 
 | Method | Path | Description |

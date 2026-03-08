@@ -8,10 +8,12 @@ from cli.tui import KirishimaChatApp
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Kirishima CLI (chat path only)")
+    parser = argparse.ArgumentParser(description="Kirishima CLI")
     parser.add_argument("--env-file", default=".env", help="Path to .env file")
     parser.add_argument("--api-port", type=int, help="API service port (localhost)")
     parser.add_argument("--api-url", help="Full API base URL (e.g. http://localhost:4200/v1)")
+    parser.add_argument("--brain-port", type=int, help="Brain service port (localhost)")
+    parser.add_argument("--brain-url", help="Full brain base URL (e.g. http://localhost:4201)")
     parser.add_argument("--ledger-port", type=int, help="Ledger service port (localhost)")
     parser.add_argument("--ledger-url", help="Full ledger base URL (e.g. http://localhost:4203)")
     parser.add_argument("--model", help="Default mode/model for the chat session")
@@ -32,6 +34,7 @@ def main() -> int:
         chat_client=chat_client,
         default_model=config.default_model,
         api_base_url=config.api_base_url,
+        brain_base_url=config.brain_base_url,
         ledger_base_url=config.ledger_base_url,
         user_id=config.user_id,
     )

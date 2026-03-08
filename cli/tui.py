@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import time
+import textwrap
 from typing import Any
 
 from textual.app import App, ComposeResult
@@ -158,9 +159,7 @@ class KirishimaChatApp(App[None]):
         command = parse_command(message)
 
         if command.kind == "local" and command.name == "help":
-            self._write_system(
-                "Commands: /help, /mode, /mode <name>, /history <n>, /tools, /context, /heatmap, /last-error, /clear, /exit | Send: Ctrl+S"
-            )
+            self._render_help()
             return
         if command.kind == "local" and command.name == "clear":
             if self._transcript is not None:
@@ -194,7 +193,7 @@ class KirishimaChatApp(App[None]):
             await self._handle_admin_command(command.name, command.method, command.params or {})
             return
 
-        self._write_error(f"Unknown command: {message}")
+        self._write_error(f"Unknown command: {message}. Try /help.")
 
     async def _load_recent_history(self) -> None:
         try:
@@ -325,12 +324,34 @@ class KirishimaChatApp(App[None]):
                 status_code = f" status={data['status_code']}"
         self._write_error(f"[rpc {code}] {message}{service}{status_code}")
 
+    def _render_help(self) -> None:
+        self._write_system("[help] local")
+        self._write("  /help                show commands")
+        self._write("  /mode                show current CLI session mode")
+        self._write("  /mode <name>         set current CLI session mode")
+        self._write("  /clear               clear transcript")
+        self._write("  /last-error          show last admin error")
+        self._write("  /exit                quit")
+        self._write_spacer()
+        self._write_system("[help] ledger")
+        self._write("  /history [n]         show recent turn history from ledger")
+        self._write_spacer()
+        self._write_system("[help] admin")
+        self._write("  /tools               list registered brain tools")
+        self._write("  /context             show contextual memories + top keywords")
+        self._write("  /heatmap             show full keyword heatmap state")
+        self._write_spacer()
+        self._write_system("[help] send")
+        self._write("  Ctrl+S to send the current draft")
+
     def _render_tools_result(self, result: dict[str, Any]) -> None:
         self._write_system("[tools]")
         tools = result.get("tools")
         if not isinstance(tools, list) or not tools:
-            self._write_system("No tools registered.")
+            self._write("No tools registered.")
             return
+        self._write(f"{len(tools)} tool(s)")
+        self._write_spacer()
         for tool in tools:
             if not isinstance(tool, dict):
                 continue
@@ -347,41 +368,68 @@ class KirishimaChatApp(App[None]):
             flag_text = f" [{' | '.join(flags)}]" if flags else ""
             self._write(f"[bold bright_cyan]{name}[/bold bright_cyan]{flag_text}")
             if description:
-                self._write(f"  {description}")
+                for line in self._wrap_text(description, indent="  "):
+                    self._write(line)
 
     def _render_context_result(self, result: dict[str, Any]) -> None:
-        self._write_system("[context] top memories")
+        self._write_system("[context] contextual memories")
         memories = result.get("memories")
         if isinstance(memories, list) and memories:
             for index, memory in enumerate(memories, start=1):
-                self._write(f"{index:>2}. {str(memory)}")
+                wrapped = self._wrap_text(str(memory), indent=f"{index:>2}. ", subsequent="    ")
+                for line in wrapped:
+                    self._write(line)
         else:
             self._write("No contextual memories found.")
 
         self._write_spacer()
-        self._write_system("[context] top keyword scores")
+        self._write_system("[context] keyword summary")
         self._render_score_lines(result.get("scores"), limit=10)
 
     def _render_heatmap_result(self, result: dict[str, Any]) -> None:
-        self._write_system("[heatmap]")
+        self._write_system("[heatmap] keyword state")
         self._render_score_lines(result.get("scores"), limit=None)
 
     def _render_score_lines(self, scores_payload: object, limit: int | None) -> None:
         if not isinstance(scores_payload, dict) or not scores_payload:
             self._write("No keyword scores found.")
             return
-        entries = sorted(
-            (
-                (str(keyword), float(score))
-                for keyword, score in scores_payload.items()
-            ),
-            key=lambda item: item[1],
-            reverse=True,
-        )
+        entries: list[tuple[str, float]] = []
+        for keyword, score in scores_payload.items():
+            try:
+                entries.append((str(keyword), float(score)))
+            except (TypeError, ValueError):
+                continue
+        entries.sort(key=lambda item: item[1], reverse=True)
+        total_entries = len(entries)
         if limit is not None:
             entries = entries[:limit]
+        shown_suffix = f" showing {len(entries)}" if limit is not None else ""
+        self._write(f"{total_entries} keyword(s){shown_suffix}")
+        self._write_spacer()
         for keyword, score in entries:
             self._write(f"{keyword:<24} {score:.3f}")
+
+    def _wrap_text(
+        self,
+        text: str,
+        indent: str = "",
+        subsequent: str | None = None,
+    ) -> list[str]:
+        width = max(20, self._content_width() - 2)
+        wrapped = textwrap.wrap(
+            text,
+            width=width,
+            initial_indent=indent,
+            subsequent_indent=subsequent if subsequent is not None else indent,
+            replace_whitespace=False,
+            drop_whitespace=True,
+            break_long_words=True,
+            break_on_hyphens=False,
+        )
+        if not wrapped:
+            return [indent.rstrip()]
+        return wrapped
 
     def _content_width(self) -> int:
         if self._transcript is not None and self._transcript.size.width > 0:

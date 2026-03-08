@@ -7,7 +7,7 @@
 - Scope: Text-based terminal client for chatting with the agent, inspecting state, and debugging
 - Replaces: `docs/CLI_Client_Design_and_Roadmap.md` (Codex draft — kept for reference)
 
-### Current Progress (2026-03-07)
+### Current Progress (2026-03-08)
 
 Completed:
 - Textual split-pane CLI is active (`cli/tui.py`).
@@ -25,16 +25,17 @@ Not done yet:
 
 Notes:
 - Current implementation intentionally connects CLI directly to ledger (default `http://localhost:4203`) for history/streaming.
-- `mode.get` / `mode.set` currently remain client-local session behavior.
+- `/mode` remains client-local session behavior by design.
 
 ---
 
 ## 1. What This Is
 
-A local terminal client with two paths:
+A local terminal client with three paths:
 
-- **Chat path**: Send messages to the agent through the existing API service (`/v1/chat/completions`). After each response, pull the full exchange from ledger — including tool calls and tool results — and render the whole trace. This is the default view. You always see what the agent did, not just the final answer.
-- **Admin path**: `/commands` go to a new admin endpoint on brain. Brain routes the command to the appropriate service, gets the result, and returns it. None of this touches ledger. It's out-of-band introspection and control.
+- **Chat path**: Send messages to the agent through the existing API service (`/v1/chat/completions`).
+- **History path**: Preload history, `/history`, and live transcript streaming come directly from ledger. This is intentional. Ledger is the source of truth, and there is no benefit in making brain proxy history/stream events just to forward them again.
+- **Admin path**: Introspection and cross-service control commands go to a new admin endpoint on brain. Brain routes the command to the appropriate service, gets the result, and returns it. This is out-of-band control, not conversation history transport.
 
 The separation is about what enters the conversation thread and what doesn't. Checking the heatmap shouldn't pollute the agent's context. Searching memories for debugging shouldn't create a ledger entry.
 
@@ -58,31 +59,40 @@ Operational assumptions for this system:
 ```
 User input
   |
-  +-- starts with "/" --> Admin path
-  |     CLI sends JSON-RPC call to brain POST /admin/rpc
-  |     Brain dispatches to handler, which queries relevant services
-  |     Brain returns result to CLI
-  |     CLI renders result (never touches ledger)
+  +-- starts with "/" --> Command path
+  |     +-- local command (/help, /clear, /exit, /mode)
+  |     |     CLI handles it locally
+  |     |
+  |     +-- history command (/history ...)
+  |     |     CLI calls ledger directly
+  |     |
+  |     +-- admin command (/services, /tools, /memory ..., /context, /heatmap, ...)
+  |           CLI sends JSON-RPC call to brain POST /admin/rpc
+  |           Brain dispatches to handler, which queries relevant services
+  |           Brain returns result to CLI
   |
   +-- anything else --> Chat path
         CLI sends message to api POST /v1/chat/completions (via OpenAI SDK)
         (api forwards to brain /api/multiturn, brain does its thing)
         Response comes back through api
-        CLI calls brain JSON-RPC (history.recent) to get full trace
-        CLI renders: user message, tool calls, tool results, assistant response
+        Ledger records the turn
+        CLI transcript updates from direct ledger preload/stream/history calls
 
-The CLI only knows two endpoints:
+The CLI knows three endpoint families:
   1. api service — /v1/chat/completions (OpenAI SDK)
-  2. brain service — /admin/rpc (JSON-RPC)
+  2. ledger service — history preload, /user/stream, /user/{user_id}/messages
+  3. brain service — /admin/rpc (JSON-RPC)
 ```
 
 ### Key design decisions
 
-- **The CLI only talks to two endpoints.** Chat goes to api (`/v1/chat/completions` via OpenAI SDK). Everything else goes to brain (`/admin/rpc` via JSON-RPC). The CLI has zero knowledge of ledger, proxy, scheduler, or any other service.
-- **Brain is the gateway for all introspection.** Ledger is the source of truth for conversation history, but the CLI never talks to ledger directly. It asks brain via JSON-RPC (e.g., `history.recent`), and brain queries ledger and returns the data.
-- **No session-local message buffer needed.** Ledger tracks conversation history. The CLI is stateless for chat — it sends a message, waits for the response, then asks brain for the trace.
+- **The CLI talks to api, ledger, and brain.** This is deliberate, not architectural drift. Each path maps cleanly to the service that already owns that behavior.
+- **Ledger is the direct history/stream source.** The CLI should connect straight to ledger for preload, `/history`, and SSE. Brain should not proxy history or stream events unless it is adding real behavior beyond transport.
+- **Brain is the gateway for admin orchestration.** Use brain for commands that need cross-service routing, aggregation, or policy, not as a pass-through for ledger history reads.
+- **`/mode` is local session state.** The active chat mode for the CLI session is chosen client-side and sent as the `model` field on chat requests. It is not an admin endpoint command.
+- **No session-local message buffer needed.** Ledger tracks conversation history. The CLI remains stateless for chat transport even though it reads transcript/history directly from ledger.
 - **Admin commands are synchronous request/response.** No async job IDs needed.
-- **CLI never sends `user_id`.** Brain resolves the effective user internally using `get_admin_user_id()` from `app.util` for ledger-backed admin/history operations.
+- **CLI may need `user_id` for direct ledger history access.** This is acceptable for the host-run single-user CLI. Brain should still resolve the effective user internally for admin operations that need it.
 
 ---
 
@@ -100,7 +110,7 @@ cli/
 
 Launch: `python -m cli.main`
 
-CLI flags: `--env-file` (path to `.env`, defaults to project root), `--api-port`, `--brain-port`
+CLI flags: `--env-file` (path to `.env`, defaults to project root), `--api-port`, `--brain-port`, `--ledger-port`
 
 Config resolution priority: CLI flags > env vars > `.env` file > hardcoded defaults
 
@@ -131,7 +141,7 @@ The admin path uses **JSON-RPC 2.0** over HTTP. This is the same protocol MCP al
 - The custom envelope we originally designed was JSON-RPC with different field names. Just use the real thing.
 - `jsonrpcserver` gives you method dispatch, argument validation, and standard error codes — that's the command registry and dispatcher for free.
 - `jsonrpcclient` gives the CLI typed requests and error handling without custom `schemas.py` models.
-- As commands grow in complexity (memory management has lots of options, history has filters), the standard protocol scales without needing to evolve a bespoke envelope.
+- As commands grow in complexity (memory management, service inspection, scheduler control), the standard protocol scales without needing to evolve a bespoke envelope.
 - MCP already uses JSON-RPC, so brain is already familiar territory.
 
 ### Brain-side example
@@ -144,10 +154,6 @@ from fastapi import Request
 async def memory_search(query: str, limit: int = 10) -> Result:
     # hit ledger, return results
     return Success({"memories": results})
-
-@method
-async def mode_get() -> Result:
-    return Success({"mode": current_mode})
 
 # FastAPI route
 @router.post("/admin/rpc")
@@ -173,7 +179,7 @@ async def send_admin(method: str, **params):
 
 ## 5. Command List
 
-These are the admin commands to implement. **The specific endpoints and services each command hits are documented separately** — the implementing agent should look up the actual routes in each service's code and README.
+These are the CLI commands to support. Commands under the admin path should be implemented through brain `POST /admin/rpc`. **The specific endpoints and services each command hits are documented separately** — the implementing agent should look up the actual routes in each service's code and README.
 
 ### V1 — Core
 
@@ -182,12 +188,12 @@ These are the admin commands to implement. **The specific endpoints and services
 | `/help` | List available commands (local, no network call) |
 | `/exit` | Quit the CLI (local) |
 | `/clear` | Clear the terminal (local) |
+| `/mode` | Show current CLI session mode (local) |
+| `/mode <name>` | Set current CLI session mode (local) |
+| `/history [n]` | Show last N conversation turns from ledger (direct ledger call, not brain admin RPC) |
 | `/services` | Show status of all services (health checks) |
-| `/mode` | Get current LLM mode |
-| `/mode <name>` | Set LLM mode |
 | `/tools` | List available tools |
 | `/context` | Show current context window / keyword scores |
-| `/history [n]` | Show last N conversation turns from ledger (turn = user message + tool call/results + assistant response) |
 | `/history delete-from <row_id>` | Delete everything from this row ID onward (inclusive). Truncates forward — keeps conversation structure intact. Use `/history` first to see row IDs. |
 | `/history edit <row_id> <text>` | Modify the content of a specific entry (content only, doesn't change role or structure) |
 | `/heatmap` | Show keyword heatmap state |
@@ -224,8 +230,8 @@ These are the admin commands to implement. **The specific endpoints and services
 - Create the `cli/` directory with all files from section 3
 - `cli/__init__.py` — empty
 - `cli/config.py` — load the `.env` file from the project root to get service ports (same `.env` Docker uses). All connections are `localhost:<port>`. Fall back to env vars if `.env` isn't found. Fall back to hardcoded default ports as a last resort.
-- `cli/main.py` — argument parser (`argparse`) for `--api-url`, `--brain-url`, `--config`. Start a REPL loop that reads input, checks if it starts with `/`, and routes accordingly. For now, `/` commands just print "not implemented yet".
-- `cli/client.py` — two clients: `openai.OpenAI` for chat, `jsonrpcclient` + `httpx` for admin commands. The CLI only ever talks to api and brain. See sections 4 and step 1.2 for examples.
+- `cli/main.py` — argument parser (`argparse`) for `--api-url`, `--brain-url`, `--ledger-url`, `--env-file`, and related port overrides. Start a REPL loop that reads input, checks if it starts with `/`, and routes accordingly. For now, `/` commands just print "not implemented yet".
+- `cli/client.py` — clients for chat (`openai.OpenAI` to api), history/streaming (`httpx` to ledger), and admin commands (`jsonrpcclient` + `httpx` to brain).
 
 #### Step 1.2 — Chat send/receive
 
@@ -239,19 +245,19 @@ These are the admin commands to implement. **The specific endpoints and services
   )
   ```
 - Extract the assistant message from `response.choices[0].message.content` and token usage from `response.usage`.
-- The CLI tracks the current mode in session state. Default comes from `.env` or by querying brain (`mode.get`) on startup. `/mode <name>` updates the session mode, which is used as the `model` parameter in subsequent chat requests.
+- The CLI tracks the current mode in session state. Default comes from `.env`/config at startup. `/mode <name>` updates the session mode locally, which is then used as the `model` parameter in subsequent chat requests.
 - Display the response with basic formatting.
 - At this point, chat works end-to-end without ledger rendering. This is the MVP checkpoint.
 
 #### Step 1.3 — Ledger trace rendering
 
-- After each chat response, call brain via JSON-RPC (`history.recent`) to get the full trace for the most recent turn. A turn is: user message + any tool calls/results + final assistant response. The CLI never talks to ledger directly — brain handles that.
+- Use ledger directly for transcript preload, `/history`, and live SSE updates. A turn is: user message + any tool calls/results + final assistant response.
 - `cli/render.py` — format conversation entries by role:
   - `user` — plain text
   - `assistant` — highlighted/styled text
   - `tool` / `tool_call` — indented, dimmed, showing tool name + args/result summary
 - Replace the basic "just show the response" display from 1.2 with the full trace view.
-- If brain is unreachable for the trace query, fall back gracefully to just showing the direct API response (don't crash).
+- If ledger is unreachable for preload/history/streaming, fall back gracefully to just showing the direct API response path and local status/error messages.
 
 #### Step 1.4 — Basic REPL polish
 
@@ -287,33 +293,31 @@ Implement each command handler one at a time. Each handler:
 
 Commands to implement (in priority order):
 1. `services` — health check all services, return status map
-2. `mode.get` — return current mode
-3. `mode.set` — set mode, return confirmation
-4. `tools.list` — return available tools
-5. `context.get` — return context window state
-6. `heatmap.get` — return keyword heatmap
-7. `history.recent` — return recent conversation turns (with tool calls/results grouped into each turn)
-8. `memory.search` — search memories
-9. `memory.get` — get a specific memory by ID
-10. `memory.create` — create a new memory
-11. `memory.edit` — update a memory's content
-12. `memory.delete` — delete a memory
-13. `memory.list` — list memories with optional filters
-14. `history.delete_from` — delete all entries from a given row ID onward (truncate forward, preserves conversation structure)
-15. `history.edit` — modify content of a specific entry (content only, not role/structure)
+2. `tools.list` — return available tools
+3. `context.get` — return context window state
+4. `heatmap.get` — return keyword heatmap
+5. `memory.search` — search memories
+6. `memory.get` — get a specific memory by ID
+7. `memory.create` — create a new memory
+8. `memory.edit` — update a memory's content
+9. `memory.delete` — delete a memory
+10. `memory.list` — list memories with optional filters
+
+Not part of brain admin RPC:
+- `/mode` and `/mode <name>` remain local CLI commands
+- `/history [n]` remains a direct ledger read
+- live transcript streaming remains a direct ledger SSE connection
 
 **Important**: Look up the actual service endpoints by reading each service's routes and README. Don't guess.
 
 #### Step 2.3 — Wire CLI to admin endpoint
 
-- `cli/commands.py` — command registry mapping `/command` strings to JSON-RPC method names + argument parsers. Parse `/mode claude` into `method="mode.set", params={"mode": "claude"}`. Parse `/memories medication` into `method="memory.search", params={"query": "medication"}`.
+- `cli/commands.py` — command registry mapping only admin `/command` strings to JSON-RPC method names + argument parsers. Local commands (`/help`, `/clear`, `/exit`, `/mode`) and direct-ledger history commands stay outside this path.
 - `cli/client.py` — `send_admin(method, **params)` uses `jsonrpcclient` to call brain's `POST /admin/rpc`. See section 4 for the pattern.
 - `cli/render.py` — render functions for each command type:
   - `services` → table with service name + status + response time
-  - `mode` → single line showing current mode
   - `tools` → table of tool names and descriptions
   - `context` / `heatmap` → formatted keyword scores
-  - `history` → conversation trace (reuse the renderer from Phase 1)
   - `memories` → list of memory entries with scores
 - `/last-error` — cache the last error response locally, re-display on demand
 
@@ -386,37 +390,14 @@ Start with `openai`, `jsonrpcclient`, `httpx`, `python-dotenv`, and `rich`. `jso
 
 ## 9. Notes for the Implementor
 
-1. **Trace rendering**: The `history.recent` JSON-RPC method in brain should return *turns*, not raw rows. Response shape should be:
-   - `turns`: list ordered newest-first
-   - each turn contains:
-     - `anchor_row_id`: row ID of the `user` row that starts the turn
-     - `rows`: raw ledger rows in that turn (user/tool/assistant), each with original `row_id`
-     - `summary`: optional compact line for list view
-   - `count`: number of turns returned
+1. **History and streaming are direct ledger concerns**:
+   - Keep transcript preload, `/history`, and live SSE against ledger.
+   - Do not add `history.recent` to brain admin RPC just to proxy ledger rows.
+   - Do not route ledger stream traffic through brain unless brain is adding actual transformation or policy.
 
-   Turn grouping rule for single-user flow:
-   - Start a new turn at each `role=user` row
-   - Include all following `tool`/`tool_call` rows
-   - End at next `assistant` row
-   - If the most recent turn is incomplete (e.g., only user row), still return it as partial
-   - Brain determines `user_id` internally via `get_admin_user_id()`; CLI does not pass user identifiers.
-
-2. **History mutation endpoints (new in brain admin RPC)**:
-   - These admin RPC methods require **new ledger HTTP endpoints**. Brain should proxy to ledger over HTTP; do not add direct DB access in brain.
-   - Brain determines `user_id` internally via `get_admin_user_id()` from `app.util` before calling ledger.
-   - Follow ledger's existing naming and file layout conventions (`services/ledger/app/routes/user.py` + `services/ledger/app/services/user/*`):
-     - Route pattern should stay under the user message surface (`/user/{user_id}/...`)
-     - Keep route handlers thin and push logic into service-layer helpers, matching current ledger style
-   - `history.edit(row_id, content)`:
-     - Validate row exists
-     - Allow editing `user` and `assistant` rows only
-     - Reject edits to `tool` / `tool_call` rows
-     - Update content in ledger by row ID
-     - Return edited row metadata + before/after preview
-   - `history.delete_from(row_id)`:
-     - Validate row exists
-     - Delete all rows with `id >= row_id` for the single user
-     - Return deleted row count and first deleted row ID
-   - Both methods should return JSON-RPC errors with `data.service="ledger"` and status code details when ledger operations fail.
+2. **History mutation already exists in ledger**:
+   - Ledger already has endpoints for edit/delete-from under the user message surface.
+   - If the CLI exposes `/history edit` or `/history delete-from`, prefer calling ledger directly unless there is a concrete reason to centralize those mutations behind brain.
+   - Do not add direct DB access in CLI or brain.
 
 3. **Service health checks**: All services mount `/ping` via `shared/routes.py`. The `services` handler in brain should ping each known service and return the status map.

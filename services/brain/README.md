@@ -24,6 +24,14 @@ Central orchestrator for the Kirishima system. Routes messages, manages context,
 |--------|------|-------------|
 | POST | `/admin/rpc` | JSON-RPC admin/introspection endpoint for CLI commands |
 
+Supported JSON-RPC methods:
+
+| Method | Params | Result |
+|--------|--------|--------|
+| `tools.list` | `{}` | Registered tool metadata (`name`, `description`, `always`, `persistent`, `clients`) |
+| `context.get` | `{"limit": <positive int>}` | Current contextual memories plus keyword scores |
+| `heatmap.get` | `{}` | Current keyword heatmap scores |
+
 ### Notifications
 
 | Method | Path | Description |

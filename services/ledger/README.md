@@ -31,7 +31,7 @@ Persistent data store for all conversational data. Manages message buffers, memo
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/memories` | Create memory (requires keywords or category) |
+| POST | `/memories` | Create memory (requires keywords; category optional) |
 | GET | `/memories` | List memories (paginated) |
 | GET | `/memories/by-id/{id}` | Get memory with full details |
 | PATCH | `/memories/by-id/{id}` | Update memory content/keywords/category |
@@ -39,7 +39,7 @@ Persistent data store for all conversational data. Manages message buffers, memo
 | PATCH | `/memories/by-id/{id}/topic` | Assign topic to memory |
 | GET | `/memories/by-topic/{topic_id}` | Get memories by topic |
 | GET | `/memories/_search` | Advanced multi-parameter search |
-| POST | `/memories/_scan` | Auto-extract memories from messages via LLM |
+| POST | `/memories/_scan` | Identify and assign topics for messages via LLM |
 | GET | `/memories/_dedup` | Legacy deduplication |
 | GET | `/memories/_dedup_semantic` | Semantic dedup (timeframe or keyword grouping) |
 | POST | `/memories/_dedup_topic_based` | Two-phase topic consolidation + memory dedup |
@@ -155,11 +155,11 @@ The sync system (`POST /user/{user_id}/sync`) handles complex message buffer man
 - `memory_id` direct lookup (bypasses all filters)
 - Updates `access_count` and `last_accessed` on retrieval
 
-**Scanning** (`POST /memories/_scan`): Auto-extracts memories from conversations:
+**Scanning** (`POST /memories/_scan`): Topic assignment pass over conversations:
 - Processes oldest untagged messages in batches of 30
-- LLM analyzes conversation → returns topics + memories as JSON
-- Creates topics, assigns to messages, creates memories with keywords/categories
-- Skips LOW priority memories
+- LLM analyzes conversation → returns topic windows as JSON
+- Creates topics and assigns them to messages
+- Does not create memories automatically
 
 **Deduplication**: Three approaches:
 - `_dedup_semantic`: Groups by timeframe or keyword overlap → LLM decides merges

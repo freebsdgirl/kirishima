@@ -167,12 +167,13 @@ Today, memory creation can happen through:
 - the conversational agent using the memory tool
 - the background scan path
 
-And today’s memory create contract is still somewhat muddy:
+And the next create contract is intentionally stricter:
 
 - memory text is required
-- at least keywords or category are required
-- the brain-facing shape includes `topic_id`
-- the standard ledger create/update paths do not cleanly honor that field
+- explicit keywords are required
+- category remains optional
+- the brain-facing shape still includes `topic_id`
+- topic association is deferred for later design work
 
 This is part of the current confusion.
 

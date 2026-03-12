@@ -1,7 +1,7 @@
 """
 This module defines FastAPI routes for managing memory entries in the ledger application.
 It provides endpoints for listing, adding, updating, deleting, searching, and deduplicating memories,
-as well as assigning topics and scanning user messages to extract memories.
+as well as assigning topics and scanning user messages to identify topic windows.
 Endpoints:
     - GET    /memories: List all memories with pagination.
     - POST   /memories: Add a new memory entry.
@@ -10,7 +10,7 @@ Endpoints:
     - DELETE /memories/by-id/{memory_id}: Delete a memory entry by ID.
     - GET    /memories/by-id/{memory_id}: Retrieve a memory entry by ID.
     - GET    /memories/by-topic/{topic_id}: Retrieve all memories associated with a topic.
-    - POST   /memories/_scan: Scan user messages to extract memories (scheduler endpoint).
+    - POST   /memories/_scan: Scan user messages to identify and assign topics (scheduler endpoint).
     - GET    /memories/_search: Search for memories using various filters.
     - GET    /memories/_dedup: Deduplicate memories using different grouping strategies.
     - POST   /memories/_dedup_topic_based: Topic-based deduplication with timeframe chunking.
@@ -263,11 +263,11 @@ def get_memory_by_topic(topic_id: str):
 @router.post("/_scan", status_code=status.HTTP_200_OK)
 async def scan() -> dict:
     """
-    Scan user messages to identify topics and extract memories.
+    Scan user messages to identify and assign topics.
     
     This endpoint is designed to be called periodically by a scheduler.
     It processes each user's untagged messages, identifies conversational shifts,
-    and extracts relevant memories using an LLM.
+    and assigns topics using an LLM. Automated memory creation is disabled.
     
     Returns:
         dict: A summary of the scan process including successful and error counts.

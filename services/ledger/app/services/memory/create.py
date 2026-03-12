@@ -105,7 +105,7 @@ def _memory_add(memory: MemoryEntry):
         memory (MemoryEntry): The memory payload to be stored.
 
     Raises:
-        HTTPException: If neither keywords nor category are provided.
+        HTTPException: If keywords are not provided.
         HTTPException: If the provided category is not in the list of allowed categories.
         HTTPException: If there is an error during the database operation.
 
@@ -120,11 +120,11 @@ def _memory_add(memory: MemoryEntry):
             detail="Memory content is required."
         )
 
-    if not memory.keywords and not memory.category:
-        logger.debug("No keywords or category provided.")
+    if not memory.keywords:
+        logger.debug("No keywords provided.")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="At least one of keywords or category must be provided."
+            detail="Keywords are required when creating a memory."
         )
 
     if memory.category and memory.category not in ALLOWED_CATEGORIES:

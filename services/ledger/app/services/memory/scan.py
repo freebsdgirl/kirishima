@@ -3,7 +3,6 @@ logger = get_logger(f"ledger.{__name__}")
 
 from shared.models.openai import OpenAICompletionRequest
 from shared.models.ledger import (
-    MemoryEntry,
     AssignTopicRequest,
     UserUntaggedMessagesRequest,
     TopicRecentRequest,
@@ -13,10 +12,6 @@ from shared.models.ledger import (
 )
 from shared.prompt_loader import load_prompt
 
-from app.services.memory.create import _memory_add
-from app.services.memory.assign_topic_to_memory import _memory_assign_topic
-from app.services.memory.get_memory_by_topic import _get_memory_by_topic
-from app.services.memory.delete import _memory_delete
 from app.services.user.get_untagged_messages import _get_user_untagged_messages
 from app.services.topic.get_recent import _get_recent_topics
 from app.services.topic.get_messages import _get_topic_messages
@@ -33,10 +28,11 @@ from fastapi import HTTPException, status
 
 async def _scan_user_messages():
     """
-    Scan the user's messages to identify topics and memories.
+    Scan the user's messages to identify topics.
     
     This function retrieves untagged messages for a user, processes them to identify topics,
-    and extracts relevant memories using an LLM.
+    and assigns topic windows to the transcript. Automated memory creation is disabled;
+    only the conversational agent creates memories now.
         
     Returns:
         dict: A summary of the scan process including successful and error counts.
@@ -47,8 +43,8 @@ async def _scan_user_messages():
     TIMEOUT = _config["timeout"]
     user_id = _config["user_id"]
 
-    logger.info(f"Starting scan for user: {user_id}")
-    memory_count = 0
+    logger.info(f"Starting topic scan for user: {user_id}")
+    topics_processed = 0
 
 
 
@@ -94,19 +90,11 @@ async def _scan_user_messages():
             # Get messages for that topic before we delete it
             topic_messages = _get_topic_messages(TopicMessagesRequest(topic_id=topic_id))
             
-            # Delete the existing topic and its memories since we're reprocessing
-            logger.info(f"Deleting topic {topic_id} and its memories for reprocessing")
-            
-            # First delete all memories associated with this topic
-            try:
-                topic_memory_ids = _get_memory_by_topic(topic_id)
-                for memory_id in topic_memory_ids:
-                    _memory_delete(memory_id)
-                logger.info(f"Deleted {len(topic_memory_ids)} memories from topic {topic_id}")
-            except Exception as e:
-                logger.warning(f"Error deleting memories for topic {topic_id}: {e}")
-            
-            # Then delete the topic itself
+            # Delete the existing topic so the message window can be reprocessed.
+            # We intentionally do not delete memories here anymore; background scans
+            # are no longer allowed to create or destroy memories.
+            logger.info(f"Deleting topic {topic_id} for reprocessing")
+
             try:
                 _delete_topic(TopicDeleteRequest(topic_id=topic_id))
                 logger.info(f"Deleted topic {topic_id}")
@@ -170,7 +158,8 @@ async def _scan_user_messages():
             )
 
         logger.info(f"Analysis result: {analysis_result}")
-        # Process topics and memories returned by LLM
+        # Process topics returned by LLM. We ignore any memory candidates because
+        # automated memory creation has been retired.
         topics = analysis_result.get('topics', [])
         if not topics:
             logger.info(f"No topics found.")
@@ -181,14 +170,13 @@ async def _scan_user_messages():
             topic_name = topic.get('topic')
             start_time = topic.get('start')
             end_time = topic.get('end')
-            memories = topic.get('memories', [])
 
             # Validate required topic fields
             if not topic_name or not start_time or not end_time:
                 logger.warning(f"Invalid topic data - missing required fields: {topic}")
                 continue
 
-            logger.info(f"Processing new topic '{topic_name}' from {start_time} to {end_time} with {len(memories)} memories.")
+            logger.info(f"Processing new topic '{topic_name}' from {start_time} to {end_time}.")
 
             new_topic = _create_topic(TopicCreateRequest(
                 name=topic_name
@@ -201,61 +189,7 @@ async def _scan_user_messages():
                 start=start_time,
                 end=end_time
             ))
-
-            # Add memories to the memory service
-            for memory in memories:
-                memory_text = memory.get('memory')
-                keywords = memory.get('keywords', [])
-                category = memory.get('category')
-                priority = memory.get('priority', '').upper()
-
-                # Skip low priority memories - we don't want to save those at all
-                if priority == 'LOW':
-                    logger.info(f"Skipping low priority memory: {memory_text}")
-                    continue
-
-                # Validate memory fields
-                if not memory_text:
-                    logger.warning(f"Invalid memory data - missing memory text: {memory}")
-                    continue
-                
-                if not keywords and not category:
-                    logger.warning(f"Invalid memory data - missing both keywords and category: {memory}")
-                    continue
-                
-                # Validate keywords is a list if provided
-                if keywords and not isinstance(keywords, list):
-                    logger.warning(f"Invalid keywords format (not a list): {keywords}")
-                    continue
-                
-                # Validate category is in allowed list if provided
-                allowed_categories = ['Health', 'Career', 'Family', 'Personal', 'Technical Projects', 'Social', 'Finance', 'Self-care', 'Environment', 'Hobbies', 'Admin', 'Philosophy']
-                if category and category not in allowed_categories:
-                    logger.warning(f"Invalid category '{category}', must be one of: {allowed_categories}")
-                    continue
-
-                logger.info(f"Adding memory: {memory_text} with keywords {keywords} and category {category}")
-
-                try:
-                    memory_obj = MemoryEntry(
-                        memory=memory_text,
-                        keywords=keywords if keywords else None,
-                        category=category if category else None
-                    )
-                    result = _memory_add(memory_obj)
-                    if result['status'] != 'memory created':
-                        logger.error(f"Failed to add memory: {result.get('error', 'Unknown error')}")
-                        continue
-                    
-                    memory_count += 1
-
-                    # assign the memory to the topic
-                    _memory_assign_topic(result['id'], new_topic)
-                    
-                except Exception as e:
-                    logger.error(f"Error adding memory: {e}")
-                    continue
-        logger.info(f"Completed processing, {memory_count} memories added.")
-        return {"status": "ok", "message": f"Scan completed. {memory_count} memories added."}
-
+            topics_processed += 1
+        logger.info(f"Completed topic scan, {topics_processed} topics processed.")
+        return {"status": "ok", "message": f"Topic scan completed. {topics_processed} topics processed."}
 

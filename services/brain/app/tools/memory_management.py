@@ -76,7 +76,7 @@ def _format_ledger_http_error(err: httpx.HTTPError) -> str:
             "keywords": {
                 "type": "array",
                 "items": {"type": "string"},
-                "description": "Keywords to search for (search action)",
+                "description": "Keywords to search for, or the required keyword array for create",
             },
             "category": {
                 "type": "string",
@@ -188,9 +188,23 @@ async def _create(params: dict) -> ToolResponse:
     if not memory_text:
         return ToolResponse(error="memory text is required for create action")
 
+    keywords = params.get("keywords")
+    if not isinstance(keywords, list) or not keywords:
+        return ToolResponse(error="keywords must be a non-empty array for create action")
+
+    normalized_keywords = []
+    for keyword in keywords:
+        if not isinstance(keyword, str):
+            return ToolResponse(error="each keyword must be a string")
+        cleaned = keyword.strip().lower()
+        if not cleaned:
+            return ToolResponse(error="keywords cannot be empty strings")
+        if cleaned not in normalized_keywords:
+            normalized_keywords.append(cleaned)
+
     body = {
         "memory": memory_text,
-        "keywords": params.get("keywords", []),
+        "keywords": normalized_keywords,
         "category": params.get("category"),
         "topic_id": params.get("topic_id"),
     }

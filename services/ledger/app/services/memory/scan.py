@@ -22,8 +22,40 @@ from app.services.topic.delete import _delete_topic
 import httpx
 import json
 import os
+from datetime import datetime, timedelta
 
 from fastapi import HTTPException, status
+
+
+def _normalize_topic_window(start_time: str, end_time: str) -> tuple[str, str]:
+    """
+    Normalize LLM-provided topic windows so they satisfy the assignment service.
+
+    If the LLM returns an equal or reversed window, widen it minimally to preserve
+    the intended anchor timestamp instead of failing the entire scan.
+    """
+    parsed_times = []
+    for value in (start_time, end_time):
+        for fmt in ("%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%d %H:%M:%S"):
+            try:
+                parsed_times.append(datetime.strptime(value, fmt))
+                break
+            except ValueError:
+                continue
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid timestamp format from topic scan: {value}"
+            )
+
+    start_dt, end_dt = parsed_times
+    if start_dt >= end_dt:
+        end_dt = start_dt + timedelta(milliseconds=1)
+
+    return (
+        start_dt.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3],
+        end_dt.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3],
+    )
 
 
 async def _scan_user_messages():
@@ -65,7 +97,8 @@ async def _scan_user_messages():
             return {"status": "ok", "message": "No untagged messages found."}
 
         # Limit the number of messages to process
-        turns = _config["conversation"]["turns"]
+        conversation_config = _config.get("conversation", {})
+        turns = conversation_config["turns"]
         if len(messages) <= turns:
             logger.info(f"Only {len(messages)} untagged messages found. Skipping analysis.")
             return {"status": "ok", "message": f"Only {len(messages)} untagged messages found. Skipping analysis."}
@@ -73,7 +106,11 @@ async def _scan_user_messages():
         logger.info(f"Found {len(messages)} untagged messages.")
 
         # Process a reasonable batch of older messages to work through the backlog
-        batch_size = 30  # Process this many of the oldest untagged messages
+        batch_size = conversation_config.get("batch_size", 30)
+        if not isinstance(batch_size, int) or batch_size <= 0:
+            logger.warning(f"Invalid conversation.batch_size={batch_size!r}; falling back to 30")
+            batch_size = 30
+
         if len(messages) > batch_size:
             logger.info(f"Processing the oldest {batch_size} untagged messages from backlog.")
             messages = messages[:batch_size]  # Take the oldest messages first
@@ -176,6 +213,12 @@ async def _scan_user_messages():
                 logger.warning(f"Invalid topic data - missing required fields: {topic}")
                 continue
 
+            try:
+                start_time, end_time = _normalize_topic_window(start_time, end_time)
+            except HTTPException as e:
+                logger.warning(f"Skipping topic with invalid window {topic}: {e.detail}")
+                continue
+
             logger.info(f"Processing new topic '{topic_name}' from {start_time} to {end_time}.")
 
             new_topic = _create_topic(TopicCreateRequest(
@@ -192,4 +235,3 @@ async def _scan_user_messages():
             topics_processed += 1
         logger.info(f"Completed topic scan, {topics_processed} topics processed.")
         return {"status": "ok", "message": f"Topic scan completed. {topics_processed} topics processed."}
-

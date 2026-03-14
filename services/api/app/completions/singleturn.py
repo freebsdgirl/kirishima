@@ -78,7 +78,7 @@ async def openai_v1_completions(
     Returns:
         OpenAICompletionResponse: A simulated OpenAI completions response.
     """
-    return _openai_v1_completions(request, request_data)
+    return await _openai_v1_completions(request, request_data)
 
 
 async def _openai_v1_completions(request: Union[OpenAICompletionRequest, CompletionRequest], request_data: Request) -> OpenAICompletionResponse:

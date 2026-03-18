@@ -34,6 +34,15 @@ from shared.prompt_loader import load_prompt
 from shared.log_config import get_logger
 logger = get_logger(f"brain.{__name__}")
 
+
+def _format_heatmap_for_prompt(scores: dict[str, float]) -> str:
+    if not scores:
+        return "(none)"
+
+    sorted_scores = sorted(scores.items(), key=lambda item: item[1], reverse=True)
+    return "\n".join(f"- {keyword}: {score:.3f}" for keyword, score in sorted_scores)
+
+
 async def memory_search(brainlets_output: Dict[str, Any], message: MultiTurnRequest):
     """
     Performs a memory search based on the most recent conversation messages.
@@ -72,8 +81,29 @@ async def memory_search(brainlets_output: Dict[str, Any], message: MultiTurnRequ
             chatlog_lines.append(f"Assistant: {m['content']}")
     chatlog = '\n'.join(chatlog_lines)
 
+    ledger_port = os.getenv("LEDGER_PORT", 4203)
+
+    existing_heatmap = "(none)"
+    try:
+        async with httpx.AsyncClient(timeout=60) as client:
+            keyword_scores_response = await client.get(
+                f"http://ledger:{ledger_port}/context/keyword_scores"
+            )
+            keyword_scores_response.raise_for_status()
+            keyword_scores = keyword_scores_response.json().get("scores", {})
+            if isinstance(keyword_scores, dict):
+                existing_heatmap = _format_heatmap_for_prompt(keyword_scores)
+    except Exception as e:
+        logger.warning(f"Failed to load current heatmap scores for prompt guidance: {e}")
+
     # --- Build prompt for the model ---
-    prompt = load_prompt("brain", "brainlets", "memory_search", chatlog=chatlog)
+    prompt = load_prompt(
+        "brain",
+        "brainlets",
+        "memory_search",
+        chatlog=chatlog,
+        existing_heatmap=existing_heatmap,
+    )
 
     # --- Get model/options from brainlets config ---
     brainlet_config = None
@@ -104,7 +134,6 @@ async def memory_search(brainlets_output: Dict[str, Any], message: MultiTurnRequ
         
         # Update the heatmap with weighted keywords
         try:
-            ledger_port = os.getenv("LEDGER_PORT", 4203)
             async with httpx.AsyncClient(timeout=60) as client:
                 heatmap_response = await client.post(
                     f'http://ledger:{ledger_port}/context/update_heatmap',
@@ -139,7 +168,6 @@ async def memory_search(brainlets_output: Dict[str, Any], message: MultiTurnRequ
     
     # NEW: Get contextual memories based on heatmap scores
     try:
-        ledger_port = os.getenv("LEDGER_PORT", 4203)
         async with httpx.AsyncClient(timeout=60) as client:
             context_response = await client.get(
                 f'http://ledger:{ledger_port}/context/?limit=5'

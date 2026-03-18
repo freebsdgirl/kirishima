@@ -40,7 +40,7 @@ def _format_heatmap_for_prompt(scores: dict[str, float]) -> str:
         return "(none)"
 
     sorted_scores = sorted(scores.items(), key=lambda item: item[1], reverse=True)
-    return "\n".join(f"- {keyword}: {score:.3f}" for keyword, score in sorted_scores)
+    return "\n".join(f"- {keyword}" for keyword, _ in sorted_scores)
 
 
 async def memory_search(brainlets_output: Dict[str, Any], message: MultiTurnRequest):

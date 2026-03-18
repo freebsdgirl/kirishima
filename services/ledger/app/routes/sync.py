@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from shared.models.ledger import ToolSyncRequest, AssistantSyncRequest, UserSyncRequest, CanonicalUserMessage
 from app.services.sync.tool import _sync_tool_buffer_helper
 from app.services.sync.assistant import _sync_assistant_buffer_helper
@@ -55,7 +55,13 @@ async def sync_user(request: UserSyncRequest):
         raise HTTPException(status_code=503, detail=f"Database error: {e}")
 
 @router.get("/get", response_model=List[CanonicalUserMessage])
-async def get_sync_buffer(user_id: Optional[str] = None):
+async def get_sync_buffer(
+    user_id: Optional[str] = None,
+    prefix_user_timestamps: bool = Query(
+        False,
+        description="Prefix returned user message content with '<YYYY-MM-DD HH:MM>' using created_at. Response-only; does not alter stored content.",
+    ),
+):
     """
     Endpoint for retrieving the conversation buffer with token-based limiting.
     
@@ -63,7 +69,10 @@ async def get_sync_buffer(user_id: Optional[str] = None):
     ensuring the first message is a user message.
     """
     try:
-        messages = _get_sync_buffer_helper(user_id)
+        messages = _get_sync_buffer_helper(
+            user_id=user_id,
+            prefix_user_timestamps=prefix_user_timestamps,
+        )
         return messages
     except Exception as e:
         logger.error(f"Failed to get sync buffer: {e}")

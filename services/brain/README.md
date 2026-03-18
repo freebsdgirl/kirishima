@@ -75,7 +75,7 @@ This is the main conversation flow. Here's what happens step by step:
 
 ### 3. Ledger Synchronization
 - Last 4 messages synced to ledger (`POST /sync/user`)
-- Full message buffer retrieved (`GET /sync/get`)
+- Full message buffer retrieved (`GET /sync/get?prefix_user_timestamps=true`)
 - Tool calls, function calls, tool call IDs preserved
 
 ### 4. Pre-Brainlets

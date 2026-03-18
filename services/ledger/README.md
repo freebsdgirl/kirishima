@@ -25,7 +25,7 @@ Persistent data store for all conversational data. Manages message buffers, memo
 | POST | `/sync/user` | User message sync |
 | POST | `/sync/assistant` | Assistant message sync |
 | POST | `/sync/tool` | Tool call sync |
-| GET | `/sync/get` | Get sync buffer (token-limited) |
+| GET | `/sync/get` | Get sync buffer (token-limited; optional user timestamp prefixing in response) |
 
 ### Memory Operations
 

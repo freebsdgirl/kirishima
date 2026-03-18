@@ -176,7 +176,10 @@ async def outgoing_multiturn_message(message: MultiTurnRequest) -> ProxyResponse
             get_sync.raise_for_status()
         
             # Get updated buffer
-            get_response = await client.get(f"http://ledger:{ledger_port}/sync/get")
+            get_response = await client.get(
+                f"http://ledger:{ledger_port}/sync/get",
+                params={"prefix_user_timestamps": "true"},
+            )
             get_response.raise_for_status()
             ledger_buffer = get_response.json()
         

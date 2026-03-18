@@ -8,6 +8,7 @@ from app.util import _open_conn
 import json
 import tiktoken
 from typing import List
+from datetime import datetime
 
 TABLE = "user_messages"
 
@@ -20,7 +21,35 @@ def _ensure_first_user(messages):
     return []
 
 
-def _get_sync_buffer_helper(user_id: str = None) -> List[CanonicalUserMessage]:
+def _normalize_timestamp_for_prompt(timestamp: str) -> str:
+    """Return a compact prompt-safe timestamp like YYYY-MM-DD HH:MM."""
+    for fmt in ("%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%d %H:%M:%S"):
+        try:
+            return datetime.strptime(timestamp, fmt).strftime("%Y-%m-%d %H:%M")
+        except ValueError:
+            continue
+    logger.warning("Failed to normalize timestamp %r for prompt injection", timestamp)
+    return timestamp[:16]
+
+
+def _prefix_user_message_timestamps(messages: List[CanonicalUserMessage]) -> List[CanonicalUserMessage]:
+    """Prefix user content with a normalized timestamp without mutating stored rows."""
+    timestamped_messages: List[CanonicalUserMessage] = []
+    for msg in messages:
+        if msg.role != "user":
+            timestamped_messages.append(msg)
+            continue
+
+        prefix = f"<{_normalize_timestamp_for_prompt(msg.created_at)}>"
+        content = f"{prefix} {msg.content}" if msg.content else prefix
+        timestamped_messages.append(msg.model_copy(update={"content": content}))
+    return timestamped_messages
+
+
+def _get_sync_buffer_helper(
+    user_id: str = None,
+    prefix_user_timestamps: bool = False,
+) -> List[CanonicalUserMessage]:
     """
     Internal helper for retrieving the conversation buffer with token-based limiting.
 
@@ -107,4 +136,7 @@ def _get_sync_buffer_helper(user_id: str = None) -> List[CanonicalUserMessage]:
         # Ensure first message is user role
         messages = _ensure_first_user(messages)
         
+        if prefix_user_timestamps:
+            messages = _prefix_user_message_timestamps(messages)
+
         return messages

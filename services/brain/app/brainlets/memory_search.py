@@ -160,8 +160,8 @@ async def memory_search(brainlets_output: Dict[str, Any], message: MultiTurnRequ
             "id": tool_call_id,
             "type": "function",
             "function": {
-                "name": "memory_search",
-                "arguments": json.dumps({"keywords": keywords})
+                "name": "memory",
+                "arguments": json.dumps({"action": "search", "keywords": keywords})
             }
         }
     }
@@ -179,8 +179,10 @@ async def memory_search(brainlets_output: Dict[str, Any], message: MultiTurnRequ
         if not memories:
             return "No contextual memories found."
             
-        # Format memories for tool response (just the content, no metadata)
-        memory_text = [f"{memory}\n" for memory in memories]
+        tool_result = {
+            "status": "ok",
+            "memories": [{"memory": memory} for memory in memories],
+        }
         
     except Exception as e:
         logger.error(f"Failed to get contextual memories: {e}")
@@ -188,10 +190,10 @@ async def memory_search(brainlets_output: Dict[str, Any], message: MultiTurnRequ
     
     tool_entry = {
         "role": "tool",
-        "content": ''.join(memory_text),
+        "content": json.dumps(tool_result),
         "tool_call_id": tool_call_id
     }
 
-    result = {"memory_search": [assistant_entry, tool_entry]}
-    logger.debug(f"Returning from memory_search: {result}")
+    result = {"memory": [assistant_entry, tool_entry]}
+    logger.debug(f"Returning from memory: {result}")
     return result

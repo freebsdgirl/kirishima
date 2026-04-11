@@ -580,6 +580,7 @@ services:
     environment:
       - OLLAMA_KEEP_ALIVE=24h
       - TZ=America/Los_Angeles
+      - OLLAMA_FLASH_ATTENTION=1
     networks:
       - ollama-docker
       - shared-net

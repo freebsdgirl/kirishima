@@ -19,6 +19,16 @@ This version reflects the current decision points:
 
 The goal here is not to pretend the current model is clean. It is not. The goal is to define a version of it that is understandable, implementable, and reviewable in phases.
 
+## Status Snapshot
+
+Current practical status:
+
+- automated background memory creation is no longer the intended path
+- memory creation has already been tightened to require explicit keywords
+- the existing memory store has already gone through a substantial manual cleanup and curation pass
+- the remaining major retrieval work is now mostly about summaries, history search, and context layering
+- `history_search` and deeper search changes should be treated as waiting on sub-agent architecture
+
 ---
 
 ## Executive Summary
@@ -158,16 +168,15 @@ It currently:
 
 That means the current system still has a background mechanism that creates memories independently of the conversational agent.
 
-This is the piece we are explicitly removing.
+This is the piece we explicitly moved away from as the intended model.
+
+At this point, this path should be treated as legacy behavior rather than the future of the memory system.
 
 ## 3. Memory Creation Today
 
-Today, memory creation can happen through:
+The intended active creation path is the conversational agent using the memory tool.
 
-- the conversational agent using the memory tool
-- the background scan path
-
-And the next create contract is intentionally stricter:
+The create contract is now intentionally stricter:
 
 - memory text is required
 - explicit keywords are required
@@ -175,7 +184,7 @@ And the next create contract is intentionally stricter:
 - the brain-facing shape still includes `topic_id`
 - topic association is deferred for later design work
 
-This is part of the current confusion.
+This is no longer hypothetical. It is already the shape we want to keep.
 
 ## 4. Retrieval Today
 
@@ -205,18 +214,20 @@ This makes keyword quality on memories highly important.
 
 ## What Is Wrong With The Current Arrangement
 
-## 1. Automated Memory Creation Is Duplicative
+## 1. Automated Memory Creation Was Duplicative
 
 There are two competing ways a memory can come into existence:
 
 - the conversational agent creates one deliberately
 - the background scan later creates one from past conversation
 
-This creates obvious duplication risk, especially when both are looking at the same conversation material from different angles.
+This created obvious duplication risk, especially when both were looking at the same conversation material from different angles.
 
-## 2. The Current Memory Store Is Overgrown
+That is why the system direction now treats agent-created memory as the canonical path.
 
-The existing memory database needs cleanup.
+## 2. The Current Memory Store Needed Cleanup
+
+The existing memory database needed cleanup.
 
 Problems include:
 
@@ -226,7 +237,9 @@ Problems include:
 - keyword bloat
 - inconsistent usefulness as direct agent context
 
-The current store contains a mix of things that are not all the same kind of object.
+The current store contained a mix of things that were not all the same kind of object.
+
+A substantial review and cleanup pass has already happened, so future work should assume a more curated baseline than when this document was first drafted.
 
 ## 3. "Memory" Is Doing Multiple Jobs
 
@@ -272,7 +285,7 @@ This is the current intended direction.
 
 ## 1. Memories Are Created Only By The Conversational Agent
 
-We are removing automated background memory creation.
+This is now the intended steady state.
 
 From this point forward, the intended model is:
 
@@ -341,7 +354,7 @@ But this is still a better structural direction than the current muddle.
 
 ## 4. Memories Are For Durable Curated Knowledge, Not Raw Agent Prompt Text
 
-The current memory store is not in a shape that should be exposed raw to the conversational agent in all cases.
+The memory store should not be exposed raw to the conversational agent in all cases.
 
 The revised idea is:
 
@@ -350,6 +363,8 @@ The revised idea is:
 - they do not have to all be tiny atomized facts
 
 This means memory cleanup is not just deduplication. It is curation.
+
+That curation work has already had a substantial pass and should now be treated as part of the current baseline.
 
 Examples of what should survive well:
 
@@ -456,14 +471,14 @@ The right move is to add `topic_timeline` first, then decide what should become 
 
 ## Memory Tool
 
-Memory creation will be stricter.
+Memory creation is already stricter.
 
 ### Required Inputs
 
 - memory text
 - array of keywords
 
-Likely constraints:
+Current constraints and direction:
 
 - minimum keyword count
 - maximum keyword count
@@ -472,7 +487,7 @@ Likely constraints:
 
 We can keep category optional.
 
-We are not solving topic association in this first step. That comes later through the topic timeline model.
+We are still not solving topic association in this first step. That comes later through the topic timeline model.
 
 ## History Search Tool
 
@@ -500,13 +515,19 @@ The important design rule is:
 - the main conversational agent should not receive a huge blob of history
 - the sub-agent should do the retrieval and narrowing first
 
+Current status:
+
+- this is still outstanding
+- this is one of the clearest pieces of work that depends on sub-agent architecture
+- it should not be implemented as a broad direct-use tool for the top-level conversational model
+
 ---
 
 ## Cleanup Strategy For Existing Memories
 
 This is a real part of the plan, not an afterthought.
 
-Before we depend more heavily on the memory store, it needs a manual cleanup pass.
+Before we depend more heavily on the memory store, it needed a manual cleanup pass.
 
 That work should include:
 
@@ -522,68 +543,32 @@ The goal is not for every memory to become a tiny atomic fact.
 
 The goal is for every memory to be useful, durable, and worth keeping.
 
+Current status:
+
+- this work has already had a substantial pass
+- future cleanup should be treated as ongoing maintenance and occasional curation, not as the big blocked prerequisite it was earlier
+
 ---
 
 ## Phased Plan
 
-## Phase 1: Remove Automated Background Memory Creation
+## Completed Work
 
-Goal:
+### Completed Or Mostly Completed
 
-- stop the background thread or endpoint path from creating memories automatically
+- move the system direction away from automated background memory creation
+- tighten memory creation so explicit keywords are required
+- perform a substantial manual review and cleanup of the memory store
 
-Changes:
+These items were previously described as:
 
-1. disable or retire the background memory creation path
-2. ensure summaries continue to work independently
-3. make it clear in code and docs that memories are agent-created only
+- Phase 1: Remove Automated Background Memory Creation
+- Phase 2: Tighten Memory Creation
+- Phase 3: Manual Memory Store Cleanup
 
-Expected outcome:
+They should no longer be read as the next implementation steps.
 
-- no more duplicate memories from transcript rescans
-- much cleaner provenance
-
-## Phase 2: Tighten Memory Creation
-
-Goal:
-
-- make memory creation deliberate and stricter
-
-Changes:
-
-1. update the memory tool input to require a keyword array
-2. normalize and validate keyword input
-3. remove any ambiguity about whether memory creation can happen without explicit keywords
-4. keep category optional unless later review says otherwise
-
-Expected outcome:
-
-- better retrieval quality
-- less keyword sprawl
-- cleaner memory records going forward
-
-## Phase 3: Manual Memory Store Cleanup
-
-Goal:
-
-- get the current memory store into a usable state before building new retrieval behavior on top of it
-
-Changes:
-
-1. manually review existing memories
-2. dedup and merge obvious overlaps
-3. delete stale or low-value entries
-4. rewrite some entries into denser, more useful records
-5. trim and normalize keywords
-
-Expected outcome:
-
-- a smaller, higher-trust curated memory base
-
-Notes:
-
-- this will likely happen across multiple conversations due to context limits
-- it is still worth planning for explicitly
+## Remaining Work
 
 ## Phase 4: Introduce Topic Timeline Storage
 
@@ -631,6 +616,11 @@ Important note:
 - summaries remain time-based by default
 - this phase is not about replacing them with topic summaries
 
+Dependency note:
+
+- this phase matters on its own
+- it also feeds directly into later `history_search` and context-window work
+
 ## Phase 6: Add History Search
 
 Goal:
@@ -648,6 +638,11 @@ Expected outcome:
 
 - better long-range recall
 - less pressure to keep huge raw context windows
+
+Dependency:
+
+- this phase should be treated as waiting on sub-agent architecture
+- without sub-agents, `history_search` is too likely to become a direct context-bloating tool in the main conversational loop
 
 ## Phase 7: Rebalance The Active Context Window
 
@@ -669,27 +664,32 @@ Expected outcome:
 Dependency:
 
 - do not do this until summary quality is good enough
+- do not do this until sub-agent-backed retrieval exists, or the system will lose recall while shrinking live context
 
 ---
 
 ## Recommended Implementation Order
 
-This is the order that currently makes the most sense.
+This is the order that currently makes the most sense from here.
 
-1. Phase 1: remove automated memory creation
-2. Phase 2: tighten memory tool input
-3. Phase 3: manually clean the memory store
-4. Phase 4: add `topic_timeline`
-5. Phase 5: strengthen summaries
-6. Phase 6: add `history_search`
-7. Phase 7: rebalance the active context window
+1. Phase 4: add `topic_timeline`
+2. Phase 5: strengthen summaries
+3. Phase 6: add `history_search`
+4. Phase 7: rebalance the active context window
 
 Reasoning:
 
-- stop creating more mess first
-- tighten future inputs second
-- clean existing data third
-- then improve structure and retrieval
+- the cleanup and input-tightening groundwork is already mostly done
+- structure and summary quality come next
+- retrieval should follow once sub-agents exist
+- context pruning should happen last
+
+Updated practical reading of that order:
+
+- Phases 1 through 3 are already substantially done
+- Phase 4 and Phase 5 are the next direct memory-system work
+- Phase 6 is waiting on sub-agent architecture
+- Phase 7 is waiting on both stronger summaries and Phase 6
 
 ---
 
@@ -720,11 +720,13 @@ This will materially affect live behavior.
 
 Do not ship it before summary quality is trusted.
 
+Also do not ship it before sub-agent-backed history retrieval exists.
+
 ### Memory Cleanup
 
 Manual cleanup should be treated as curation work, not just mechanical dedup.
 
-If this step is sloppy, retrieval quality will still be mediocre even after the rest of the plan lands.
+Most of the urgent initial cleanup work is already behind us, but the standard should remain the same for future maintenance.
 
 ---
 
@@ -741,16 +743,18 @@ These questions are still unresolved and should be reviewed as we implement phas
 
 ---
 
-## Immediate Next Step
+## Immediate Next Steps
 
-The next implementation step should be:
+The next implementation steps should be:
 
-- Phase 1: remove automated background memory creation
+- Phase 4: introduce `topic_timeline`
+- Phase 5: strengthen summaries
 
-That is the cleanest first cut. It stops new duplication pressure immediately and brings the system back to a single intentional path for creating memories.
+Those are the next pieces of memory-system work that can move directly without waiting on sub-agents.
 
-After that:
+After that, assuming the sub-agent architecture lands:
 
-- Phase 2: tighten the memory tool input
+- Phase 6: add `history_search`
+- Phase 7: rebalance the active context window
 
-That locks in a cleaner forward path before we touch topic storage or context behavior.
+That is the point where deeper search and context pruning become sane instead of reckless.

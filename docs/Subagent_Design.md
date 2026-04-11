@@ -508,3 +508,53 @@ Build the first version around:
 - a dumb `capability_gaps` table for feature feedback
 
 That is enough to solve the immediate architecture problem without vanishing into agent-framework nonsense.
+
+## 24. Implementation Note: Single Loop Layering
+
+This section is an addendum to the original design. It was added after a separate refactor pass identified that §17 and §18 — as written — implicitly describe two parallel tool loops: the existing one in `services/brain/app/message/multiturn.py:261-357`, and a new one inside the proposed `services/brain/app/subagents/runtime.py`. Any future change to the loop (streaming, cancellation, trace shape, the OpenAI Responses API migration, budget enforcement) would have to land in both places and the two would drift.
+
+The layering this document now assumes is: **there is one shared loop primitive, and both the top-level supervisor and the worker runtime are callers.**
+
+The loop primitive is described in detail in `docs/AgentLoop_Extraction.md`. It lives at `services/brain/app/agent/loop.py` as `AgentLoop`, takes injected `ProxyClient`, `ToolDispatcher`, and `Budgets`, and emits an async stream of events (`ProxyCallStarted`, `ToolCallRequested`, `ToolCallCompleted`, `AssistantMessageProduced`, `LoopTerminated`) that the caller consumes and persists.
+
+### 24.1 Effect on §17.1 (`multiturn.py` evolution)
+
+§17.1 says "keep the top-level loop, but expect most substantive work to happen inside the worker tool." Under the single-loop layering, "the top-level loop" is not a fixed artifact — it is `multiturn.py`'s *caller code* around `AgentLoop.run(...)`. That caller code still exists and still owns top-level concerns (brainlet execution, ledger persistence, agent prompt assembly, tool routing via `router.py`). But the iteration/dispatch mechanics are no longer inline in `multiturn.py`.
+
+### 24.2 Effect on §17.2 (new internal modules)
+
+The suggested module list in §17.2 still stands with one adjustment:
+
+- `services/brain/app/subagents/runtime.py` — **thinner than originally described**. It no longer contains a worker execution loop. Instead it:
+  1. Configures an `AgentLoop` instance with the worker's `selected_capabilities` as the `ToolDispatcher` scope, the phase-1 budgets from §13 (`max_iterations=6`, `max_tool_calls=8`, `timeout_seconds=45`), and a `ProxyClient` identical to the top-level one.
+  2. Consumes the `AgentLoop` event stream with a *trace-writing* event handler that persists to the ledger trace table described in §11 (sub-agent id, menu shown, selected tools, iteration count, raw tool calls, timing).
+  3. On `LoopTerminated`, normalizes the final `AgentResult` into a `MinionResult` per §10. Budget-exhaustion statuses (`max_iterations`, `max_tool_calls`, `timeout`) map to `MinionResult(ok=false, error=...)`.
+  4. Writes the minimal supervisor-facing `MinionResult` as the `spawn_minion` tool output.
+
+The other modules (`models.py`, `selection.py`, `prompts.py`, `logging.py`, `spawn_minion.py`) are unchanged from §17.2.
+
+### 24.3 Effect on §18 (worker runtime flow)
+
+The pseudo-flow in §18 is still correct at the description level. The single line that changes is:
+
+> execute worker tool loop with limits
+
+That step is now: `async for event in AgentLoop(...).run(execution_request): trace_sink.handle(event)`. The loop mechanics are not the worker runtime's responsibility.
+
+### 24.4 Effect on §13 (budgets)
+
+Budgets in §13 (`max_iterations`, `max_tool_calls`, `timeout_seconds`, `allow_child_agents`) map directly onto the `Budgets` dataclass from `docs/AgentLoop_Extraction.md` §2.1 — except for `allow_child_agents`, which is a concern of the `ToolDispatcher` (whether `spawn_minion` is in the dispatcher's allowed tool set) rather than the loop itself. In phase 1, the worker's `ToolDispatcher` simply does not include `spawn_minion`, enforcing the "no child workers" rule at the capability-filter boundary.
+
+The top-level `multiturn.py` caller also gets a `Budgets` object instead of the current unnamed magic number `max_iterations = 10` at `multiturn.py:264`. Budget parity is a free side benefit of the extraction.
+
+### 24.5 Effect on the responses API migration
+
+None. The `AgentLoop` primitive only touches `ProxyResponse` (`tool_calls` and `response` fields) and only calls `POST /api/multiturn` on proxy. The OpenAI Responses API migration lives entirely inside proxy and is invisible to `AgentLoop` and to this design. The two efforts can land in either order.
+
+### 24.6 Implementation sequence
+
+1. Extract `AgentLoop` per `docs/AgentLoop_Extraction.md` (prerequisite).
+2. Land phase 1 of this document with `subagents/runtime.py` as a thin `AgentLoop` caller.
+3. Subsequent phases (2-5) are unchanged.
+
+Do not begin phase 1 of this document until `AgentLoop` exists, or the subagent runtime will duplicate the loop and have to be rewritten to consume `AgentLoop` afterwards.

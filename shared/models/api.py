@@ -12,7 +12,6 @@ Intended Usage:
     These models are intended for use in API endpoints that handle language model completions and chat-based interactions, providing OpenAI-compatible request and response formats.
 """
 from typing import Optional, Dict, Any, List
-from pydantic import BaseModel
 from pydantic import BaseModel, Field
 import json
 import os

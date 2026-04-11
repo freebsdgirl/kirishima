@@ -49,12 +49,17 @@ class ProxyPromptLoader:
             FileNotFoundError: If the context file or template doesn't exist
             Exception: If JSON parsing or template rendering fails
         """
-        # Load context data
-        context_file = f"proxy/contexts/{provider}-{mode}.json"
+        context_candidates = [
+            f"proxy/contexts/{provider}-{mode}.json",
+            f"proxy/contexts/default-{mode}.json",
+            "proxy/contexts/default-default.json",
+        ]
+        context_file = next((candidate for candidate in context_candidates if (self.base_path / candidate).exists()), None)
+        if not context_file:
+            raise FileNotFoundError(
+                f"Proxy context not found for provider={provider}, mode={mode}. Tried: {context_candidates}"
+            )
         context_path = self.base_path / context_file
-        
-        if not context_path.exists():
-            raise FileNotFoundError(f"Proxy context not found: {context_file}")
         
         try:
             with open(context_path, 'r', encoding='utf-8') as f:

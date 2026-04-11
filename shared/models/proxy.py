@@ -6,6 +6,7 @@ Models:
     - ProxyRequest
     - SingleTurnRequest (mode-based single turn)
     - MultiTurnRequest
+    - ResponsesRequest
     - ProxyResponse
     - ProxyDiscordDMRequest
     - OllamaRequest / OpenAIRequest / AnthropicRequest
@@ -14,7 +15,7 @@ Models:
 NOTE: ProxyOneShotRequest has been removed. Use SingleTurnRequest + mode configuration instead.
 """
 
-from typing import List, Optional, Dict, Any, Literal
+from typing import List, Optional, Dict, Any, Literal, Union
 from pydantic import BaseModel, Field
 from shared.models.memory import MemoryEntryFull
 from shared.models.contacts import Contact
@@ -200,6 +201,35 @@ class MultiTurnRequest(BaseModel):
                 ],
                 "user_id": "1234567890",
                 "agent_prompt": "You are a helpful assistant that reminds users about their medications."
+            }
+        }
+    }
+
+
+class ResponsesRequest(BaseModel):
+    """
+    Represents a provider-agnostic responses-style request.
+
+    The `model` field is interpreted as a mode name and resolved through proxy config,
+    mirroring the existing single-turn and multi-turn proxy behavior.
+    """
+    model: str                                                   = Field(..., description="Mode name resolved from config.json.")
+    input: Union[str, List[Dict[str, Any]]]                      = Field(..., description="Responses-style input string or message list.")
+    tools: Optional[List[Dict[str, Any]]]                        = Field(None, description="Tools available to the model.")
+    agent_prompt: Optional[str]                                  = Field(None, description="Optional agent-managed prompt.")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "model": "default",
+                "input": [
+                    {
+                        "role": "user",
+                        "content": "Write a haiku about fog."
+                    }
+                ],
+                "tools": None,
+                "agent_prompt": "- Stay focused on software architecture."
             }
         }
     }
@@ -570,6 +600,37 @@ class OpenAIResponse(BaseModel):
             prompt_eval_count=usage.get("prompt_tokens"),
             tool_calls=tool_calls,
             function_call=function_call
+        )
+
+    @classmethod
+    def from_responses_api(cls, api_response: dict) -> "OpenAIResponse":
+        output = api_response.get("output", [])
+        text_parts = []
+        tool_calls = []
+
+        for item in output:
+            item_type = item.get("type")
+            if item_type == "message":
+                for content in item.get("content", []):
+                    if content.get("type") in {"output_text", "text"} and content.get("text"):
+                        text_parts.append(content["text"])
+            elif item_type in {"function_call", "tool_call"}:
+                tool_calls.append({
+                    "id": item.get("call_id") or item.get("id"),
+                    "type": "function",
+                    "function": {
+                        "name": item.get("name"),
+                        "arguments": item.get("arguments", "{}"),
+                    }
+                })
+
+        usage = api_response.get("usage", {})
+        return cls(
+            response="\n".join(part for part in text_parts if part).strip(),
+            eval_count=usage.get("output_tokens") or usage.get("completion_tokens"),
+            prompt_eval_count=usage.get("input_tokens") or usage.get("prompt_tokens"),
+            tool_calls=tool_calls or None,
+            function_call=None,
         )
 
 

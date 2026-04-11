@@ -8,6 +8,7 @@ Sole LLM gateway for the system. Handles prompt construction, provider/model res
 |--------|------|-------------|
 | POST | `/api/singleturn` | Simple mode-based completion (no context, no tools) |
 | POST | `/api/multiturn` | Full multi-turn with system prompt, tools, memories, summaries |
+| POST | `/api/responses` | Responses-style mode-based request using shared prompt construction |
 | ANY | `/queue/*` | Returns HTTP 410 — queue system has been removed |
 
 System endpoints: `/ping`, `/__list_routes__`, `/docs/export`
@@ -16,7 +17,7 @@ System endpoints: `/ping`, `/__list_routes__`, `/docs/export`
 
 ### Mode → Provider Resolution
 
-Both endpoints accept a `model` field that's actually a **mode name** (e.g., `default`, `work`, `claude`). The proxy resolves it to a concrete provider/model/options via `config.json`:
+All three endpoints accept a `model` field that's actually a **mode name** (e.g., `default`, `work`, `claude`). The proxy resolves it to a concrete provider/model/options via `config.json`:
 
 ```json
 "llm": {
@@ -36,8 +37,8 @@ If the requested mode isn't found, falls back to `default`.
 
 | Provider | Dispatch | Format |
 |----------|----------|--------|
-| `openai` | `POST /v1/chat/completions` (OpenAI API) | Native chat messages |
-| `anthropic` | `POST /v1/chat/completions` (Anthropic OpenAI-compat endpoint) | Same as OpenAI |
+| `openai` | `POST /v1/chat/completions` and `POST /v1/responses` (OpenAI API) | Native chat / responses |
+| `anthropic` | `POST /v1/chat/completions` (Anthropic OpenAI-compat endpoint) | Chat-completions compatibility |
 | `ollama` | `POST /api/generate` (local Ollama) | Instruct-style `[INST]<<SYS>>...<</SYS>>[/INST]`, `raw=true` |
 
 All dispatch is **synchronous** (direct HTTP call, no queue). The old async queue system was fully removed.
@@ -46,7 +47,7 @@ All dispatch is **synchronous** (direct HTTP call, no queue). The old async queu
 
 The prompt system uses a two-tier approach:
 
-1. **Centralized prompts** (preferred): JSON context files at `/app/config/prompts/proxy/contexts/{provider}-{mode}.json` + Jinja2 templates at `/app/config/prompts/proxy/templates/{template}.j2`
+1. **Centralized prompts** (preferred): JSON context files at `/app/config/prompts/proxy/contexts/{provider}-{mode}.json` with fallback to shared files like `default-{mode}.json` + Jinja2 templates at `/app/config/prompts/proxy/templates/{template}.j2`
 2. **Legacy module prompts** (fallback): Python modules at `app/prompts/{provider}-{mode}.py` with `build_prompt()` functions
 
 The dispatcher (`prompts/dispatcher.py`) tries centralized first, falls back to legacy modules.
@@ -76,6 +77,17 @@ MultiTurnRequest(model, messages, memories, summaries, tools, username, platform
   → ProxyResponse
 ```
 
+### Responses Flow
+
+```
+ResponsesRequest(model, input, tools?, agent_prompt?)
+  → resolve mode → (provider, model, options)
+  → build shared system prompt via dispatcher
+  → openai: POST /v1/responses
+  → anthropic: translate to chat messages and use existing compat path
+  → ProxyResponse
+```
+
 ### Tool Support
 
 - Tools are passed through from the request to OpenAI/Anthropic providers
@@ -89,14 +101,16 @@ MultiTurnRequest(model, messages, memories, summaries, tools, username, platform
 app/
 ├── app.py                          # FastAPI setup, middleware, tracing
 ├── routes/
-│   ├── openai.py                   # /api/singleturn and /api/multiturn route definitions
+│   ├── openai.py                   # /api/singleturn, /api/multiturn, /api/responses route definitions
 │   └── queue.py                    # Returns 410 for removed queue endpoints
 ├── services/
 │   ├── completions.py              # SingleTurn handler
 │   ├── chat_completions.py         # MultiTurn handler (system prompt, context)
+│   ├── responses.py                # Responses handler (shared prompt + provider dispatch)
 │   ├── util.py                     # _resolve_model_provider_options(), _create_memory_str()
 │   ├── send_to_ollama.py           # Ollama dispatch (POST /api/generate)
 │   ├── send_to_openai.py           # OpenAI dispatch (POST /v1/chat/completions)
+│   ├── send_to_openai_responses.py # OpenAI dispatch (POST /v1/responses)
 │   ├── send_to_anthropic.py        # Anthropic dispatch (OpenAI-compat endpoint)
 │   ├── is_instruct_model.py        # Queries Ollama /api/show for instruct detection
 │   ├── send_prompt_to_llm.py       # DEAD CODE — unused legacy function
@@ -130,21 +144,16 @@ app/
 
 5. **No streaming support** — All requests set `stream=False`. Config has stream options but they're never used.
 
-6. **`tool_choice` hardcoded to `"auto"`** — Callers can't force or disable tool calling. Should pass through from request.
+6. **Mode vs. model naming confusion** — `MultiTurnRequest.model` and `SingleTurnRequest.model` are actually mode names, not model names. Misleading field naming.
 
-7. **Mode vs. model naming confusion** — `MultiTurnRequest.model` and `SingleTurnRequest.model` are actually mode names, not model names. Misleading field naming.
+7. **Anthropic uses OpenAI-compat endpoint** — Works but doesn't leverage Anthropic's native Messages API, which has richer tool support and better error handling.
 
-8. **Anthropic uses OpenAI-compat endpoint** — Works but doesn't leverage Anthropic's native Messages API, which has richer tool support and better error handling.
-
-9. **No retry logic** — Transient provider failures (rate limits, timeouts) cause immediate 500s. No retry, backoff, or fallback.
-
-10. **No per-provider timeout config** — Single global timeout for all providers. Anthropic may need longer than Ollama for heavy inference.
+8. **No retry logic** — Transient provider failures (rate limits, timeouts) cause immediate 500s. No retry, backoff, or fallback.
 
 ### Recommendations
 
 - Delete `send_prompt_to_llm.py` and fix or remove `guest.py`/`work.py`
 - Add config caching (reload on file change or periodic interval)
-- Pass `tool_choice` through from request instead of hardcoding
 - Add basic retry logic for transient provider failures
 - Consider streaming support for long responses
 - Update architecture docs to reflect sync direct dispatch

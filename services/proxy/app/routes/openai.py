@@ -1,6 +1,7 @@
 from app.services.chat_completions import _chat_completions
 from app.services.completions import _completions
-from shared.models.proxy import ProxyResponse, MultiTurnRequest, SingleTurnRequest
+from app.services.responses import _responses
+from shared.models.proxy import ProxyResponse, MultiTurnRequest, ResponsesRequest, SingleTurnRequest
 from fastapi import APIRouter
 
 router = APIRouter()
@@ -46,3 +47,8 @@ async def chat_completions(request: MultiTurnRequest) -> ProxyResponse:
     """
     
     return await _chat_completions(request)
+
+
+@router.post("/api/responses", response_model=ProxyResponse)
+async def responses(request: ResponsesRequest) -> ProxyResponse:
+    return await _responses(request)

@@ -197,7 +197,7 @@ async def openai_compatible_tts(request: Request):
     data = await request.json()
     # Forward the request to the local TTS backend
     try:
-        resp = requests.post("http://localhost:4210/v1/audio/speak", json=data, timeout=30, stream=True)
+        resp = requests.post("http://localhost:4210/v1/audio/speech", json=data, timeout=30, stream=True)
         resp.raise_for_status()
         # Pass through the audio as a stream, mimicking OpenAI's response
         return StreamingResponse(

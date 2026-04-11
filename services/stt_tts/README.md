@@ -7,13 +7,13 @@ The voice input/output stack for the Kirishima system, providing continuous spee
 The STT/TTS system consists of three main components:
 
 1. **Controller Service** (`controller.py`): Process manager and API gateway running on port 4208
-2. **TTS Service** (`tts_service.py`): ChatterboxTTS-based speech synthesis on port 4210  
+2. **TTS Service** (`tts_service.py`): Chatterbox Turbo speech synthesis on port 4210  
 3. **STT Service** (`stt_service.py`): Continuous speech recognition and conversation loop
 
 ### Service Communication Flow
 
 ```mermaid
-External Client → Controller (4208) → TTS Service (4210) → ChatterboxTTS Model
+External Client → Controller (4208) → TTS Service (4210) → Chatterbox Turbo Model
                       ↓
 STT Service → Vosk (Real-time) → Whisper (Transcription) → Brain API → TTS Service
 ```
@@ -42,21 +42,25 @@ The controller provides a REST API for managing TTS and STT subprocesses and for
 
 ## TTS Service (`tts_service.py`)
 
-High-quality neural text-to-speech using ChatterboxTTS. Runs independently on port 4210.
+High-quality neural text-to-speech using Chatterbox Turbo. Runs independently on port 4210.
 
 ### Technical Implementation
 
-**Model**: ChatterboxTTS loaded on CUDA device during FastAPI lifespan startup for optimal performance
+**Model**: English-only Chatterbox Turbo loaded on CPU during FastAPI lifespan startup
 **Audio Processing**: Generates WAV files using torchaudio, supports real-time streaming via `StreamingResponse`
 **Voice Cloning**: Uses audio prompt files (WAV) from `prompts/` directory for voice characteristic transfer
 
 ### Audio Generation Pipeline
 
 1. **Text Processing**: Sentence tokenization using NLTK punkt
-2. **Voice Synthesis**: ChatterboxTTS with configurable parameters:
-   - `temperature`: Controls speech randomness/naturalness (default: 1.1)
-   - `exaggeration`: Speech style intensity (default: 0.7)
-   - `cfg_weight`: Classifier-free guidance strength (default: 0.5)
+2. **Voice Synthesis**: Chatterbox Turbo with conservative defaults tuned for CPU use:
+   - `temperature`: 0.8
+   - `repetition_penalty`: 1.2
+   - `min_p`: 0.0
+   - `top_p`: 0.95
+   - `top_k`: 1000
+   - `norm_loudness`: `true`
+   - `exaggeration` / `cfg_weight`: kept at `0.0`
    - `gap`: Inter-sentence pause duration (default: 0.5s)
 3. **Audio Output**: 16kHz WAV files saved to `output/` with UUID filenames
 4. **Logging**: All generations logged to `tts.log` with UUID-text mapping
@@ -66,19 +70,21 @@ High-quality neural text-to-speech using ChatterboxTTS. Runs independently on po
 - **POST /tts/speak** — Generate and stream TTS audio with local playback
 - **POST /v1/audio/speech** — OpenAI-compatible endpoint (input, voice, model params)
 - **GET /v1/audio/voices** — List available voice prompts from `prompts/` directory
-- **GET /v1/audio/models** — List predefined model parameter configurations
+- **GET /v1/audio/models** — List supported model identifiers
 
 ### Voice Prompt System
 
 Voice characteristics are defined by WAV files in `prompts/` directory:
 
-- `tony_stark_2.wav` (default)
+- `hasan.wav` (default)
 - `david_attenborough_1.wav`
 - `billie_eilish_1.wav`
 - `corpse_husband_1.wav`
 - Additional celebrity/character voices
 
-Model parameters can be specified as comma-separated string: `"temperature=1.2,exaggeration=0.8,cfg_weight=0.4"`
+Turbo requires voice prompt clips longer than 5 seconds. The prompts currently checked into this service satisfy that requirement.
+
+The active runtime is fixed to `chatterbox-turbo` on CPU. For backward compatibility, legacy callers may still pass generation overrides as a comma-separated string in the `model` field, for example: `"temperature=0.7,top_p=0.9,top_k=500"`
 
 ## STT Service (`stt_service.py`)
 
@@ -163,7 +169,7 @@ stt_tts/
 
 **Hardware Requirements**:
 
-- CUDA-capable GPU (strongly recommended for TTS performance)
+- Adequate CPU resources for local TTS inference
 - Audio input/output devices accessible to host system
 - Sufficient disk space for audio file storage
 

@@ -1,30 +1,8 @@
 """
-Text-to-Speech (TTS) FastAPI Service using ChatterboxTTS
-This module provides a FastAPI-based web service for converting text to speech using the ChatterboxTTS model.
-It supports synchronous playback, streaming of generated audio, and OpenAI-compatible endpoints for integration.
-The service loads TTS voice prompts from a configurable directory and allows customization of speech generation
-parameters such as temperature, exaggeration, and classifier-free guidance weight.
-Features:
-- Asynchronous model loading and initialization on application startup.
-- Sentence-level TTS generation and playback with configurable gaps.
-- StreamingResponse endpoints for serving generated WAV audio files.
-- OpenAI-compatible API endpoints for easy integration.
-- Dynamic listing of available voice prompts and model configurations.
-- Logging of generated audio files and associated text.
-Dependencies:
-- FastAPI, torchaudio, sounddevice, soundfile, nltk, threading, uvicorn, and ChatterboxTTS.
-Directory Structure:
-- Output audio files and logs are stored in directories relative to the parent of this script's location.
-- Voice prompts are expected as WAV files in the 'prompts' directory.
-Environment:
-- Designed to run on systems with CUDA-enabled devices for optimal TTS performance.
-Usage:
-- Run as a standalone FastAPI application or import as a module.
-- Endpoints:
-    - POST /tts/speak: Generate and stream TTS audio from input text.
-    - POST /v1/audio/speech: OpenAI-compatible TTS endpoint.
-    - GET /v1/audio/voices: List available voice prompts.
-    - GET /v1/audio/models: List available TTS model configurations.
+Text-to-Speech (TTS) FastAPI Service using Chatterbox Turbo on CPU.
+
+The service is English-only and uses WAV prompt files for voice conditioning.
+It exposes a local playback endpoint plus an OpenAI-compatible speech endpoint.
 """
 import os
 import time
@@ -39,7 +17,7 @@ import glob
 import nltk
 
 import torchaudio as ta
-from chatterbox.tts import ChatterboxTTS
+from chatterbox.tts_turbo import ChatterboxTurboTTS
 
 import sounddevice as sd
 import soundfile as si
@@ -52,11 +30,10 @@ from contextlib import asynccontextmanager
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
-    Asynchronous context manager for loading the ChatterboxTTS model during FastAPI application startup.
+    Asynchronous context manager for loading the Chatterbox Turbo model during startup.
 
-    This lifespan manager handles the global initialization of the TTS model, ensuring it is loaded 
-    into memory before the application begins serving requests. The model is loaded onto the CUDA device 
-    for improved performance.
+    The model is intentionally loaded on CPU so it does not compete with other
+    local inference workloads for VRAM.
 
     Args:
         app (FastAPI): The FastAPI application instance being initialized.
@@ -65,8 +42,8 @@ async def lifespan(app: FastAPI):
         None: Provides a context for model initialization before the application starts.
     """
     global model
-    print("[TTS] Loading ChatterboxTTS model...")
-    model = ChatterboxTTS.from_pretrained(device="cuda")
+    print("[TTS] Loading Chatterbox Turbo model on CPU...")
+    model = ChatterboxTurboTTS.from_pretrained(device="cpu")
     print("[TTS] Model loaded.")
     yield
 
@@ -80,6 +57,18 @@ OUTPUT_DIR = os.path.join(BASE_DIR, "output")
 PROMPT_DIR = os.path.join(BASE_DIR, "prompts")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 LOG_FILE = os.path.join(BASE_DIR, "tts.log")
+DEFAULT_VOICE = "hasan"
+DEFAULT_OPTIONS = {
+    "temperature": 0.8,
+    "exaggeration": 0.0,
+    "cfg_weight": 0.0,
+    "repetition_penalty": 1.2,
+    "min_p": 0.0,
+    "top_p": 0.95,
+    "top_k": 1000,
+    "norm_loudness": True,
+    "gap": 0.5,
+}
 
 # Ensure punkt and punkt_tab are downloaded for sentence tokenization
 try:
@@ -142,7 +131,18 @@ def text_to_speech(text: str, gap: float = 0.5):
             uid = str(uuid.uuid4())
             filename = f"{OUTPUT_DIR}/{uid}.wav"
 
-            wav = model.generate(sentence, audio_prompt_path=os.path.join(PROMPT_DIR, "tony_stark_2.wav"), temperature=1.1, exaggeration=0.7, cfg_weight=0.5)
+            wav = model.generate(
+                sentence,
+                audio_prompt_path=os.path.join(PROMPT_DIR, f"{DEFAULT_VOICE}.wav"),
+                temperature=DEFAULT_OPTIONS["temperature"],
+                exaggeration=DEFAULT_OPTIONS["exaggeration"],
+                cfg_weight=DEFAULT_OPTIONS["cfg_weight"],
+                repetition_penalty=DEFAULT_OPTIONS["repetition_penalty"],
+                min_p=DEFAULT_OPTIONS["min_p"],
+                top_p=DEFAULT_OPTIONS["top_p"],
+                top_k=DEFAULT_OPTIONS["top_k"],
+                norm_loudness=DEFAULT_OPTIONS["norm_loudness"],
+            )
 
             ta.save(filename, wav, model.sr)
 
@@ -163,30 +163,30 @@ def text_to_speech(text: str, gap: float = 0.5):
         time.sleep(gap)
 
 
-def text_to_speech_to_wav(text: str, voice: str = "tony_stark_2", options: dict = None) -> str:
+def text_to_speech_to_wav(text: str, voice: str = DEFAULT_VOICE, options: dict = None) -> str:
     """
     Convert text to a WAV audio file using a specified voice model.
     
     Args:
         text (str): The text to convert to speech.
-        voice (str, optional): The voice prompt to use. Defaults to "tony_stark_2".
+        voice (str, optional): The voice prompt to use. Defaults to the service voice.
         options (dict, optional): Generation options for the TTS model. Defaults to None.
             Supported options:
-            - temperature (float): Controls randomness of generation. Defaults to 1.1.
-            - exaggeration (float): Controls speech style. Defaults to 0.7.
-            - cfg_weight (float): Classifier-free guidance weight. Defaults to 0.5.
+            - temperature (float): Controls randomness of generation.
+            - repetition_penalty (float): Penalizes token repetition.
+            - min_p (float): Minimum token probability threshold.
+            - top_p (float): Nucleus sampling threshold.
+            - top_k (int): Maximum candidate tokens for sampling.
+            - exaggeration (float): Kept for Turbo API compatibility.
+            - cfg_weight (float): Kept for Turbo API compatibility.
+            - norm_loudness (bool): Normalize prompt loudness before conditioning.
             - gap (float): Not used in generation, but can be used for playback timing.
     
     Returns:
         str: Path to the generated WAV audio file.
     """
     if options is None:
-        options = {
-            "temperature": 1.1,
-            "exaggeration": 0.7,
-            "cfg_weight": 0.5,
-            "gap": 0.5
-        }
+        options = DEFAULT_OPTIONS.copy()
 
     audio_prompt_path = os.path.join(PROMPT_DIR, f"{voice}.wav")
     uid = str(uuid.uuid4())
@@ -195,9 +195,14 @@ def text_to_speech_to_wav(text: str, voice: str = "tony_stark_2", options: dict 
     wav = model.generate(
         text,
         audio_prompt_path=audio_prompt_path,
-        temperature=options.get("temperature", 1.1),
-        exaggeration=options.get("exaggeration", 0.7),
-        cfg_weight=options.get("cfg_weight", 0.5)
+        temperature=options.get("temperature", DEFAULT_OPTIONS["temperature"]),
+        exaggeration=options.get("exaggeration", DEFAULT_OPTIONS["exaggeration"]),
+        cfg_weight=options.get("cfg_weight", DEFAULT_OPTIONS["cfg_weight"]),
+        repetition_penalty=options.get("repetition_penalty", DEFAULT_OPTIONS["repetition_penalty"]),
+        min_p=options.get("min_p", DEFAULT_OPTIONS["min_p"]),
+        top_p=options.get("top_p", DEFAULT_OPTIONS["top_p"]),
+        top_k=options.get("top_k", DEFAULT_OPTIONS["top_k"]),
+        norm_loudness=options.get("norm_loudness", DEFAULT_OPTIONS["norm_loudness"]),
     )
 
     ta.save(filename, wav, model.sr)
@@ -228,7 +233,8 @@ async def tts_speak_endpoint(request: Request):
     print(data)
 
     text = data.get("text", "")
-    wav_path = text_to_speech_to_wav(text)
+    voice = data.get("voice", DEFAULT_VOICE)
+    wav_path = text_to_speech_to_wav(text, voice=voice)
 
     def iterfile_and_play():
         # Play audio while streaming it
@@ -263,7 +269,8 @@ async def openai_compatible_tts(request: Request):
         request (Request): HTTP request containing TTS parameters
             - input (str): Text to convert to speech
             - voice (str, optional): Voice prompt to use for generation
-            - model (str, optional): Model configuration with generation parameters
+            - model (str, optional): Optional model identifier. Legacy callers may
+              still pass comma-separated key=value generation overrides here.
 
     Returns:
         StreamingResponse: Audio file streamed as a WAV response with appropriate headers
@@ -277,19 +284,14 @@ async def openai_compatible_tts(request: Request):
     input_text = data.get("input", "")
     if not input_text:
         return {"error": "No input text provided"}
-    voice = data.get("voice", "tony_stark_2")
-    model = data.get("model", "temperature=1.1,exaggeration=0.7,cfg_weight=0.5,gap=0.5")
+    voice = data.get("voice", DEFAULT_VOICE)
+    model_name = data.get("model")
 
-    options = {
-        "temperature": 1.1,
-        "exaggeration": 0.7,
-        "cfg_weight": 0.5,
-        "gap": 0.5
-    }
+    options = DEFAULT_OPTIONS.copy()
 
-    if model:
+    if isinstance(model_name, str) and "=" in model_name:
         try:
-            options.update(dict(item.split('=') for item in model.split(',')))
+            options.update(dict(item.split('=') for item in model_name.split(',')))
         except Exception as e:
             return {"error": f"Invalid model options format: {e}"}
 
@@ -297,7 +299,15 @@ async def openai_compatible_tts(request: Request):
         options["temperature"] = float(options["temperature"])
         options["exaggeration"] = float(options["exaggeration"])
         options["cfg_weight"] = float(options["cfg_weight"])
+        options["repetition_penalty"] = float(options["repetition_penalty"])
+        options["min_p"] = float(options["min_p"])
+        options["top_p"] = float(options["top_p"])
+        options["top_k"] = int(options["top_k"])
         options["gap"] = float(options["gap"])
+        if isinstance(options["norm_loudness"], str):
+            options["norm_loudness"] = options["norm_loudness"].strip().lower() in {"1", "true", "yes", "on"}
+        else:
+            options["norm_loudness"] = bool(options["norm_loudness"])
     except ValueError as e:
         return {"error": f"Invalid numeric value in model options: {e}"}
 
@@ -331,18 +341,13 @@ def list_voices():
 @app.get("/v1/audio/models")
 def list_models():
     """
-    Get a list of predefined TTS model configurations.
+    Get the supported TTS model identifiers.
 
     Returns:
-        dict: A dictionary containing a list of model configurations with different 
-        temperature, exaggeration, cfg_weight, and gap parameters for text-to-speech generation.
+        dict: A dictionary containing the available model identifiers and the
+        active runtime device.
     """
-    models = [
-        "temperature=1.1,exaggeration=0.7,cfg_weight=0.5,gap=0.5",
-        "temperature=1.2,exaggeration=0.7,cfg_weight=0.5,gap=0.5",
-        "temperature=0.7,exaggeration=0.5,cfg_weight=0.5,gap=0.5",
-    ]
-    return {"models": models}
+    return {"models": ["chatterbox-turbo"], "default": "chatterbox-turbo", "device": "cpu"}
 
 
 if __name__ == "__main__":
